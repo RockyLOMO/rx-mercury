@@ -9,7 +9,7 @@ import okhttp3.HttpUrl;
 import org.rx.bean.FlagsEnum;
 import org.rx.crawler.Browser;
 import org.rx.crawler.RegionFlags;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.core.Arrays;
 import org.rx.core.NQuery;

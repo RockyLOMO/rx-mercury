@@ -10,7 +10,7 @@ import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
 import org.rx.bean.DateTime;
 import org.rx.crawler.*;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.core.Disposable;
 import org.rx.core.StringBuilder;

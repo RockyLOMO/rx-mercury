@@ -1,4 +1,4 @@
-package org.rx.crawler.common;
+package org.rx.crawler.config;
 
 import com.ctrip.framework.apollo.openapi.client.ApolloOpenApiClient;
 import com.ctrip.framework.apollo.openapi.dto.NamespaceReleaseDTO;

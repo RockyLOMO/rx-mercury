@@ -11,7 +11,7 @@ import org.redisson.api.RScoredSortedSet;
 import org.rx.bean.DateTime;
 import org.rx.bean.RandomList;
 import org.rx.crawler.RemoteBrowser;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.core.*;
 import org.rx.core.StringBuilder;
 import org.rx.crawler.dto.*;

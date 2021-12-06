@@ -1,4 +1,4 @@
-package org.rx.crawler.common;
+package org.rx.crawler.config;
 
 import com.alibaba.fastjson.TypeReference;
 import com.ctrip.framework.apollo.spring.annotation.ApolloJsonValue;

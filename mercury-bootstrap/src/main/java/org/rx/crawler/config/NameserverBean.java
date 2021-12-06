@@ -1,0 +1,66 @@
+package org.rx.crawler.config;
+
+import com.ctrip.framework.apollo.Config;
+import com.ctrip.framework.apollo.ConfigService;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.rx.core.Container;
+import org.rx.core.NQuery;
+import org.rx.exception.InvalidException;
+import org.rx.net.nameserver.NameserverClient;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
+import java.util.Objects;
+
+@Slf4j
+@RequiredArgsConstructor
+@Order(Ordered.HIGHEST_PRECEDENCE)
+public class NameserverBean {
+    @Component
+    static class ApolloLoader implements BeanPostProcessor {
+        static final String NAMESPACE = "1.middleware";
+        String appName;
+        String[] endpoints;
+
+        @Override
+        public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+            if (appName == null || endpoints == null) {
+                NQuery<Config> configs = NQuery.of(ConfigService.getAppConfig(), ConfigService.getConfig(NAMESPACE));
+                appName = configs.select(p -> p.getProperty("spring.application.name", null)).firstOrDefault(Objects::nonNull);
+                endpoints = configs.select(p -> p.getArrayProperty("app.nameserverEndpoints", ",", null)).firstOrDefault(Objects::nonNull);
+                if (appName != null && endpoints != null) {
+                    NameserverBean nsb = new NameserverBean(appName, endpoints);
+                    nsb.init();
+                    Container.register(NameserverBean.class, nsb);
+                }
+            }
+//            System.out.println(bean);
+            return bean;
+        }
+    }
+
+    final String appName;
+    final String[] endpoints;
+    NameserverClient client;
+
+    @SneakyThrows
+    @PostConstruct
+    public void init() {
+        if (appName == null) {
+            throw new InvalidException("appName is null");
+        }
+        if (endpoints == null) {
+            throw new InvalidException("nameserverEndpoints is null");
+        }
+        client = new NameserverClient(appName);
+        client.registerAsync(endpoints);
+        log.info("register {} -> {}", appName, endpoints);
+        client.wait4Inject(60 * 1000);
+    }
+}

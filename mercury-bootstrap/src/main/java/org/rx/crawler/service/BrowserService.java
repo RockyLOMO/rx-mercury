@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.crawler.BrowserAsyncTopic;
 import org.rx.crawler.BrowserType;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.core.Arrays;
 import org.rx.core.NQuery;
 import org.rx.crawler.util.ProcessUtil;

@@ -25,7 +25,7 @@ import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.util.ProcessUtil;
 import org.rx.exception.InvalidException;
 import org.rx.bean.Tuple;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.core.*;
 import org.rx.io.Files;

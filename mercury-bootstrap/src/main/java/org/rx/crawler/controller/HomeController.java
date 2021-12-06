@@ -3,7 +3,7 @@ package org.rx.crawler.controller;
 import com.google.common.net.HttpHeaders;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.core.Cache;
 import org.rx.core.Strings;
 import org.rx.net.http.HttpClient;

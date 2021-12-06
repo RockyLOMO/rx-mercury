@@ -3,7 +3,7 @@ package org.rx.crawler.service;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.rx.crawler.FiddlerWatcher;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.core.Strings;
 import org.rx.io.FileWatcher;
 import org.rx.io.Files;

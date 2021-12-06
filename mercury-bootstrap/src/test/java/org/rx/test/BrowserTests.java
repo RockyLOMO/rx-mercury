@@ -7,7 +7,7 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.ie.InternetExplorerDriver;
 import org.openqa.selenium.ie.InternetExplorerOptions;
 import org.rx.crawler.*;
-import org.rx.crawler.common.AppConfig;
+import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.core.Cache;

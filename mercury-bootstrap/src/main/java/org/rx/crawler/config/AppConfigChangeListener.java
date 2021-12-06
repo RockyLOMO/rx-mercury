@@ -1,4 +1,4 @@
-package org.rx.crawler.common;
+package org.rx.crawler.config;
 
 import com.ctrip.framework.apollo.model.ConfigChangeEvent;
 import com.ctrip.framework.apollo.spring.annotation.ApolloConfigChangeListener;
