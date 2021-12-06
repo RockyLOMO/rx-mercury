@@ -1,0 +1,40 @@
+server:
+  httpPort: 80
+  port: 443
+  tomcat:
+    threads:
+      min-spare: 5
+  ssl:
+    key-store-type: PKCS12
+    key-store: classpath:cert/4121741_f-li.cn.pfx
+    enabled: true
+    client-auth: none
+    ciphers: TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA256
+  max-http-header-size: 16KB
+apollo:
+  bootstrap:
+    enabled: true
+    namespaces: application,1.middleware
+app:
+  id: xiaofan-crawler
+  netTimeoutMillis: 40000
+  configureScriptExecutorType: org.rx.bot.service.impl.ApiConfigureScriptExecutor
+  chrome:
+    driver: /app-crawler/driver/chromedriver.exe
+    diskDataPath: /app-crawler/cache/chrome%s/data/
+    diskCachePath: /app-crawler/cache/chrome%s/cache/
+    diskCacheSize: 512
+    downloadPath: /app-crawler/temp/
+    isBackground: false
+  ie:
+    driver: /app-crawler/driver/IEDriverServer.exe
+  pool:
+    listenPort: 1210
+    maintenancePeriod: 10000
+    maxActiveMinutes: 4
+    dumpPeriod: 6000
+    asyncThreshold: 0.8
+  proxy:
+    produceProxyTimes:
+      - "6:00:00"
+#      - "21:00:00"

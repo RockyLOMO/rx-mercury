@@ -1,0 +1,45 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <title th:text="${title}"></title>
+</head>
+<body>
+<table align="center">
+    <tr>
+        <td colspan="2" align="center" th:text="'Hello, ' + ${name} + '!'"></td>
+    </tr>
+    <tr>
+        <td align="right">Url:</td>
+        <td th:text="${regionUrl}"></td>
+    </tr>
+    <tr>
+        <td align="right">Action:</td>
+        <td th:text="${action}"></td>
+    </tr>
+    <tr>
+        <td align="right">RequestCookie:</td>
+        <td>
+            <textarea readonly="readonly" th:text="${requestCookie}" style="width: 420px; height: 300px;"></textarea>
+        </td>
+    </tr>
+    <tr th:if="${rawCookie}">
+        <td align="right">RawCookie:</td>
+        <td>
+            <textarea readonly="readonly" th:text="${rawCookie}" style="width: 420px; height: 300px;"></textarea>
+            <input type="hidden" id="cookie" th:value="${rawCookie}"/>
+        </td>
+    </tr>
+</table>
+</body>
+<script>
+    $(function () {
+        try {
+            localStorage.clear();
+            sessionStorage.clear();
+        } catch (e) {
+        }
+    });
+    ${script}
+</script>
+</html>

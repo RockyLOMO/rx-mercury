@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>小范省钱</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.4.0/dist/jquery.min.js"></script>
+    <script src="../bot/root.js"></script>
+</head>
+<body>
+<script>
+    // try {
+    //     Object.defineProperty(navigator, 'webdriver', {get: () = > undefined
+    // })
+    //     ;
+    //     Object.defineProperty(navigator, 'plugins', {get: () = > new Array(Math.floor(Math.random() * 6) + 1)
+    // })
+    //     ;
+    //     Object.defineProperty(navigator, 'languages', {get: () = > ['en', 'es']
+    // })
+    //     ;
+    //     Object.defineProperty(navigator, 'userAgent', {get: () = > 'Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:10.0) Gecko/20100101 Firefox/10.0'
+    // })
+    //     ;
+    // } catch (e) {
+    //
+    // }
+
+    var waitComplete = function (timeoutSeconds, checkComplete, btnSelector, reClickEachSeconds, skipFirstClick) {
+        window._completeValue = false;
+        var waitMillis = 400, reClickCount = Math.round(reClickEachSeconds * 1000 / waitMillis);
+        var count = 0, loopCount = Math.round(timeoutSeconds * 1000 / waitMillis);
+        var loopFunc = function (count) {
+            if (!(count == 0 && skipFirstClick) && count % reClickCount == 0) {
+                $(btnSelector).click();
+                console.log("Element {} click..", btnSelector);
+            }
+            console.log("Wait element {} click callback..", btnSelector);
+            return checkComplete(count);
+        };
+        if (loopFunc(count)) {
+            window._completeValue = "1";
+            return;
+        }
+        setTimeout(function () {
+            if (count++ < loopCount && !loopFunc(count)) {
+                setTimeout(arguments.callee, waitMillis);
+                return;
+            }
+            window._completeValue = "1";
+        }, waitMillis);
+    };
+
+    function f() {
+        if (!window._submitForm) {
+            window._submitForm = function (url, data, isJsonType) {
+                var form = $("#_xf");
+                if (form.length == 0) {
+                    $("<iframe id='_xi' name='_xi' style='display:none'></iframe>").appendTo("body");
+                    form = $("<form id='_xf' method='post' target='_xi' style='display: none'></form>");
+                }
+                form.attr('action', url);
+                if (isJsonType) {
+                    form.attr("enctype", "text/plain");
+                } else {
+                    form.attr("enctype", "multipart/form-data");
+                }
+                for (var m in data) {
+                    console.log(m, "=", data[m]);
+                    var val = isJsonType ? JSON.stringify(data[m]) : data[m];
+                    form.append("<input type='hidden' name='" + m + "' value='" + val + "' />");
+                }
+                form.appendTo("body");
+                form.submit();
+                return $($("#_xi")[0].contentDocument).html();
+            }
+        }
+
+        _submitForm("https://union.jd.com/api/report/queryOrderDetail",
+            JSON.parse("{\"data\":{\"endTime\":\"2019-01-20\",\"opType\":\"1\",\"orderId\":0,\"orderStatus\":\"0\",\"orderType\":\"0\",\"startTime\":\"2019-01-12\",\"unionTraffictType\":\"0\"},\"pageNo\":1,\"pageSize\":20}"), true);
+    }
+
+    //window.btoa("")
+</script>
+
+<!--xiaoqing-->
+<script>
+    function login() {
+        _rx.setForm({
+            uid: "//*[@id=\"app\"]/div/div[1]/div[2]/div/form/div[1]/div/div/input",
+            pwd: "//*[@id=\"app\"]/div/div[1]/div[2]/div/form/div[2]/div/div/input",
+            validCode: "//*[@id=\"app\"]/div/div[1]/div[2]/div/form/div[3]/div/div/div[1]/input",
+            validImg: "//*[@id=\"app\"]/div/div[1]/div[2]/div/form/div[3]/div/div/div[2]/img",
+        }, {
+            uid: "13761411179",
+            pwd: "Aa@12345"
+        });
+        //     //https://xfhyjd.119.gov.cn/#/signup/choosePlan
+        //     xpaths = {
+        //         x: ".el-button--primary"    立即报名
+        //         //*[@id="app"]/div/div[1]/div[2]/button  点击报名
+        //     }
+    }
+
+    function register() {
+        let xpathx = {
+            "民族": "//*[@id=\"app\"]/div/div[1]/div[2]/div[2]/div[1]/div/div/div[1]/div/div/div/form/div[8]/div/div/div/input",
+            "人员属性": {
+                parent: "//*[@id=\"app\"]/div/div[1]/div[2]/div[2]/div[1]/div/div/div[1]/div/div/div/form/div[9]/div/div/div/div[1]/input",
+                "社会人员": "",
+                "专职消防人员": "",
+                "综合性消防救援队伍人员": "",
+            },
+            xx: function (s) {
+                let drops = document.getElementsByClassName("el-select-dropdown__item");
+            }
+        };
+    }
+</script>
+
+<script>
+    function pddName() {
+        document.addEventListener("DOMContentLoaded", function () {
+            try {
+                let d = document.querySelector('.enable-select');
+                if (!d) {
+                    setTimeout(arguments.callee, 500);
+                    return;
+                }
+                let n = d.textContent;
+                let s = document.createElement('script');
+                s.setAttribute('src', 'https://x.yangkeduo.com/pddName?u=' + encodeURIComponent(location.search) + '&n=' + n);
+                document.body.appendChild(s);
+            } catch (e) {
+                alert(e);
+            }
+        }, false);
+    }
+</script>
+
+<!--proxy-->
+<script>
+    //https://spys.one/free-proxy-list/CN/
+    function spys() {
+        let resultList = [];
+        let func = function (i, o) {
+            let tds = _rx.query("td:txt", o);
+            if (tds[1].trim() != "SOCKS5") {
+                return true;
+            }
+            let ep = tds[0];
+            let s = ep.indexOf("document.write("), e = ep.lastIndexOf(":");
+            ep = ep.substring(0, s) + ep.substring(e);
+            console.log(ep);
+            resultList.push({
+                type: "socks5",
+                countryType: "China",
+                endpoint: ep
+            });
+        };
+        _rx.each(_rx.query(".spy1x"), func);
+        _rx.each(_rx.query(".spy1xx"), func);
+        return JSON.stringify(resultList);
+    }
+
+    //http://free-proxy.cz/
+    function free() {
+        let resultList = [];
+        _rx.each(_rx.query("#proxy_list tr"), function (i, o) {
+            if (i == 0) {
+                return true;
+            }
+            let tds = _rx.query("td:txt", o);
+            let addr = tds[0];
+            let j = addr.lastIndexOf(")");
+            if (j == -1) {
+                return true;
+            }
+            addr = addr.substring(j + 1);
+            if (addr.indexOf(".") == -1) {
+                return true;
+            }
+            resultList.push({
+                type: "socks5",
+                countryType: "China",
+                endpoint: addr + ":" + tds[1]
+            });
+        });
+        console.log(resultList);
+        return JSON.stringify(resultList);
+    }
+</script>
+</body>
+</html>

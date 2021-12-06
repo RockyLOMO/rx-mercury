@@ -1,0 +1,20 @@
+# ignore output folders
+.idea/
+out/
+target/
+
+# ignore files
+*.iml
+*/*.iml
+config.json
+bootstrapPath_IS_UNDEFINED
+cwebp_tmp/cwebp.exe
+cwebp_tmp/dwebp.exe
+cwebp_tmp/gif2webp.exe
+xiaofan-bootstrap/cwebp_tmp/cwebp.exe
+xiaofan-bootstrap/cwebp_tmp/dwebp.exe
+xiaofan-bootstrap/cwebp_tmp/gif2webp.exe
+.DS_Store
+rx-bot/*/log*
+rx-bot/__pycache__/util.cpython-37.pyc
+*.log
