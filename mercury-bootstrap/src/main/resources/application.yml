@@ -18,7 +18,7 @@ apollo:
 app:
   id: svc-mercury
   netTimeoutMillis: 40000
-  configureScriptExecutorType: org.rx.bot.service.impl.ApiConfigureScriptExecutor
+  configureScriptExecutorType: org.rx.crawler.service.impl.ApiConfigureScriptExecutor
   chrome:
     driver: /app-crawler/driver/chromedriver.exe
     diskDataPath: /app-crawler/cache/chrome%s/data/
