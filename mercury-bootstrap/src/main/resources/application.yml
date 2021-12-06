@@ -16,7 +16,7 @@ apollo:
     enabled: true
     namespaces: application,1.middleware
 app:
-  id: xiaofan-crawler
+  id: svc-mercury
   netTimeoutMillis: 40000
   configureScriptExecutorType: org.rx.bot.service.impl.ApiConfigureScriptExecutor
   chrome:
