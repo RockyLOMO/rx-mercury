@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="false" debug="false">
-    <springProperty name="app_name" source="spring.application.name"/>
     <property name="log.dir" value="/app-crawler"/>
     <property name="days" value="2"/>
 
@@ -13,12 +12,12 @@
         </filter>
     </appender>
     <appender name="infoAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.dir}/logs/${app_name}_info.log</file>
+        <file>${log.dir}/logs/info.log</file>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>DEBUG</level>
         </filter>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${log.dir}/logs/${app_name}_info.%d{yyyyMMdd}_%i.log</fileNamePattern>
+            <fileNamePattern>${log.dir}/logs/info.%d{yyyyMMdd}_%i.log</fileNamePattern>
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
                 <maxFileSize>500MB</maxFileSize>
             </timeBasedFileNamingAndTriggeringPolicy>
@@ -29,12 +28,12 @@
         </encoder>
     </appender>
     <appender name="errorAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.dir}/logs/${HOSTNAME}_error.log</file>
+        <file>${log.dir}/logs/error.log</file>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>WARN</level>
         </filter>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${log.dir}/logs/${HOSTNAME}_error.%d{yyyyMMdd}_%i.log</fileNamePattern>
+            <fileNamePattern>${log.dir}/logs/error.%d{yyyyMMdd}_%i.log</fileNamePattern>
             <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
                 <maxFileSize>500MB</maxFileSize>
             </timeBasedFileNamingAndTriggeringPolicy>
@@ -46,7 +45,7 @@
     </appender>
 
     <root level="INFO">
-        <!--        <appender-ref ref="STDOUT"/>-->
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="infoAppender"/>
         <appender-ref ref="errorAppender"/>
     </root>
