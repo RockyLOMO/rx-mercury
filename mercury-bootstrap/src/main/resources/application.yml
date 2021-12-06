@@ -11,6 +11,9 @@ server:
     client-auth: none
     ciphers: TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA256
   max-http-header-size: 16KB
+spring:
+  application:
+    name: svc-mercury
 apollo:
   bootstrap:
     enabled: true
