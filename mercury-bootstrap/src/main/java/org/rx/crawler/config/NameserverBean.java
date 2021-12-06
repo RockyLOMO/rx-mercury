@@ -10,6 +10,7 @@ import org.rx.core.NQuery;
 import org.rx.exception.InvalidException;
 import org.rx.net.nameserver.NameserverClient;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -20,21 +21,21 @@ import java.util.Objects;
 
 @Slf4j
 @RequiredArgsConstructor
-@Order(Ordered.HIGHEST_PRECEDENCE)
 public class NameserverBean {
     @Component
+    @Order(Ordered.HIGHEST_PRECEDENCE)
     static class ApolloLoader implements BeanPostProcessor {
         static final String NAMESPACE = "1.middleware";
+        @Value("${spring.application.name}")
         String appName;
         String[] endpoints;
 
         @Override
         public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
-            if (appName == null || endpoints == null) {
+            if (endpoints == null) {
                 NQuery<Config> configs = NQuery.of(ConfigService.getAppConfig(), ConfigService.getConfig(NAMESPACE));
-                appName = configs.select(p -> p.getProperty("spring.application.name", null)).firstOrDefault(Objects::nonNull);
                 endpoints = configs.select(p -> p.getArrayProperty("app.nameserverEndpoints", ",", null)).firstOrDefault(Objects::nonNull);
-                if (appName != null && endpoints != null) {
+                if (endpoints != null) {
                     NameserverBean nsb = new NameserverBean(appName, endpoints);
                     nsb.init();
                     Container.register(NameserverBean.class, nsb);
