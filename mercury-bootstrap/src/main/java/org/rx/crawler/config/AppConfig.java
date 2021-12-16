@@ -82,7 +82,7 @@ public class AppConfig {
         }
     }
 
-    public static final String PDD_GOODS_MAP_FORMAT = "RubbishPdd:%s:";
+    public static final String CACHE_PDD_GOODS_MAP = "RubbishPdd";
 
     private ProxyConfig proxy;
     private PoolConfig pool;

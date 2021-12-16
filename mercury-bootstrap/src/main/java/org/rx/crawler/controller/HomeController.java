@@ -36,7 +36,7 @@ public class HomeController {
             log.warn("pddName fail, u={} n={}", u, n);
             return false;
         }
-        String ck = cacheKey(String.format(AppConfig.PDD_GOODS_MAP_FORMAT, goodsId));
+        String ck = cacheKey(AppConfig.CACHE_PDD_GOODS_MAP, goodsId);
         log.info("pddName {} ok, u={} n={}", ck, u, n);
         cache.put(ck, n);
         return true;
