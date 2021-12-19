@@ -46,7 +46,7 @@
     </appender>
 
     <root level="INFO">
-        <appender-ref ref="STDOUT"/>
+<!--        <appender-ref ref="STDOUT"/>-->
         <appender-ref ref="infoAppender"/>
         <appender-ref ref="errorAppender"/>
     </root>
