@@ -11,7 +11,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.4.13</version>
+        <version>2.5.9</version>
     </parent>
     <modules>
         <module>mercury-bootstrap</module>
@@ -27,15 +27,10 @@
         <rxlib.version>2.17.10-SNAPSHOT</rxlib.version>
         <rxlib.delta.version>1.0.1-SNAPSHOT</rxlib.delta.version>
         <okhttp.version>4.9.3</okhttp.version>
-        <ansj_seg.version>5.1.6</ansj_seg.version>
-        <nlp-lang.version>1.7.8</nlp-lang.version>
         <swagger.ver>2.9.2</swagger.ver>
-        <thumbnailator.version>0.4.11</thumbnailator.version>
-        <webp-io.version>0.0.5</webp-io.version>
         <selenium.version>3.141.59</selenium.version>
         <jsoup.version>1.13.1</jsoup.version>
         <apollo-client.version>1.8.0</apollo-client.version>
-        <xjob.version>2.2.0</xjob.version>
     </properties>
 
     <dependencies>
@@ -90,6 +85,11 @@
             <artifactId>rxlib</artifactId>
             <version>${rxlib.version}</version>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.h2database</groupId>-->
+<!--            <artifactId>h2</artifactId>-->
+<!--            <version>${h2.version}</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>com.github.rockylomo</groupId>
             <artifactId>rxlib-delta</artifactId>

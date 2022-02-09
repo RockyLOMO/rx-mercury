@@ -80,7 +80,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
             int i = 1;
             for (Map.Entry<Browser, RpcServer> entry : cache.entrySet()) {
                 Browser browser = entry.getKey();
-                sb.append("\tBrowser[%s]: ClientSize=%s", browser.getId(), entry.getValue().getClients().size());
+                sb.append("\tBrowser[%s]: ClientSize=%s", (Object) browser.getId(), entry.getValue().getClients().size());
                 if (i++ % 3 == 0) {
                     sb.appendLine();
                 }

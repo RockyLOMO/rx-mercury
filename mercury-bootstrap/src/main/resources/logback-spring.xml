@@ -28,26 +28,9 @@
             <pattern>%d %-5p [%t] %c - %m%n</pattern>
         </encoder>
     </appender>
-    <appender name="errorAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.dir}/${appName}_error.log</file>
-        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>WARN</level>
-        </filter>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${log.dir}/${appName}_error.%d{yyyyMMdd}_%i.log</fileNamePattern>
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>500MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-            <maxHistory>${days}</maxHistory>
-        </rollingPolicy>
-        <encoder charset="UTF-8">
-            <pattern>%d %-5p [%t] %c - %m%n</pattern>
-        </encoder>
-    </appender>
 
     <root level="INFO">
-<!--        <appender-ref ref="STDOUT"/>-->
+        <!--        <appender-ref ref="STDOUT"/>-->
         <appender-ref ref="infoAppender"/>
-        <appender-ref ref="errorAppender"/>
     </root>
 </configuration>
