@@ -25,6 +25,7 @@
         <java.version>11</java.version>
         <lombok.version>1.18.22</lombok.version>
         <rxlib.version>2.17.10-SNAPSHOT</rxlib.version>
+        <h2.version>2.1.210</h2.version>
         <rxlib.delta.version>1.0.1-SNAPSHOT</rxlib.delta.version>
         <okhttp.version>4.9.3</okhttp.version>
         <swagger.ver>2.9.2</swagger.ver>
@@ -85,11 +86,11 @@
             <artifactId>rxlib</artifactId>
             <version>${rxlib.version}</version>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>com.h2database</groupId>-->
-<!--            <artifactId>h2</artifactId>-->
-<!--            <version>${h2.version}</version>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>${h2.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.github.rockylomo</groupId>
             <artifactId>rxlib-delta</artifactId>
