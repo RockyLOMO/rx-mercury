@@ -32,9 +32,15 @@
         <selenium.version>3.141.59</selenium.version>
         <jsoup.version>1.13.1</jsoup.version>
         <apollo-client.version>1.8.0</apollo-client.version>
+        <spring.cloud.version>3.0.4</spring.cloud.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-context</artifactId>
+            <version>${spring.cloud.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
