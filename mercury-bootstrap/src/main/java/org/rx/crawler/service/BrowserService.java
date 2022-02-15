@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 
-import static org.rx.core.App.quietly;
+import static org.rx.core.Extends.quietly;
 
 @Slf4j
 @Service

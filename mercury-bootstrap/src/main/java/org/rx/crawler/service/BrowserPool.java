@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 import static org.rx.core.App.*;
+import static org.rx.core.Extends.quietly;
+import static org.rx.core.Extends.tryClose;
 
 @Slf4j
 public final class BrowserPool extends Disposable implements BrowserPoolListener {

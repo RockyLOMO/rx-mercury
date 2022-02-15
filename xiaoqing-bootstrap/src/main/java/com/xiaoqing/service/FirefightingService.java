@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.rx.core.App.eq;
+import static org.rx.core.Extends.eq;
 
 @Service
 public class FirefightingService {

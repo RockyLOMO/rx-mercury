@@ -42,7 +42,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.rx.core.App.*;
-import static org.rx.core.App.isNull;
+import static org.rx.core.Extends.*;
 
 /**
  * 不缓存DriverService，奔溃后自恢复
@@ -349,7 +349,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
 
     @Override
     public String elementText(String selector) {
-        return isNull(elementsText(selector).firstOrDefault(), "");
+        return ifNull(elementsText(selector).firstOrDefault(), "");
     }
 
     @Override
@@ -361,7 +361,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
 
     @Override
     public String elementVal(String selector) {
-        return isNull(elementsVal(selector).firstOrDefault(), "");
+        return ifNull(elementsVal(selector).firstOrDefault(), "");
     }
 
     @Override
@@ -371,7 +371,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
 
     @Override
     public String elementAttr(String selector, String... attrArgs) {
-        return isNull(elementsAttr(selector, attrArgs).firstOrDefault(), "");
+        return ifNull(elementsAttr(selector, attrArgs).firstOrDefault(), "");
     }
 
     @Override

@@ -19,6 +19,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.Map;
 
 import static org.rx.core.App.*;
+import static org.rx.core.Extends.ifNull;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -49,17 +50,17 @@ public class HomeController {
         model.addAttribute("name", "王湵范");
 
 //        String reqUrl = request.getRequestURL().toString();
-        String reqRawCookie = isNull(request.getHeader(HttpHeaders.COOKIE), Strings.EMPTY);
+        String reqRawCookie = ifNull(request.getHeader(HttpHeaders.COOKIE), Strings.EMPTY);
         if (Strings.isEmpty(reqRawCookie)) {
             log.info("{} doesn't have any cookies..", regionUrl);
         }
         String k = cacheKey(regionUrl);
         model.addAttribute("regionUrl", regionUrl);
         model.addAttribute("action", action);
-        Cache<String, String> cache = Cache.getInstance(Cache.MAIN_CACHE);
+        Cache<String, String> cache = Cache.getInstance(Cache.class);
         if (isWriteBack) {
             model.addAttribute("requestCookie", cache.get(k));
-            model.addAttribute("rawCookie", isNull(config.getCookieContainer().get(regionUrl), Strings.EMPTY));
+            model.addAttribute("rawCookie", ifNull(config.getCookieContainer().get(regionUrl), Strings.EMPTY));
         } else {
             model.addAttribute("requestCookie", reqRawCookie);
             cache.put(k, reqRawCookie);

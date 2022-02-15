@@ -13,7 +13,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.rx.core.App.isNull;
+import static org.rx.core.Extends.ifNull;
 
 public interface CookieContainer {
     String Selector = "#cookie", Region = "_Region";
@@ -37,7 +37,7 @@ public interface CookieContainer {
 
     static String getCookieDomain(@NonNull String url) {
         HttpUrl httpUrl = HttpUrl.get(url);
-        return isNull(httpUrl.topPrivateDomain(), httpUrl.host());
+        return ifNull(httpUrl.topPrivateDomain(), httpUrl.host());
     }
 
     String handleWriteRequest(HttpServletRequest request, HttpServletResponse response);

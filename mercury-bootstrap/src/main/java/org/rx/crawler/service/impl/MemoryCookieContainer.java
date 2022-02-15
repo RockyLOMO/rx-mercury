@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.rx.core.App.*;
+import static org.rx.core.Extends.*;
 
 @Slf4j
 public class MemoryCookieContainer implements CookieContainer {
@@ -43,7 +44,7 @@ public class MemoryCookieContainer implements CookieContainer {
 //        response.addHeader("P3P", "CP='CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR'");
         String rawCookie;
         HttpUrl reqHttpUrl = HttpUrl.get(regionUrl);
-        List<javax.servlet.http.Cookie> servletCookies = Arrays.toList(isNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
+        List<javax.servlet.http.Cookie> servletCookies = Arrays.toList(ifNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
         switch (action) {
             case "loadTo":
                 rawCookie = get(regionUrl);
