@@ -20,7 +20,8 @@ apollo:
     namespaces: application,1.middleware
 app:
   id: svc-mercury
-  netTimeoutMillis: 40000
+  net:
+    connectTimeoutMillis: 40000
   chrome:
     driver: /app-crawler/driver/chromedriver.exe
     diskDataPath: /app-crawler/cache/chrome%s/data/
