@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
 import org.openqa.selenium.ie.InternetExplorerDriver;
 import org.openqa.selenium.ie.InternetExplorerOptions;
-import org.rx.core.YamlConfig;
+import org.rx.core.YamlConfiguration;
 import org.rx.crawler.*;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
@@ -125,8 +125,8 @@ public class BrowserTests {
     @SneakyThrows
     @Test
     public void webLogin() {
-        System.setProperty("webdriver.chrome.driver", YamlConfig.RX_CONF.readAs("app.chrome.driver", String.class));
-        System.setProperty("webdriver.ie.driver", YamlConfig.RX_CONF.readAs("app.ie.driver", String.class));
+        System.setProperty("webdriver.chrome.driver", YamlConfiguration.RX_CONF.readAs("app.chrome.driver", String.class));
+        System.setProperty("webdriver.ie.driver", YamlConfiguration.RX_CONF.readAs("app.ie.driver", String.class));
         String url = "https://login.taobao.com/member/login.jhtml?style=mini&newMini2=true&from=alimama&redirectURL=http:%2F%2Flogin.taobao.com%2Fmember%2Ftaobaoke%2Flogin.htm%3Fis_login%3d1&full_redirect=true&disableQuickLogin=false";
         InternetExplorerOptions opt = new InternetExplorerOptions();
         opt.withInitialBrowserUrl("about:blank");
