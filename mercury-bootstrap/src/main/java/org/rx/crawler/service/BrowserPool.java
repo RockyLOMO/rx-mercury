@@ -19,16 +19,13 @@ import org.rx.core.Tasks;
 import org.rx.exception.ExceptionHandler;
 import org.rx.net.Sockets;
 import org.rx.net.rpc.Remoting;
+import org.rx.net.rpc.RpcClientMeta;
 import org.rx.net.rpc.RpcServer;
-import org.rx.net.rpc.RpcServerClient;
 import org.rx.net.rpc.RpcServerConfig;
 
 import java.net.Inet4Address;
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.*;
 
 import static org.rx.core.App.*;
 import static org.rx.core.Extends.quietly;
@@ -48,7 +45,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                         continue;
                     }
 
-                    List<RpcServerClient> clients = server.getClients();
+                    Collection<RpcClientMeta> clients = server.getClients().values();
                     if (clients.size() == 0) {
                         try {
                             pool.returnObject(browser.getType(), browser);
@@ -67,7 +64,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                         }
                         continue;
                     }
-                    for (RpcServerClient client : clients) {
+                    for (RpcClientMeta client : clients) {
                         if (DateTime.now().subtract(client.getConnectedTime()).getTotalMinutes() <= config.getPool().getMaxActiveMinutes()) {
                             continue;
                         }

@@ -28,7 +28,6 @@
         <h2.version>2.1.210</h2.version>
         <rxlib.delta.version>1.0.1-SNAPSHOT</rxlib.delta.version>
         <okhttp.version>4.9.3</okhttp.version>
-        <swagger.ver>2.9.2</swagger.ver>
         <selenium.version>3.141.59</selenium.version>
         <jsoup.version>1.13.1</jsoup.version>
         <apollo-client.version>1.8.0</apollo-client.version>
