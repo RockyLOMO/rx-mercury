@@ -27,7 +27,6 @@ import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.util.*;
 
-import static org.rx.core.App.*;
 import static org.rx.core.Extends.quietly;
 import static org.rx.core.Extends.tryClose;
 

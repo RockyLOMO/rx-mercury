@@ -17,7 +17,7 @@ spring:
 apollo:
   bootstrap:
     enabled: true
-    namespaces: application,1.middleware
+    namespaces: application,middleware
 app:
   id: svc-mercury
   net:

@@ -31,7 +31,7 @@ public class BrowserService {
 
         System.setProperty("webdriver.chrome.driver", config.getChrome().getDriver());
         System.setProperty("webdriver.ie.driver", config.getIe().getDriver());
-        quietly(() -> Remoting.listen(pool = new BrowserPool(config, asyncTopic), config.getPool().getListenPort()));
+        quietly(() -> Remoting.listen(pool = new BrowserPool(config, asyncTopic), config.getPool().getListenPort(), false));
     }
 
     private void purgeProcesses() {
