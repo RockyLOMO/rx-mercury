@@ -51,7 +51,7 @@ import static org.rx.core.Extends.*;
 public final class WebBrowser extends Disposable implements Browser, EventTarget<WebBrowser> {
     private static final String resourceJsPath = "/bot/root.js";
     private static final Lazy<ChromeDriverService> chromeServiceLazy = new Lazy<>(() -> new ChromeDriverService.Builder().withSilent(true).withVerbose(false).build());
-    private static final AtomicInteger chromeIdCounter = new AtomicInteger();
+//    private static final AtomicInteger chromeIdCounter = new AtomicInteger();
     private static final ConcurrentHashMap<RemoteWebDriver, Tuple<DateTime, NQuery<Long>>> iePidMap = new ConcurrentHashMap<>();
 
     private static void killIe(RemoteWebDriver driver) {
@@ -179,10 +179,10 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
                         "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
                         "no-sandbox", "autoplay-policy=Document user activation is required");
 
-                if (!Strings.isEmpty(chromeConfig.getDiskDataPath())) {
-                    int id = chromeIdCounter.getAndIncrement();
-                    opt.addArguments("user-data-dir=" + String.format(chromeConfig.getDiskDataPath(), id), "restore-last-session");
-                }
+//                if (!Strings.isEmpty(chromeConfig.getDiskDataPath())) {
+//                    int id = chromeIdCounter.getAndIncrement();
+//                    opt.addArguments("user-data-dir=" + String.format(chromeConfig.getDiskDataPath(), id), "restore-last-session");
+//                }
                 //disk-cache-dir,disk-cache-size
                 driver = new ChromeDriver((ChromeDriverService) driverService, opt);
                 break;

@@ -39,7 +39,7 @@ public class AppConfig {
     public static class ChromeConfig {
         private String driver;
         private int poolSize;
-        private String diskDataPath;
+//        private String diskDataPath;
         private String downloadPath;
         private boolean isBackground;
     }
