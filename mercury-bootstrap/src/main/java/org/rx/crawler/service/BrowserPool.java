@@ -88,7 +88,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         }
 
         @Override
-        public Browser create(BrowserType type) throws Exception {
+        public Browser create(BrowserType type) {
             WebBrowser browser = new WebBrowser(config, type);
             while (true) {
                 try {
@@ -117,13 +117,13 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         }
 
         @Override
-        public void destroyObject(BrowserType key, PooledObject<Browser> p) throws Exception {
+        public void destroyObject(BrowserType key, PooledObject<Browser> p) {
             tryClose(cache.get(p.getObject()));
             tryClose(p.getObject());
         }
 
         @Override
-        public void passivateObject(BrowserType key, PooledObject<Browser> p) throws Exception {
+        public void passivateObject(BrowserType key, PooledObject<Browser> p) {
             WebBrowser browser = (WebBrowser) p.getObject();
             browser.onNavigated.purge();
             browser.onNavigating.purge();
@@ -132,7 +132,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     browser.clearCookies(true);
                     browser.setCookieRegion(null);
                 }
-                if (config.isWindowAutoBlank() && browser.getErrorCount() == 0) {
+                if (config.isWindowAutoBlank()) {
                     browser.navigateBlank();
                 }
             });
@@ -153,7 +153,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         poolConfig.setFairness(false);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setJmxEnabled(false);
-        poolConfig.setMaxWaitMillis(config.getPool().getTakeTimeoutSeconds() * 1000);
+        poolConfig.setMaxWaitMillis(config.getPool().getTakeTimeoutSeconds() * 1000L);
         poolConfig.setMaxIdlePerKey(poolSize);
         poolConfig.setMaxTotalPerKey(poolSize);
         pool = new GenericKeyedObjectPool<>(new ObjectFactory(), poolConfig);

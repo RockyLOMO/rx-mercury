@@ -25,8 +25,6 @@ app:
   chrome:
     driver: /app-crawler/driver/chromedriver.exe
     diskDataPath: /app-crawler/cache/chrome%s/data/
-    diskCachePath: /app-crawler/cache/chrome%s/cache/
-    diskCacheSize: 512
     downloadPath: /app-crawler/temp/
     isBackground: false
   ie:
