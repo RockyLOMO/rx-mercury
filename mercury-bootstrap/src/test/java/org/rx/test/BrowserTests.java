@@ -44,7 +44,7 @@ public class BrowserTests {
     public void poolListener() {
         Remoting.listen(new BrowserPool(appConfig, asyncTopic), 1210, false);
 
-        Tasks.schedule(() -> {
+        Tasks.schedulePeriod(() -> {
             BrowserPoolListener listener = Remoting.create(BrowserPoolListener.class, RpcClientConfig.statefulMode("127.0.0.1:1210", 0));
             System.out.println(listener.nextIdleId(BrowserType.IE));
             tryClose(listener);

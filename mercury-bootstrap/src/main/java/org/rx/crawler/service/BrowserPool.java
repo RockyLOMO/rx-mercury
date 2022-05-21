@@ -36,7 +36,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         private final Map<Browser, RpcServer> cache = Collections.synchronizedMap(new WeakHashMap<>());
 
         public ObjectFactory() {
-            Tasks.schedule(() -> {
+            Tasks.schedulePeriod(() -> {
                 for (Map.Entry<Browser, RpcServer> entry : cache.entrySet()) {
                     Browser browser = entry.getKey();
                     RpcServer server = entry.getValue();
@@ -159,7 +159,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         pool = new GenericKeyedObjectPool<>(new ObjectFactory(), poolConfig);
         fillPoolSize();
 
-        Tasks.schedule(() -> {
+        Tasks.schedulePeriod(() -> {
             ObjectFactory factory = (ObjectFactory) pool.getFactory();
             log.info("\n\tChromePool: Idle={} Active={}\tIEPool: Idle={} Active={}" +
                             "\n{}\n",
@@ -168,7 +168,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     factory.dump());
         }, config.getPool().getDumpPeriod());
 
-        Tasks.schedule(() -> {
+        Tasks.schedulePeriod(() -> {
             if ((float) activeCount / config.getChrome().getPoolSize() > config.getPool().getAsyncThreshold()) {
                 log.warn("Pool is busy, retry next time..");
                 return;
