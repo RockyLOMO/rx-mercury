@@ -156,7 +156,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
                 driverService = chromeServiceLazy.getValue();
 
                 AppConfig.ChromeConfig chromeConfig = config.getChrome();
-                ChromeOptions opt = fill(new ChromeOptions())
+                ChromeOptions opt = (ChromeOptions) fill(new ChromeOptions())
                         .setHeadless(chromeConfig.isBackground())
                         .setAcceptInsecureCerts(true)
                         .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
