@@ -87,6 +87,11 @@
             <version>${okhttp.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
+        </dependency>
+        <dependency>
             <groupId>com.github.rockylomo</groupId>
             <artifactId>rxlib</artifactId>
             <version>${rxlib.version}</version>
