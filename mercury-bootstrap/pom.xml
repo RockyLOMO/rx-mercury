@@ -17,10 +17,6 @@
             <version>${selenium.version}</version>
             <exclusions>
                 <exclusion>
-                    <artifactId>guava</artifactId>
-                    <groupId>com.google.guava</groupId>
-                </exclusion>
-                <exclusion>
                     <artifactId>okio</artifactId>
                     <groupId>com.squareup.okio</groupId>
                 </exclusion>
@@ -41,10 +37,6 @@
             <version>${selenium.version}</version>
             <exclusions>
                 <exclusion>
-                    <artifactId>guava</artifactId>
-                    <groupId>com.google.guava</groupId>
-                </exclusion>
-                <exclusion>
                     <artifactId>okio</artifactId>
                     <groupId>com.squareup.okio</groupId>
                 </exclusion>
@@ -59,10 +51,6 @@
             <artifactId>selenium-chrome-driver</artifactId>
             <version>${selenium.version}</version>
             <exclusions>
-                <exclusion>
-                    <artifactId>guava</artifactId>
-                    <groupId>com.google.guava</groupId>
-                </exclusion>
                 <exclusion>
                     <artifactId>okio</artifactId>
                     <groupId>com.squareup.okio</groupId>
@@ -79,10 +67,6 @@
             <version>${selenium.version}</version>
             <exclusions>
                 <exclusion>
-                    <artifactId>guava</artifactId>
-                    <groupId>com.google.guava</groupId>
-                </exclusion>
-                <exclusion>
                     <artifactId>okio</artifactId>
                     <groupId>com.squareup.okio</groupId>
                 </exclusion>
@@ -97,10 +81,6 @@
             <artifactId>selenium-support</artifactId>
             <version>${selenium.version}</version>
             <exclusions>
-                <exclusion>
-                    <artifactId>guava</artifactId>
-                    <groupId>com.google.guava</groupId>
-                </exclusion>
                 <exclusion>
                     <artifactId>okio</artifactId>
                     <groupId>com.squareup.okio</groupId>
