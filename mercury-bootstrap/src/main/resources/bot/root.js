@@ -1,13 +1,30 @@
 window._rx = {
-    query: function (selector, elm) {
-        return selector.startsWith("/") ? _rx._xpath(selector, elm) : _rx._cssSelector(selector, elm);
-    },
-    each: function (array, func) {
-        for (var i = 0; i < array.length; i++) {
-            if (func(i, array[i]) === false) {
+    each: function (array, fn) {
+        for (let i = 0; i < array.length; i++) {
+            if (fn(i, array[i]) === false) {
                 break;
             }
         }
+    },
+    getId: function (name, href) {
+        name = name || "id";
+        href = href || location.href;
+        var match = href.match(new RegExp("[?&]" + name + "=([^&]+)(&|$)"));
+        return match && decodeURIComponent(match[1].replace(/\+/g, " "));
+    },
+    getIdFromPath: function (href) {
+        href = href || location.pathname;
+        var s = href.lastIndexOf("/"), e = href.lastIndexOf(".");
+        return href.substring(s + 1, e);
+    },
+    parseQueryString: function (query) {
+        var data = {};
+        var arr = query.split('&');
+        for (var i = 0; i < arr.length; i++) {
+            var pair = arr[i].split("=");
+            data[pair[0]] = pair[1];
+        }
+        return data;
     },
     convertSales: function (sSales) {
         sSales = sSales.replace("+", "");
@@ -26,109 +43,29 @@ window._rx = {
         }
         return parseFloat(sMoney);
     },
-    getId: function (name, href) {
-        name = name || "id";
-        href = href || location.href;
-        var match = href.match(new RegExp("[?&]" + name + "=([^&]+)(&|$)"));
-        return match && decodeURIComponent(match[1].replace(/\+/g, " "));
+    idSelector: function (selector) {
+        var element = document.querySelector(selector);
+        if (!element) {
+            return selector;
+        }
+        if (!element.id) {
+            element.id = "r" + Date.now().valueOf();
+        }
+        return "#" + element.id;
     },
-    getIdFromPath: function (href) {
-        href = href || location.pathname;
-        var s = href.lastIndexOf("/"), e = href.lastIndexOf(".");
-        return href.substring(s + 1, e);
-    },
-    parseQueryString: (query) => {
-        let data = {};
-        let arr = query.split('&');
-        for (let i = 0; i < arr.length; i++) {
-            let pair = arr[i].split("=");
-            data[pair[0]] = pair[1];
-        }
-        return data;
-    },
-    _propSlts: ["first-child", "last-child"],
-    _waitTimeout: 6,
-    ajaxHeaders: {},
-    setForm: async function (xpaths, vals) {
-        for (let m in xpaths) {
-            let elms = await _rx.waitLocated(xpaths[m]);
-            for (let i = 0; i < elms.length; i++) {
-                elms[i].setAttribute("value", vals[m]);
-            }
-        }
-    },
-    setSelect:function (){
-        document.query
-    },
-    batchClick: async function () {
-        for (let i = 0; i < arguments.length; i++) {
-            await _rx.waitClick(arguments[i]);
-        }
-    },
-    waitClick: async function (xpath, timeoutSeconds) {
-        let elms = await _rx.waitLocated(xpath, timeoutSeconds);
-        for (let i = 0; i < elms.length; i++) {
-            elms[i].click();
-            await sleep(200);
-        }
-        return elms;
-    },
-    waitValue: async function (xpath, timeoutSeconds) {
-        let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
-        for (let i = 0; i < elms.length; i++) {
-            sb.push(elms[i].value.trim());
-        }
-        return sb.join("");
-    },
-    waitText: async function (xpath, timeoutSeconds) {
-        let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
-        for (let i = 0; i < elms.length; i++) {
-            sb.push(elms[i].textContent.trim());
-        }
-        return sb.join("");
-    },
-    waitLocated: async function (selector, timeoutSeconds) {
-        timeoutSeconds = timeoutSeconds || _rx._waitTimeout;
-        let elms = [], xpaths = selector.split(",");
-        for (let i = 0; i < xpaths.length; i++) {
-            let xpath = xpaths[i];
-            await _rx.waitComplete(timeoutSeconds, function () {
-                return !xpath || (elms = _rx.query(xpath)).length > 0;
-            });
-            if (elms.length > 0) {
-                break;
-            }
-        }
-        if (elms.length === 0) {
-            throw  "Element " + selector + " not found";
-        }
-        return elms;
-    },
-    waitComplete: async function (timeoutSeconds, checkComplete, completeCallback) {
-        _rx._ok = false;
-        let waitMillis = 500, count = 0, loopCount = Math.round(timeoutSeconds * 1000 / waitMillis);
-        if (_rx._ok = checkComplete(count)) {
-            _rx.invoke(completeCallback);
-            return;
-        }
-        while (count++ < loopCount && !(_rx._ok = checkComplete(count))) {
-            await sleep(waitMillis);
-        }
-        if (_rx._ok) {
-            _rx.invoke(completeCallback);
-        }
-    },
-    invoke: function (func) {
-        if (!func) {
-            return;
-        }
-        func();
+    query: function (selector, elm) {
+        return selector.startsWith("/") ? _rx._xpath(selector, elm) : _rx._cssSelector(selector, elm);
     },
     _cssSelector: function (selector, elm) {
         let subSlts = selector.split(" "), elms = _rx._handle([elm || document], subSlts[0]);
         for (let i = 1; i < subSlts.length; i++) {
             elms = _rx._handle(elms, subSlts[1]);
         }
+        elms.click = function () {
+            if (elms[0]) {
+                elms[0].click();
+            }
+        };
         elms.first = function () {
             return elms[0] || {};
         };
@@ -186,6 +123,18 @@ window._rx = {
         }
         return elms;
     },
+    // setForm: async function (xpaths, vals) {
+    //     for (let m in xpaths) {
+    //         let elms = await _rx.waitLocated(xpaths[m]);
+    //         for (let i = 0; i < elms.length; i++) {
+    //             elms[i].setAttribute("value", vals[m]);
+    //         }
+    //     }
+    // },
+    // setSelect: function () {
+    //     document.query
+    // },
+    ajaxHeaders: {},
     ajax: function (method, url, data, onSuccess, isJson) {
         var ajax = new XMLHttpRequest();
         ajax.onreadystatechange = function () {
@@ -226,6 +175,71 @@ window._rx = {
             ajax.setRequestHeader(m, _rx.ajaxHeaders[m]);
         }
         ajax.send(hData);
+    },
+    _waitTimeout: 6,
+    batchClick: async () => {
+        for (let i = 0; i < arguments.length; i++) {
+            await _rx.waitClick(arguments[i]);
+        }
+    },
+    waitClick: async (xpath, timeoutSeconds) => {
+        let elms = await _rx.waitLocated(xpath, timeoutSeconds);
+        for (let i = 0; i < elms.length; i++) {
+            elms[i].click();
+            await sleep(200);
+        }
+        return elms;
+    },
+    waitValue: async (xpath, timeoutSeconds) => {
+        let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
+        for (let i = 0; i < elms.length; i++) {
+            sb.push(elms[i].value.trim());
+        }
+        return sb.join("");
+    },
+    waitText: async (xpath, timeoutSeconds) => {
+        let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
+        for (let i = 0; i < elms.length; i++) {
+            sb.push(elms[i].textContent.trim());
+        }
+        return sb.join("");
+    },
+    waitLocated: async (selector, timeoutSeconds) => {
+        timeoutSeconds = timeoutSeconds || _rx._waitTimeout;
+        let elms = [], xpaths = selector.split(",");
+        for (let i = 0; i < xpaths.length; i++) {
+            let xpath = xpaths[i];
+            await _rx.waitComplete(timeoutSeconds, function () {
+                return !xpath || (elms = _rx.query(xpath)).length > 0;
+            });
+            if (elms.length > 0) {
+                break;
+            }
+        }
+        if (elms.length === 0) {
+            throw  "Element " + selector + " not found";
+        }
+        return elms;
+    },
+    waitComplete: async (timeoutSeconds, checkComplete, completeCallback) => {
+        _rx._ok = false;
+        let waitMillis = 500, count = 0, loopCount = Math.round(timeoutSeconds * 1000 / waitMillis);
+        if (_rx._ok = checkComplete(count)) {
+            _rx.invoke(completeCallback);
+            return;
+        }
+        while (count++ < loopCount && !(_rx._ok = checkComplete(count))) {
+            await sleep(waitMillis);
+        }
+        if (_rx._ok) {
+            _rx.invoke(completeCallback);
+        }
+    },
+    invoke: function (func) {
+        if (!func) {
+            return;
+        }
+        func();
     }
 };
 window.sleep = function (time) {
