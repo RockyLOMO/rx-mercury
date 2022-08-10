@@ -6,7 +6,7 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder charset="UTF-8">
-            <pattern>%d %-5p [%t] %c - %m%n</pattern>
+            <pattern>%yellow(%d{HH:mm:ss.SSS}) %highlight(%-5p) %magenta([%t]) %cyan(%c{20}) - %m%n</pattern>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>DEBUG</level>
@@ -28,26 +28,26 @@
             <pattern>%d %-5p [%t] %c - %m%n</pattern>
         </encoder>
     </appender>
-    <appender name="errorAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.dir}/error.log</file>
-        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>WARN</level>
-        </filter>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${log.dir}/error.%d{yyyyMMdd}_%i.log</fileNamePattern>
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>500MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-            <maxHistory>${days}</maxHistory>
-        </rollingPolicy>
-        <encoder charset="UTF-8">
-            <pattern>%d %-5p [%t] %c - %m%n</pattern>
-        </encoder>
-    </appender>
+<!--    <appender name="errorAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">-->
+<!--        <file>${log.dir}/error.log</file>-->
+<!--        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">-->
+<!--            <level>WARN</level>-->
+<!--        </filter>-->
+<!--        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
+<!--            <fileNamePattern>${log.dir}/error.%d{yyyyMMdd}_%i.log</fileNamePattern>-->
+<!--            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">-->
+<!--                <maxFileSize>500MB</maxFileSize>-->
+<!--            </timeBasedFileNamingAndTriggeringPolicy>-->
+<!--            <maxHistory>${days}</maxHistory>-->
+<!--        </rollingPolicy>-->
+<!--        <encoder charset="UTF-8">-->
+<!--            <pattern>%d %-5p [%t] %c - %m%n</pattern>-->
+<!--        </encoder>-->
+<!--    </appender>-->
 
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="infoAppender"/>
-        <appender-ref ref="errorAppender"/>
+<!--        <appender-ref ref="errorAppender"/>-->
     </root>
 </configuration>
