@@ -23,9 +23,13 @@ public class WinWifiKeeper {
     public void init() {
         PingClient client = new PingClient();
         Tasks.schedulePeriod(() -> {
-            boolean reachable = client.isReachable(testHost);
-            log.info("WWK test reachable {} -> {} & {}", testHost, reachable, counter);
-            if (!reachable && counter.incrementAndGet() > maxTestFail) {
+            boolean ok = client.isReachable(testHost);
+            log.info("WWK test reachable {} -> {} & {}", testHost, ok, counter);
+            if (ok) {
+                counter.set(0);
+                return;
+            }
+            if (counter.incrementAndGet() > maxTestFail) {
                 reset();
             }
         }, 10 * 1000);
