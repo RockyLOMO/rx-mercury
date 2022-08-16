@@ -264,7 +264,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
             }
             throw e;
         } catch (TimeoutException e) {
-            throw new TimeoutException(String.format("waitElementLocated fail, url=%s selector=%s\n%s", url, locatorSelector, e));
+            throw new InvalidException("waitElementLocated fail, url=%s selector=%s", url, locatorSelector, e);
         } catch (Exception e) {
             throw new InvalidException("navigateUrl %s fail", url, e);
         } finally {
