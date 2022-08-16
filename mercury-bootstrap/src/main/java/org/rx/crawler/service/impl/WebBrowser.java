@@ -245,30 +245,30 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
             driver.get(url);
             navigatedUrl = url;
             navigatedSelector = locatorSelector;
+
+            if (locatorSelector != null) {
+                waitElementLocated(locatorSelector, timeoutSeconds, checkComplete);
+            }
+            raiseEvent(onNavigated, EventArgs.EMPTY);
+            if (cookieRegion != null) {
+                try {
+                    saveCookies(true);
+                } catch (TimeoutException e) {
+                    log.warn("ignore cookieDomain reset {}", e.getMessage());
+                }
+            }
         } catch (WebDriverException e) {
             if (isIe) {
                 exchangeDriver(url, false);
                 sleep(waitMillis);
             }
             throw e;
+        } catch (TimeoutException e) {
+            throw new TimeoutException(String.format("waitElementLocated fail, url=%s selector=%s\n%s", url, locatorSelector, e));
         } catch (Exception e) {
             throw new InvalidException("navigateUrl %s fail", url, e);
-        }
-
-        if (locatorSelector != null) {
-            try {
-                waitElementLocated(locatorSelector, timeoutSeconds, checkComplete);
-            } catch (TimeoutException e) {
-                throw new TimeoutException(String.format("waitElementLocated fail, url=%s selector=%s\n%s", url, locatorSelector, e));
-            }
-        }
-        raiseEvent(onNavigated, EventArgs.EMPTY);
-        if (cookieRegion != null) {
-            try {
-                saveCookies(true);
-            } catch (TimeoutException e) {
-                log.warn("ignore cookieDomain reset {}", e.getMessage());
-            }
+        } finally {
+            navigatedSelector = null;
         }
     }
 
