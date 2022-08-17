@@ -9,19 +9,19 @@ window._rx = {
     getId: function (name, href) {
         name = name || "id";
         href = href || location.href;
-        var match = href.match(new RegExp("[?&]" + name + "=([^&]+)(&|$)"));
+        let match = href.match(new RegExp("[?&]" + name + "=([^&]+)(&|$)"));
         return match && decodeURIComponent(match[1].replace(/\+/g, " "));
     },
     getIdFromPath: function (href) {
         href = href || location.pathname;
-        var s = href.lastIndexOf("/"), e = href.lastIndexOf(".");
+        let s = href.lastIndexOf("/"), e = href.lastIndexOf(".");
         return href.substring(s + 1, e);
     },
     parseQueryString: function (query) {
-        var data = {};
-        var arr = query.split('&');
-        for (var i = 0; i < arr.length; i++) {
-            var pair = arr[i].split("=");
+        let data = {};
+        let arr = query.split('&');
+        for (let i = 0; i < arr.length; i++) {
+            let pair = arr[i].split("=");
             data[pair[0]] = pair[1];
         }
         return data;
@@ -37,14 +37,14 @@ window._rx = {
         sMoney = sMoney.replace("￥", "").replace("¥", "")
             .replace("，", "").replace(",", "")
             .replace("元", "").replace("起", "").replace("%", "");
-        var i = sMoney.indexOf("-");
+        let i = sMoney.indexOf("-");
         if (i != -1) {
             sMoney = sMoney.substring(0, i);
         }
         return parseFloat(sMoney);
     },
     idSelector: function (selector) {
-        var element = document.querySelector(selector);
+        let element = document.querySelector(selector);
         if (!element) {
             return selector;
         }
@@ -136,7 +136,7 @@ window._rx = {
     // },
     ajaxHeaders: {},
     ajax: function (method, url, data, onSuccess, isJson) {
-        var ajax = new XMLHttpRequest();
+        let ajax = new XMLHttpRequest();
         ajax.onreadystatechange = function () {
             if (ajax.readyState == 4) {
                 if (ajax.status == 200) {
@@ -149,20 +149,20 @@ window._rx = {
             }
         };
         method = method || "get";
-        var hData = null;
+        let hData = null;
         if (method.toLowerCase() == "post") {
             if (isJson) {
                 hData = JSON.stringify(data);
             } else {
                 hData = "";
-                for (var n in data) {
+                for (let n in data) {
                     hData += (hData.length == 0 ? "" : "&") + n + "=" + encodeURIComponent(data[n]);
                 }
             }
         } else {
             if (data) {
-                var fi = url.lastIndexOf("?");
-                for (var n in data) {
+                let fi = url.lastIndexOf("?");
+                for (let n in data) {
                     url += (fi == -1 ? "?" : "&") + n + "=" + encodeURIComponent(data[n]);
                 }
             }
@@ -177,12 +177,12 @@ window._rx = {
         ajax.send(hData);
     },
     _waitTimeout: 6,
-    batchClick: async () => {
+    batchClick: async function () {
         for (let i = 0; i < arguments.length; i++) {
             await _rx.waitClick(arguments[i]);
         }
     },
-    waitClick: async (xpath, timeoutSeconds) => {
+    waitClick: async function (xpath, timeoutSeconds) {
         let elms = await _rx.waitLocated(xpath, timeoutSeconds);
         for (let i = 0; i < elms.length; i++) {
             elms[i].click();
@@ -190,21 +190,21 @@ window._rx = {
         }
         return elms;
     },
-    waitValue: async (xpath, timeoutSeconds) => {
+    waitValue: async function (xpath, timeoutSeconds) {
         let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
         for (let i = 0; i < elms.length; i++) {
             sb.push(elms[i].value.trim());
         }
         return sb.join("");
     },
-    waitText: async (xpath, timeoutSeconds) => {
+    waitText: async function (xpath, timeoutSeconds) {
         let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
         for (let i = 0; i < elms.length; i++) {
             sb.push(elms[i].textContent.trim());
         }
         return sb.join("");
     },
-    waitLocated: async (selector, timeoutSeconds) => {
+    waitLocated: async function (selector, timeoutSeconds) {
         timeoutSeconds = timeoutSeconds || _rx._waitTimeout;
         let elms = [], xpaths = selector.split(",");
         for (let i = 0; i < xpaths.length; i++) {
@@ -221,7 +221,7 @@ window._rx = {
         }
         return elms;
     },
-    waitComplete: async (timeoutSeconds, checkComplete, completeCallback) => {
+    waitComplete: async function (timeoutSeconds, checkComplete, completeCallback) {
         _rx._ok = false;
         let waitMillis = 500, count = 0, loopCount = Math.round(timeoutSeconds * 1000 / waitMillis);
         if (_rx._ok = checkComplete(count)) {
