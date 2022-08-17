@@ -177,6 +177,7 @@ window._rx = {
         ajax.send(hData);
     },
     _waitTimeout: 6,
+    _delayMillis: 500,
     batchClick: async function () {
         for (let i = 0; i < arguments.length; i++) {
             await _rx.waitClick(arguments[i]);
@@ -186,7 +187,7 @@ window._rx = {
         let elms = await _rx.waitLocated(xpath, timeoutSeconds);
         for (let i = 0; i < elms.length; i++) {
             elms[i].click();
-            await sleep(200);
+            await sleep();
         }
         return elms;
     },
@@ -243,7 +244,7 @@ window._rx = {
     }
 };
 window.sleep = function (time) {
-    return new Promise((resolve) => setTimeout(resolve, time));
+    return new Promise((resolve) => setTimeout(resolve, time || _rx._delayMillis));
 };
 String.prototype.replaceAll = function (text, repTxt) {
     let regExp = new RegExp(text, "g");
