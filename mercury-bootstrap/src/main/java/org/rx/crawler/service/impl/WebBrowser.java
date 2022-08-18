@@ -490,10 +490,10 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
                 log.debug("Wait {} located ok", selector);
                 return elements;
             }
-            if (checkComplete != null && checkComplete.test(s.getInvokedCount())) {
+            if (checkComplete != null && checkComplete.test(s.getEvaluatedCount())) {
                 return elements;
             }
-            return NQuery.of();
+            return null;
         });
         if (!q.any()) {
             throw new TimeoutException(String.format("No such elements '%s'", selector));
