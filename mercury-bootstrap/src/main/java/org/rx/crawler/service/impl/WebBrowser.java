@@ -495,7 +495,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
             }
             return null;
         });
-        if (!q.any()) {
+        if (q == null || !q.any()) {
             throw new TimeoutException(String.format("No such elements '%s'", selector));
         }
         return q;
