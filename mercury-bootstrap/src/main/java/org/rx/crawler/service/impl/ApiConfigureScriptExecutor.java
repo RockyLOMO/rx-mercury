@@ -29,7 +29,7 @@ public final class ApiConfigureScriptExecutor implements ConfigureScriptExecutor
     public <T> T execute(String scriptName, Object... args) {
         String scriptContent = getConfigureScript(scriptName);
         if (Strings.isEmpty(scriptContent)) {
-            throw new InvalidException("ScriptName %s has empty content", scriptName);
+            throw new InvalidException("ScriptName {} has empty content", scriptName);
         }
         return owner.executeScript(scriptContent, args);
     }

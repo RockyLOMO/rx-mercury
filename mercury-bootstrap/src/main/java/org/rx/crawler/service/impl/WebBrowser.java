@@ -149,7 +149,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
 
                 NQuery<Long> iePids_before = getIePids();
                 driver = new InternetExplorerDriver((InternetExplorerDriverService) driverService, opt);
-                sleep(200);
+                sleep(500);
                 iePidMap.put(driver, Tuple.of(DateTime.now(), getIePids().except(iePids_before)));
             }
             break;
@@ -265,10 +265,10 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
             }
             throw e;
         } catch (TimeoutException e) {
-            ExceptionHandler.INSTANCE.log("waitElementLocated fail, url={} selector={}", url, locatorSelector, e);
+            ExceptionHandler.INSTANCE.log("waitElementLocated fail, url={} selector={}|{}", url, locatorSelector, timeoutSeconds, e);
             throw e;
         } catch (Exception e) {
-            throw new InvalidException("navigateUrl %s fail", url, e);
+            throw new InvalidException("NavigateUrl {} fail", url, e);
         } finally {
             navigatedSelector = null;
         }
@@ -507,7 +507,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         NQuery<WebElement> elements = findElements(selector, throwOnEmpty);
         if (!elements.any()) {
             if (throwOnEmpty) {
-                throw new InvalidException("Element %s not found", selector);
+                throw new InvalidException("Element {} not found", selector);
             }
             return null;
         }
