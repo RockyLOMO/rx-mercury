@@ -279,7 +279,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         boolean doIt = true;
         if (isCheck) {
             Tuple<DateTime, NQuery<Long>> tuple = iePidMap.get(temp.right);
-            doIt = DateTime.now().subtract(tuple.left).getTotalMinutes() > 30;
+            doIt = tuple == null || DateTime.now().subtract(tuple.left).getTotalMinutes() > 30;
         }
         if (!doIt) {
             return;
@@ -289,8 +289,8 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         quietly(() -> {
             temp.right.quit();
             temp.left.stop();
+            killIe(temp.right);
         });
-        killIe(temp.right);
         sleep(800);
         exchange = createDriver(getType());
         driverService = exchange.left;
