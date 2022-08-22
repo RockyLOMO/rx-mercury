@@ -192,7 +192,7 @@
 //
 //    private int computeWeight(double pingValue) {
 //        NetLagLevel[] values = NetLagLevel.values();
-//        NetLagLevel lagLevel = NQuery.of(values).firstOrDefault(p -> p.getThreshold().has((float) pingValue));
+//        NetLagLevel lagLevel = Linq.from(values).firstOrDefault(p -> p.getThreshold().has((float) pingValue));
 //        if (lagLevel == null) {
 //            lagLevel = NetLagLevel.E;
 //        }
@@ -202,7 +202,7 @@
 ////    public PagedResponse<ProxyBean> getProxies(PagingRequest request) {
 ////        Collection<ProxyBean> proxies = queue.valueRange((request.getPageIndex() - 1) * request.getPageSize(), request.getPageSize());
 ////        PagedResponse<ProxyBean> response = new PagedResponse<>();
-////        response.setData(NQuery.of(proxies).toList());
+////        response.setData(Linq.from(proxies).toList());
 ////        response.setTotalCount(queue.size());
 ////        response.setPageIndex(request.getPageIndex());
 ////        return response;
@@ -227,7 +227,7 @@
 //            }
 //            int i = ThreadLocalRandom.current().nextInt(0, proxies.size());
 //            msg.append("\trnd=%s", i);
-//            return NQuery.of(proxies).skip(i).first();
+//            return Linq.from(proxies).skip(i).first();
 //        } catch (NoSuchElementException e) {
 //            produceProxies();
 //            throw e;

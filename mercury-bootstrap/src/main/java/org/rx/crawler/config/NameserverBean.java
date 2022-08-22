@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Container;
-import org.rx.core.NQuery;
+import org.rx.core.Linq;
 import org.rx.exception.InvalidException;
 import org.rx.net.nameserver.NameserverClient;
 import org.springframework.beans.BeansException;
@@ -33,7 +33,7 @@ public class NameserverBean {
         @Override
         public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
             if (endpoints == null) {
-                NQuery<Config> configs = NQuery.of(ConfigService.getAppConfig(), ConfigService.getConfig(NAMESPACE));
+                Linq<Config> configs = Linq.from(ConfigService.getAppConfig(), ConfigService.getConfig(NAMESPACE));
                 endpoints = configs.select(p -> p.getArrayProperty("app.nameserverEndpoints", ",", null)).firstOrDefault(Objects::nonNull);
                 if (endpoints != null) {
                     NameserverBean nsb = new NameserverBean(appName, endpoints);

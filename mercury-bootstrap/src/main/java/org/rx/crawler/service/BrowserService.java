@@ -7,7 +7,7 @@ import org.rx.crawler.BrowserAsyncTopic;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.core.Arrays;
-import org.rx.core.NQuery;
+import org.rx.core.Linq;
 import org.rx.crawler.util.ProcessUtil;
 import org.rx.net.rpc.Remoting;
 import org.springframework.stereotype.Service;
@@ -35,7 +35,7 @@ public class BrowserService {
     }
 
     private void purgeProcesses() {
-        NQuery<String> pNames = NQuery.of(BrowserType.values()).selectMany(p -> Arrays.toList(p.getDriverName(), p.getProcessName()));
+        Linq<String> pNames = Linq.from(BrowserType.values()).selectMany(p -> Arrays.toList(p.getDriverName(), p.getProcessName()));
         for (ProcessHandle process : ProcessUtil.getProcesses(pNames.toArray())) {
             log.debug("Kill {}", ProcessUtil.dump(process));
             process.destroyForcibly();

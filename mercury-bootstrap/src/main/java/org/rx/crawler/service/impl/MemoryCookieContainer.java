@@ -12,7 +12,7 @@ import org.rx.crawler.RegionFlags;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.core.Arrays;
-import org.rx.core.NQuery;
+import org.rx.core.Linq;
 import org.rx.core.Strings;
 import org.rx.net.http.HttpClient;
 import org.rx.redis.RedisCache;
@@ -53,7 +53,7 @@ public class MemoryCookieContainer implements CookieContainer {
                     log.debug("load cookie url={} flags={}\n{}\n", regionUrl, flags.name(), rawCookie);
                     for (Cookie cookie : HttpClient.decodeCookie(reqHttpUrl, rawCookie)) {
                         quietly(() -> {
-                            javax.servlet.http.Cookie servletCookie = NQuery.of(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.name()));
+                            javax.servlet.http.Cookie servletCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.name()));
                             boolean isChange;
                             if (servletCookie == null) {
                                 servletCookie = new javax.servlet.http.Cookie(cookie.name(), cookie.value());

@@ -12,7 +12,7 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.core.Cache;
-import org.rx.core.NQuery;
+import org.rx.core.Linq;
 import org.rx.core.Tasks;
 import org.rx.io.Files;
 import org.rx.io.IOStream;
@@ -68,7 +68,7 @@ public class BrowserTests {
     @Test
     public void fiddler() {
         String path = "D:\\app_rebate\\fiddler\\VipGoods_1584849184132.txt";
-        String p = NQuery.of(Files.readLines(path)).last();
+        String p = Linq.from(Files.readLines(path)).last();
         String u = HttpClient.decodeUrl(toJsonObject(p).getString("page_url"));
         Map<String, String> queryString = HttpClient.decodeQueryString(u);
         u = queryString.get("$route");

@@ -53,11 +53,11 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
     private static final String resourceJsPath = "/bot/root.js";
     private static final Lazy<ChromeDriverService> chromeServiceLazy = new Lazy<>(() -> new ChromeDriverService.Builder().withSilent(true).withVerbose(false).build());
     private static final AtomicInteger chromeIdCounter = new AtomicInteger();
-    private static final ConcurrentHashMap<RemoteWebDriver, Tuple<DateTime, NQuery<Long>>> iePidMap = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<RemoteWebDriver, Tuple<DateTime, Linq<Long>>> iePidMap = new ConcurrentHashMap<>();
 
     private static void killIe(RemoteWebDriver driver) {
         quietly(() -> {
-            Tuple<DateTime, NQuery<Long>> tuple = iePidMap.remove(driver);
+            Tuple<DateTime, Linq<Long>> tuple = iePidMap.remove(driver);
             if (tuple != null) {
                 for (Long pid : tuple.right) {
                     ProcessUtil.killProcess(pid);
@@ -66,7 +66,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         });
     }
 
-    private static NQuery<Long> getIePids() {
+    private static Linq<Long> getIePids() {
         return ProcessUtil.getProcesses(BrowserType.IE.getProcessName(), BrowserType.IE.getDriverName()).select(ProcessHandle::pid);
     }
 
@@ -147,7 +147,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
                         .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
                         .setCapability(CapabilityType.APPLICATION_NAME, "rxBrowser");
 
-                NQuery<Long> iePids_before = getIePids();
+                Linq<Long> iePids_before = getIePids();
                 driver = new InternetExplorerDriver((InternetExplorerDriverService) driverService, opt);
                 sleep(500);
                 iePidMap.put(driver, Tuple.of(DateTime.now(), getIePids().except(iePids_before)));
@@ -278,7 +278,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         Tuple<DriverService, RemoteWebDriver> temp = Tuple.of(driverService, driver), exchange;
         boolean doIt = true;
         if (isCheck) {
-            Tuple<DateTime, NQuery<Long>> tuple = iePidMap.get(temp.right);
+            Tuple<DateTime, Linq<Long>> tuple = iePidMap.get(temp.right);
             doIt = tuple == null || DateTime.now().subtract(tuple.left).getTotalMinutes() > 30;
         }
         if (!doIt) {
@@ -352,7 +352,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
     }
 
     @Override
-    public NQuery<String> elementsText(String selector) {
+    public Linq<String> elementsText(String selector) {
         checkNotClosed();
 
         return findElements(selector, false).select(WebElement::getText);
@@ -364,7 +364,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
     }
 
     @Override
-    public NQuery<String> elementsVal(String selector) {
+    public Linq<String> elementsVal(String selector) {
         return elementsAttr(selector, "value");
     }
 
@@ -374,17 +374,17 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
     }
 
     @Override
-    public NQuery<String> elementsAttr(String selector, @NonNull String... attrArgs) {
+    public Linq<String> elementsAttr(String selector, @NonNull String... attrArgs) {
         checkNotClosed();
         require(attrArgs, attrArgs.length > 0);
 
         String attrName = attrArgs[0], attrVal = attrArgs.length > 1 ? attrArgs[1] : null;
-        NQuery<WebElement> elements = findElements(selector, false);
+        Linq<WebElement> elements = findElements(selector, false);
         if (attrVal != null) {
             for (WebElement elm : elements) {
                 executeScript("arguments[0].setAttribute(arguments[1], arguments[2]);", elm, attrName, attrVal);
             }
-            return NQuery.of();
+            return Linq.from();
         }
         return elements.select(p -> p.getAttribute(attrName));
     }
@@ -477,9 +477,9 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         waitElementLocated(selector, timeoutSeconds, null);
     }
 
-    private NQuery<WebElement> waitElementLocated(String selector, int timeoutSeconds, Predicate<Integer> checkComplete) throws TimeoutException {
-        NQuery<WebElement> q = createWait(timeoutSeconds).until(s -> {
-            NQuery<WebElement> elements = findElements(selector, false);
+    private Linq<WebElement> waitElementLocated(String selector, int timeoutSeconds, Predicate<Integer> checkComplete) throws TimeoutException {
+        Linq<WebElement> q = createWait(timeoutSeconds).until(s -> {
+            Linq<WebElement> elements = findElements(selector, false);
             if (elements.any()) {
                 log.debug("Wait {} located ok", selector);
                 return elements;
@@ -504,7 +504,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
     private WebElement findElement(String selector, boolean throwOnEmpty) {
         checkNotClosed();
 
-        NQuery<WebElement> elements = findElements(selector, throwOnEmpty);
+        Linq<WebElement> elements = findElements(selector, throwOnEmpty);
         if (!elements.any()) {
             if (throwOnEmpty) {
                 throw new InvalidException("Element {} not found", selector);
@@ -514,7 +514,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         return elements.first();
     }
 
-    private NQuery<WebElement> findElements(@NonNull String selector, boolean throwOnEmpty) {
+    private Linq<WebElement> findElements(@NonNull String selector, boolean throwOnEmpty) {
         checkNotClosed();
 
         By by;
@@ -525,12 +525,12 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         }
 
         try {
-            return NQuery.of(driver.findElements(by));
+            return Linq.from(driver.findElements(by));
         } catch (NoSuchElementException e) {
             if (throwOnEmpty) {
                 throw e;
             }
-            return NQuery.of();
+            return Linq.from();
         }
     }
 
@@ -619,7 +619,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         checkNotClosed();
 
         driver.executeScript("window.open('about:blank','_blank')");
-        return NQuery.of(driver.getWindowHandles()).last();
+        return Linq.from(driver.getWindowHandles()).last();
     }
 
     public synchronized void switchTab(@NonNull String winHandle) {
@@ -638,7 +638,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
         }
         driver.close();
         if (isSelf) {
-            current = NQuery.of(driver.getWindowHandles()).first();
+            current = Linq.from(driver.getWindowHandles()).first();
         }
         switchTab(current);
     }

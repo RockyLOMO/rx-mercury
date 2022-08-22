@@ -8,7 +8,7 @@ import org.rx.bean.IdGenerator;
 import org.rx.crawler.dto.CrawlPageConfig;
 import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.service.CookieContainer;
-import org.rx.core.NQuery;
+import org.rx.core.Linq;
 import org.rx.core.Reflects;
 import org.rx.core.Strings;
 import org.rx.crawler.Browser;
@@ -75,7 +75,7 @@ public class AppConfig {
 
         public IdGenerator getPortGenerator() {
             if (portGenerator == null) {
-                NQuery<Integer> q = NQuery.of(Strings.split(remotingPortRange, "-", 2)).select(p -> Integer.valueOf(p));
+                Linq<Integer> q = Linq.from(Strings.split(remotingPortRange, "-", 2)).select(p -> Integer.valueOf(p));
                 portGenerator = new IdGenerator(q.first(), q.last());
             }
             return portGenerator;
@@ -109,7 +109,7 @@ public class AppConfig {
         if (Strings.isEmpty(windowRectangle)) {
             return null;
         }
-        List<Integer> list = NQuery.of(windowRectangle.split(",")).select(p -> Integer.valueOf(p)).toList();
+        List<Integer> list = Linq.from(windowRectangle.split(",")).select(p -> Integer.valueOf(p)).toList();
         //width height 反了
         return new Rectangle(list.get(0), list.get(1), list.get(3), list.get(2));
     }

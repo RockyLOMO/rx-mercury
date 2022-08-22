@@ -2,7 +2,7 @@ package org.rx.crawler.util;
 
 import org.apache.commons.io.FilenameUtils;
 import org.rx.core.Arrays;
-import org.rx.core.NQuery;
+import org.rx.core.Linq;
 import org.rx.core.StringBuilder;
 
 import java.util.Optional;
@@ -18,9 +18,9 @@ public class ProcessUtil {
         return getProcesses(processNames).all(p -> killProcess(p.pid(), true));
     }
 
-    public static NQuery<ProcessHandle> getProcesses(String... processNames) {
-        NQuery<String> n = NQuery.of(processNames);
-        return NQuery.of(ProcessHandle.allProcesses()).where(p -> p.isAlive() && n.any(x -> FilenameUtils.getName(p.info().command().orElse("")).equalsIgnoreCase(FilenameUtils.getName(x))));
+    public static Linq<ProcessHandle> getProcesses(String... processNames) {
+        Linq<String> n = Linq.from(processNames);
+        return Linq.from(ProcessHandle.allProcesses()).where(p -> p.isAlive() && n.any(x -> FilenameUtils.getName(p.info().command().orElse("")).equalsIgnoreCase(FilenameUtils.getName(x))));
     }
 
     public static boolean killProcess(long pid) {
@@ -44,7 +44,7 @@ public class ProcessUtil {
         ProcessHandle.Info pInfo = processHandle.info();
         Optional<ProcessHandle> parent = processHandle.parent();
         parent.ifPresent(handle -> sb.append("parentPid: %s\t", handle.pid()));
-        sb.append("descendantsPids: %s\t", NQuery.of(processHandle.descendants()).toJoinString(",", p -> String.valueOf(p.pid())));
+        sb.append("descendantsPids: %s\t", Linq.from(processHandle.descendants()).toJoinString(",", p -> String.valueOf(p.pid())));
         sb.append("pid: %s\t", processHandle.pid());
         sb.append("startTime: %s\t", processHandle.info().startInstant().orElse(null));
         sb.append("command: %s\t", pInfo.command().orElse(null));
