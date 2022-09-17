@@ -62,6 +62,6 @@ public class NameserverBean {
         client = new NameserverClient(appName);
         client.registerAsync(endpoints);
         log.info("register {} -> {}", appName, endpoints);
-        client.wait4Inject(60 * 1000);
+        client.waitInject(60 * 1000);
     }
 }
