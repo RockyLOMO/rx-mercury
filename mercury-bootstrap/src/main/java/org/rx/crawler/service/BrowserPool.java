@@ -16,7 +16,7 @@ import org.rx.core.Disposable;
 import org.rx.core.StringBuilder;
 import org.rx.core.Strings;
 import org.rx.core.Tasks;
-import org.rx.exception.ExceptionHandler;
+import org.rx.exception.TraceHandler;
 import org.rx.net.Sockets;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RpcClientMeta;
@@ -230,7 +230,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                 log.warn("release error, {}", e.getMessage());
                 return;
             }
-            ExceptionHandler.INSTANCE.log("release", e);
+            TraceHandler.INSTANCE.log("release", e);
         }
     }
 

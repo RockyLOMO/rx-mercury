@@ -23,7 +23,7 @@ import org.rx.crawler.Browser;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.util.ProcessUtil;
-import org.rx.exception.ExceptionHandler;
+import org.rx.exception.TraceHandler;
 import org.rx.exception.InvalidException;
 import org.rx.bean.Tuple;
 import org.rx.crawler.config.AppConfig;
@@ -265,7 +265,7 @@ public final class WebBrowser extends Disposable implements Browser, EventTarget
             }
             throw e;
         } catch (TimeoutException e) {
-            ExceptionHandler.INSTANCE.log("waitElementLocated fail, url={} selector={}|{}", url, locatorSelector, timeoutSeconds, e);
+            TraceHandler.INSTANCE.log("waitElementLocated fail, url={} selector={}|{}", url, locatorSelector, timeoutSeconds, e);
             throw e;
         } catch (Exception e) {
             throw new InvalidException("NavigateUrl {} fail", url, e);
