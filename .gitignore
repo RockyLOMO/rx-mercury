@@ -18,3 +18,4 @@ xiaofan-bootstrap/cwebp_tmp/gif2webp.exe
 rx-bot/*/log*
 rx-bot/__pycache__/util.cpython-37.pyc
 *.log
+rx.mv.db

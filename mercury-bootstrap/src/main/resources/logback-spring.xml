@@ -25,7 +25,7 @@
             <maxHistory>${days}</maxHistory>
         </rollingPolicy>
         <encoder charset="UTF-8">
-            <pattern>%d{HH:mm:ss.SSS} %-5p %X{rx-traceId} [%t] %c{20} - %m%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %-5p [%t] %c{20} %X{rx-traceId} - %m%n</pattern>
         </encoder>
     </appender>
 

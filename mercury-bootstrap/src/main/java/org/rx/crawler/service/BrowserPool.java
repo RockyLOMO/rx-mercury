@@ -19,7 +19,7 @@ import org.rx.core.Tasks;
 import org.rx.exception.TraceHandler;
 import org.rx.net.Sockets;
 import org.rx.net.rpc.Remoting;
-import org.rx.net.rpc.RpcClientMeta;
+import org.rx.net.rpc.RpcClient;
 import org.rx.net.rpc.RpcServer;
 import org.rx.net.rpc.RpcServerConfig;
 
@@ -33,6 +33,7 @@ import static org.rx.core.Extends.tryClose;
 @Slf4j
 public final class BrowserPool extends Disposable implements BrowserPoolListener {
     private class ObjectFactory extends BaseKeyedPooledObjectFactory<BrowserType, Browser> {
+        static final String CONNECT_TIME = "connectTime";
         private final Map<Browser, RpcServer> cache = Collections.synchronizedMap(new WeakHashMap<>());
 
         public ObjectFactory() {
@@ -44,7 +45,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                         continue;
                     }
 
-                    Collection<RpcClientMeta> clients = server.getClients().values();
+                    Collection<RpcClient> clients = server.getClients().values();
                     if (clients.size() == 0) {
                         try {
                             pool.returnObject(browser.getType(), browser);
@@ -63,12 +64,13 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                         }
                         continue;
                     }
-                    for (RpcClientMeta client : clients) {
-                        if (DateTime.now().subtract(client.getConnectedTime()).getTotalMinutes() <= config.getPool().getMaxActiveMinutes()) {
+                    for (RpcClient client : clients) {
+                        DateTime connTime = client.attr(CONNECT_TIME);
+                        if (connTime == null || DateTime.now().subtract(connTime).getTotalMinutes() <= config.getPool().getMaxActiveMinutes()) {
                             continue;
                         }
                         log.warn("CORRECT force close browser[{}]", browser.getId());
-                        server.close(client);
+                        client.close();
                     }
                 }
             }, config.getPool().getMaintenancePeriod());
@@ -96,6 +98,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     serverConfig.setCapacity(1);
                     RpcServer server = Remoting.listen(browser, serverConfig);
                     server.onDisconnected.combine((s, e) -> release(browser));
+                    server.onConnected.combine((s, e) -> e.getClient().attr(CONNECT_TIME, DateTime.now()));
                     browser.setId(server.getConfig().getListenPort());
                     cache.put(browser, server);
                     break;
