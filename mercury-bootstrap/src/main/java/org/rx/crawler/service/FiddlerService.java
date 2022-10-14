@@ -30,6 +30,6 @@ public class FiddlerService implements FiddlerWatcher {
             String[] args = Strings.split(filename, "_", 3);
             raiseEvent(EVENT_CALLBACK, new CallbackEventArgs(args[0] + "_" + args[1], Files.readLines(filePath).collect(Collectors.toList())));
         });
-        Remoting.listen(this, config.getFiddlerListenPort(), false);
+        Remoting.register(this, config.getFiddlerListenPort(), false);
     }
 }
