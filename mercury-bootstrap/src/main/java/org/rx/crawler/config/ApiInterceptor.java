@@ -9,6 +9,10 @@ import org.springframework.stereotype.Component;
 @Aspect
 @Component
 public class ApiInterceptor extends ControllerInterceptor {
+    public ApiInterceptor() {
+        super.enableTrace(null);
+    }
+
     @Around("execution(public * org.rx.crawler.controller..*.*(..))")
     @Override
     public Object doAround(ProceedingJoinPoint joinPoint) throws Throwable {
