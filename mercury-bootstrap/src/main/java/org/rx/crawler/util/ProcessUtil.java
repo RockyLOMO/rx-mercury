@@ -7,7 +7,7 @@ import org.rx.core.StringBuilder;
 
 import java.util.Optional;
 
-import static org.rx.core.App.toJsonString;
+import static org.rx.core.Sys.toJsonString;
 
 public class ProcessUtil {
     public static boolean killProcesses(String... processNames) {

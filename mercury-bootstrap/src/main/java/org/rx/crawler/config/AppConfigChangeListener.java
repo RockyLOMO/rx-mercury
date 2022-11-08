@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.context.scope.refresh.RefreshScope;
 import org.springframework.stereotype.Component;
 
-import static org.rx.core.App.toJsonString;
+import static org.rx.core.Sys.toJsonString;
 
 @Slf4j
 @Component

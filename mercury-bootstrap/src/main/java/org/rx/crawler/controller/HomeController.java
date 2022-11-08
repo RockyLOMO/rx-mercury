@@ -18,7 +18,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import java.util.Map;
 
-import static org.rx.core.App.*;
+import static org.rx.core.Sys.*;
 import static org.rx.core.Extends.ifNull;
 
 @Slf4j

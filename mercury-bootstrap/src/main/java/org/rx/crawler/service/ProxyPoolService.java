@@ -35,7 +35,7 @@
 //import java.util.NoSuchElementException;
 //import java.util.concurrent.ThreadLocalRandom;
 //
-//import static org.rx.core.App.*;
+//import static org.rx.core.Sys.*;
 //
 //@RequiredArgsConstructor
 //@Service

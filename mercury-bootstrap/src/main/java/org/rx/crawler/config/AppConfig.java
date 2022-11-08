@@ -26,7 +26,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Objects;
 
-import static org.rx.core.App.fromJson;
+import static org.rx.core.Sys.fromJson;
 
 @Data
 @Component("appConfig")
