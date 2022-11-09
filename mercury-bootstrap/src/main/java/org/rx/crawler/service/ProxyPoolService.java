@@ -1,6 +1,6 @@
 //package org.rx.crawler.service;
 //
-//import com.alibaba.fastjson.TypeReference;
+//import com.alibaba.fastjson2.TypeReference;
 //import lombok.AllArgsConstructor;
 //import lombok.Data;
 //import lombok.NoArgsConstructor;

@@ -1,6 +1,6 @@
 package org.rx.crawler.config;
 
-import com.alibaba.fastjson.TypeReference;
+import com.alibaba.fastjson2.TypeReference;
 import com.ctrip.framework.apollo.spring.annotation.ApolloJsonValue;
 import lombok.Data;
 import org.openqa.selenium.Rectangle;

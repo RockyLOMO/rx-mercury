@@ -42,10 +42,10 @@ public class BrowserTests {
     @SneakyThrows
     @Test
     public void poolListener() {
-        Remoting.listen(new BrowserPool(appConfig, asyncTopic), 1210, false);
+        Remoting.register(new BrowserPool(appConfig, asyncTopic), 1210, false);
 
         Tasks.schedulePeriod(() -> {
-            BrowserPoolListener listener = Remoting.create(BrowserPoolListener.class, RpcClientConfig.statefulMode("127.0.0.1:1210", 0));
+            BrowserPoolListener listener = Remoting.createFacade(BrowserPoolListener.class, RpcClientConfig.statefulMode("127.0.0.1:1210", 0));
             System.out.println(listener.nextIdleId(BrowserType.IE));
             tryClose(listener);
         }, 1000);
