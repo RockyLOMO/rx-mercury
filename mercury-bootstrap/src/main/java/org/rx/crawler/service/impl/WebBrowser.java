@@ -49,7 +49,7 @@ import static org.rx.core.Extends.*;
  * 不缓存DriverService，奔溃后自恢复
  */
 @Slf4j
-public final class WebBrowser extends Disposable implements Browser, EventTarget<WebBrowser> {
+public final class WebBrowser extends Disposable implements Browser, EventPublisher<WebBrowser> {
     private static final String resourceJsPath = "/bot/root.js";
     private static final Lazy<ChromeDriverService> chromeServiceLazy = new Lazy<>(() -> new ChromeDriverService.Builder().withSilent(true).withVerbose(false).build());
     private static final AtomicInteger chromeIdCounter = new AtomicInteger();
