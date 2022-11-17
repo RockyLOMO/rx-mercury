@@ -3,10 +3,6 @@ package org.rx.test;
 import lombok.SneakyThrows;
 import okhttp3.HttpUrl;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.By;
-import org.openqa.selenium.ie.InternetExplorerDriver;
-import org.openqa.selenium.ie.InternetExplorerOptions;
-import org.rx.core.YamlConfiguration;
 import org.rx.crawler.*;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
@@ -19,7 +15,7 @@ import org.rx.io.IOStream;
 import org.rx.net.http.HttpClient;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RpcClientConfig;
-import org.rx.spring.SpringContext;
+import org.rx.util.UrlGenerator;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import javax.annotation.Resource;
@@ -53,29 +49,17 @@ public class BrowserTests {
         System.in.read();
     }
 
-    @SneakyThrows
     @Test
-    public void urlGenerator() {
-        System.out.println(SpringContext.getBean(AppConfig.class));
-
-//        UrlGenerator generator = new UrlGenerator("http://free-proxy.cz/zh/proxylist/country/CN/socks5/uptime/level1/[1-5]");
-//        for (String url : generator) {
-//            System.out.println(url);
-//        }
-    }
-
-    @SneakyThrows
-    @Test
-    public void fiddler() {
-        String path = "D:\\app_rebate\\fiddler\\VipGoods_1584849184132.txt";
-        String p = Linq.from(Files.readLines(path)).last();
-        String u = HttpClient.decodeUrl(toJsonObject(p).getString("page_url"));
-        Map<String, String> queryString = HttpClient.decodeQueryString(u);
-        u = queryString.get("$route");
-        queryString = HttpClient.decodeQueryString(u);
-        System.out.println(queryString);
-        String goodsId = queryString.get("brandId") + "-" + queryString.get("goodsId");
-        System.out.println(goodsId);
+    public void innerScript() {
+        String baseScript = Cache.getOrSet("WebBrowser.baseScript", k -> {
+            InputStream stream = WebBrowser.class.getResourceAsStream("/bot/base.js");
+            if (stream == null) {
+                System.out.println("resource is null");
+                return "";
+            }
+            return IOStream.readString(stream, StandardCharsets.UTF_8) + "\n";
+        });
+        System.out.println(baseScript);
     }
 
     @SneakyThrows
@@ -99,51 +83,23 @@ public class BrowserTests {
 
     @SneakyThrows
     @Test
-    public void rpcInvoke() {
-        RemoteBrowser.invoke(browser -> {
-            browser.navigateUrl("http://f-li.cn");
-        });
-        RemoteBrowser.invoke(browser -> {
-            browser.navigateUrl("http://cloud.f-li.cn");
-        });
-//        System.in.read();
+    public void fiddler() {
+        String path = "D:\\app_rebate\\fiddler\\VipGoods_1584849184132.txt";
+        String p = Linq.from(Files.readLines(path)).last();
+        String u = HttpClient.decodeUrl(toJsonObject(p).getString("page_url"));
+        Map<String, String> queryString = HttpClient.decodeQueryString(u);
+        u = queryString.get("$route");
+        queryString = HttpClient.decodeQueryString(u);
+        System.out.println(queryString);
+        String goodsId = queryString.get("brandId") + "-" + queryString.get("goodsId");
+        System.out.println(goodsId);
     }
 
     @Test
-    public void innerScript() {
-        String baseScript = Cache.getOrSet("WebBrowser.baseScript", k -> {
-            InputStream stream = WebBrowser.class.getResourceAsStream("/bot/base.js");
-            if (stream == null) {
-                System.out.println("resource is null");
-                return "";
-            }
-            return IOStream.readString(stream, StandardCharsets.UTF_8) + "\n";
-        });
-        System.out.println(baseScript);
-    }
-
-    @SneakyThrows
-    @Test
-    public void webLogin() {
-        System.setProperty("webdriver.chrome.driver", YamlConfiguration.RX_CONF.readAs("app.chrome.driver", String.class));
-        System.setProperty("webdriver.ie.driver", YamlConfiguration.RX_CONF.readAs("app.ie.driver", String.class));
-        String url = "https://login.taobao.com/member/login.jhtml?style=mini&newMini2=true&from=alimama&redirectURL=http:%2F%2Flogin.taobao.com%2Fmember%2Ftaobaoke%2Flogin.htm%3Fis_login%3d1&full_redirect=true&disableQuickLogin=false";
-        InternetExplorerOptions opt = new InternetExplorerOptions();
-        opt.withInitialBrowserUrl("about:blank");
-        InternetExplorerDriver driver = new InternetExplorerDriver(opt);
-        driver.get(url);
-        Thread.sleep(3000);
-        By locator = By.id("J_SubmitQuick");
-        while (!driver.getCurrentUrl().contains("alimama.com")) {
-            driver.findElement(locator).click();
-            System.out.println("click...");
-            Thread.sleep(1000);
+    public void other() {
+        UrlGenerator generator = new UrlGenerator("http://free-proxy.cz/zh/proxylist/country/CN/socks5/uptime/level1/[1-5]");
+        for (String url : generator) {
+            System.out.println(url);
         }
-
-        System.out.println("url: " + driver.getCurrentUrl());
-        for (org.openqa.selenium.Cookie cookie : driver.manage().getCookies()) {
-            System.out.println(cookie.getName());
-        }
-        System.in.read();
     }
 }
