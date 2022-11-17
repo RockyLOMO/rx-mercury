@@ -16,25 +16,31 @@ spring:
     name: svc-mercury
 apollo:
   bootstrap:
-    enabled: true
+    enabled: false
     namespaces: application,middleware
 app:
   id: svc-mercury
   net:
     connectTimeoutMillis: 40000
-  chrome:
-    driver: /app-crawler/driver/chromedriver.exe
-    diskDataPath: /app-crawler/cache/chrome%s/data/
+  chromeDriver: /app-crawler/driver/chromedriver.exe
+  ieDriver: /app-crawler/driver/IEDriverServer.exe
+  browser:
+    pageLoadTimeoutSeconds: 30
+    findElementTimeoutSeconds: 6
+    diskDataPath: /app-crawler/data/chrome%s/
     downloadPath: /app-crawler/temp/
-    isBackground: false
-  ie:
-    driver: /app-crawler/driver/IEDriverServer.exe
-  pool:
+    windowRectangle: "600,500,800,600"
+    cookieContainer: org.rx.crawler.service.impl.MemoryCookieContainer
+    configureScriptExecutorType: org.rx.crawler.service.impl.ApiConfigureScriptExecutor
+  browserPool:
     listenPort: 1210
     maintenancePeriod: 10000
     maxActiveMinutes: 4
     dumpPeriod: 6000
     asyncThreshold: 0.8
+    takeTimeoutSeconds: 6
+    poolSize: 2
+    windowAutoBlank: true
   proxy:
     produceProxyTimes:
       - "6:00:00"

@@ -26,7 +26,6 @@ import org.rx.crawler.util.ProcessUtil;
 import org.rx.exception.TraceHandler;
 import org.rx.exception.InvalidException;
 import org.rx.bean.Tuple;
-import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.core.*;
 import org.rx.io.Files;
@@ -50,12 +49,13 @@ import static org.rx.core.Extends.*;
  */
 @Slf4j
 public final class WebBrowser extends Disposable implements Browser, EventPublisher<WebBrowser> {
-    private static final String resourceJsPath = "/bot/root.js";
-    private static final Lazy<ChromeDriverService> chromeServiceLazy = new Lazy<>(() -> new ChromeDriverService.Builder().withSilent(true).withVerbose(false).build());
-    private static final AtomicInteger chromeIdCounter = new AtomicInteger();
-    private static final ConcurrentHashMap<RemoteWebDriver, Tuple<DateTime, Linq<Long>>> iePidMap = new ConcurrentHashMap<>();
+    //region static
+    static final String RESOURCE_JS_PATH = "/bot/root.js";
+    static final Lazy<ChromeDriverService> chromeServiceLazy = new Lazy<>(() -> new ChromeDriverService.Builder().withSilent(true).withVerbose(false).build());
+    static final AtomicInteger chromeIdCounter = new AtomicInteger();
+    static final ConcurrentHashMap<RemoteWebDriver, Tuple<DateTime, Linq<Long>>> iePidMap = new ConcurrentHashMap<>();
 
-    private static void killIe(RemoteWebDriver driver) {
+    static void killIe(RemoteWebDriver driver) {
         quietly(() -> {
             Tuple<DateTime, Linq<Long>> tuple = iePidMap.remove(driver);
             if (tuple != null) {
@@ -66,28 +66,27 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         });
     }
 
-    private static Linq<Long> getIePids() {
+    static Linq<Long> getIePids() {
         return ProcessUtil.getProcesses(BrowserType.IE.getProcessName(), BrowserType.IE.getDriverName()).select(ProcessHandle::pid);
     }
+    //endregion
 
     //region init
     public final Delegate<WebBrowser, EventArgs> onNavigating = Delegate.create(), onNavigated = Delegate.create();
-    private DriverService driverService;
-    private RemoteWebDriver driver;
-    @Getter
-    @Setter
-    private int id;
-    private final CookieContainer cookieContainer;
-    private final ConfigureScriptExecutor configureScriptExecutor;
+    final WebBrowserConfig config;
+    final CookieContainer cookieContainer;
+    final ConfigureScriptExecutor configureScriptExecutor;
+    final Set<String> injectedScript = new HashSet<>();
     //设置后才会自动装载cookie
     @Getter
     @Setter
     private String cookieRegion;
     @Getter
-    private int waitMillis;
-    private final AppConfig config;
+    @Setter
+    private long waitMillis = 500;
+    private DriverService driverService;
+    private RemoteWebDriver driver;
     private volatile String navigatedUrl, navigatedSelector;
-    private final Set<String> injectedScript = new HashSet<>();
 
     @Override
     public BrowserType getType() {
@@ -121,11 +120,10 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     }
 
     @SneakyThrows
-    public WebBrowser(@NonNull AppConfig config, @NonNull BrowserType type) {
-        cookieContainer = config.getCookieContainer();
-        configureScriptExecutor = config.createScriptExecutor(this);
-        waitMillis = config.getWaitMillis();
+    public WebBrowser(@NonNull WebBrowserConfig config, @NonNull BrowserType type) {
         this.config = config;
+        this.cookieContainer = config.getCookieContainer();
+        this.configureScriptExecutor = Reflects.newInstance(Class.forName(config.getConfigureScriptExecutorType()), this);
         Tuple<DriverService, RemoteWebDriver> tuple = createDriver(type);
         driverService = tuple.left;
         driver = tuple.right;
@@ -156,16 +154,17 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             default:
                 driverService = chromeServiceLazy.getValue();
 
-                AppConfig.ChromeConfig chromeConfig = config.getChrome();
                 ChromeOptions opt = (ChromeOptions) fill(new ChromeOptions())
-                        .setHeadless(chromeConfig.isBackground())
+                        .setHeadless(false)
                         .setAcceptInsecureCerts(true)
                         .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
                         .setPageLoadStrategy(PageLoadStrategy.NORMAL);
 
                 Map<String, Object> chromePrefs = new HashMap<>();
-                Files.createDirectory(chromeConfig.getDownloadPath());
-                chromePrefs.put("download.default_directory", chromeConfig.getDownloadPath());
+                if (config.getDownloadPath() != null) {
+                    Files.createDirectory(config.getDownloadPath());
+                    chromePrefs.put("download.default_directory", config.getDownloadPath());
+                }
                 chromePrefs.put("profile.default_content_settings.popups", 0);
                 chromePrefs.put("pdfjs.disabled", true);
                 opt.setExperimentalOption("prefs", chromePrefs);
@@ -178,9 +177,11 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                         "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
                         "no-sandbox", "autoplay-policy=Document user activation is required");
 
-                if (!Strings.isEmpty(chromeConfig.getDiskDataPath())) {
+                if (!Strings.isEmpty(config.getDiskDataPath())) {
                     int id = chromeIdCounter.getAndIncrement();
-                    opt.addArguments("user-data-dir=" + String.format(chromeConfig.getDiskDataPath(), id), "restore-last-session");
+                    String dataDir = String.format(config.getDiskDataPath(), id);
+                    Files.createDirectory(dataDir);
+                    opt.addArguments("user-data-dir=" + dataDir, "restore-last-session");
                 }
                 //disk-cache-dir,disk-cache-size
                 driver = new ChromeDriver((ChromeDriverService) driverService, opt);
@@ -189,7 +190,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         WebDriver.Options manage = driver.manage();
         manage.timeouts().pageLoadTimeout(config.getPageLoadTimeoutSeconds(), TimeUnit.SECONDS);
         manage.timeouts().setScriptTimeout(config.getPageLoadTimeoutSeconds(), TimeUnit.SECONDS);
-        Rectangle rectangle = config.getWindowRectangleBean();
+        Rectangle rectangle = config.getWindowRectangle();
         if (rectangle != null) {
             manage.window().setPosition(rectangle.getPoint());
             manage.window().setSize(rectangle.getDimension());
@@ -555,7 +556,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         checkNotClosed();
 
         if (getType() != BrowserType.IE) {
-            String rootJs = Cache.<String, String>getInstance(Cache.MEMORY_CACHE).get(cacheKey("injectRootJs"), k -> Browser.readResourceJs(resourceJsPath));
+            String rootJs = Cache.<String, String>getInstance(Cache.MEMORY_CACHE).get(cacheKey("injectRootJs"), k -> Browser.readResourceJs(RESOURCE_JS_PATH));
 //            log.warn("injectScript:\n{}\n", rootJs);
             injectScript(rootJs);
         }
@@ -595,7 +596,10 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     public synchronized void normalize() {
         checkNotClosed();
 
-        setWindowRectangle(config.getWindowRectangleBean());
+        Rectangle rect = config.getWindowRectangle();
+        if (rect != null) {
+            setWindowRectangle(config.getWindowRectangle());
+        }
     }
 
     @Override

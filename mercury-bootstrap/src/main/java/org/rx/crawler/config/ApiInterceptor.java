@@ -3,12 +3,12 @@ package org.rx.crawler.config;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.rx.spring.ControllerInterceptor;
+import org.rx.spring.Interceptors;
 import org.springframework.stereotype.Component;
 
 @Aspect
 @Component
-public class ApiInterceptor extends ControllerInterceptor {
+public class ApiInterceptor extends Interceptors.ControllerInterceptor {
     public ApiInterceptor() {
         super.enableTrace(null);
     }

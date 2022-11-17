@@ -4,7 +4,7 @@ import com.ctrip.framework.apollo.ConfigService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.rx.crawler.Browser;
-import org.rx.crawler.config.ApolloConfig;
+//import org.rx.crawler.config.ApolloConfig;
 import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.exception.InvalidException;
 import org.rx.core.Strings;
@@ -22,7 +22,7 @@ public final class ApiConfigureScriptExecutor implements ConfigureScriptExecutor
 
     @Override
     public void setConfigureScript(String scriptName, String scriptContent) {
-        SpringContext.getBean(ApolloConfig.class).setProperty(scriptName, scriptContent);
+//        SpringContext.getBean(ApolloConfig.class).setProperty(scriptName, scriptContent);
     }
 
     @Override
