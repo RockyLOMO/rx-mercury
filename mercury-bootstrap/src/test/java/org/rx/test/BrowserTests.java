@@ -42,7 +42,7 @@ public class BrowserTests {
     @SneakyThrows
     @Test
     public void poolListener() {
-        Remoting.register(new BrowserPool(appConfig, asyncTopic), 1210, false);
+        Remoting.register(new BrowserPool(appConfig.getBrowser(), asyncTopic), 1210, false);
 
         Tasks.schedulePeriod(() -> {
             BrowserPoolListener listener = Remoting.createFacade(BrowserPoolListener.class, RpcClientConfig.statefulMode("127.0.0.1:1210", 0));
@@ -145,28 +145,5 @@ public class BrowserTests {
             System.out.println(cookie.getName());
         }
         System.in.read();
-    }
-
-    @SneakyThrows
-    @Test
-    public void changeTab() {
-        WebBrowser caller = new WebBrowser(appConfig, BrowserType.CHROME);
-        String currentHandle = caller.getCurrentHandle();
-        System.out.println(currentHandle);
-
-        String handle = caller.openTab();
-        System.out.println(handle);
-        Thread.sleep(2000);
-
-        caller.openTab();
-        System.out.println(handle);
-        Thread.sleep(2000);
-
-        caller.switchTab(handle);
-        System.out.println("switch");
-        Thread.sleep(2000);
-
-        caller.closeTab(handle);
-        System.out.println("close");
     }
 }

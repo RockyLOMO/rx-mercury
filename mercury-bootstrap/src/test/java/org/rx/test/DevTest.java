@@ -4,24 +4,18 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.Rectangle;
-import org.rx.core.Reflects;
-import org.rx.core.RxConfig;
-import org.rx.core.YamlConfiguration;
-import org.rx.crawler.Application;
 import org.rx.crawler.BrowserType;
-import org.rx.crawler.config.AppConfig;
+import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.MemoryCookieContainer;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
-import org.rx.util.BeanMapper;
-import org.springframework.boot.test.context.SpringBootTest;
-
-import javax.annotation.Resource;
 
 import static org.rx.core.Extends.sleep;
 
 @Slf4j
 public class DevTest {
+    BrowserPool pool;
+
     public WebBrowser init() {
         String baseDir = "/app-crawler/";
         System.setProperty("webdriver.chrome.driver", String.format("%s/driver/chromedriver.exe", baseDir));
@@ -48,5 +42,28 @@ public class DevTest {
         sleep(1000);
         byte[] bytes = browser.screenshotAsBytes(".qrcode-img");
         System.out.println(bytes.length);
+    }
+
+    @SneakyThrows
+    @Test
+    public void changeTab() {
+        WebBrowser caller = init();
+        String currentHandle = caller.getCurrentHandle();
+        System.out.println(currentHandle);
+
+        String handle = caller.openTab();
+        System.out.println(handle);
+        Thread.sleep(2000);
+
+        caller.openTab();
+        System.out.println(handle);
+        Thread.sleep(2000);
+
+        caller.switchTab(handle);
+        System.out.println("switch");
+        Thread.sleep(2000);
+
+        caller.closeTab(handle);
+        System.out.println("close");
     }
 }

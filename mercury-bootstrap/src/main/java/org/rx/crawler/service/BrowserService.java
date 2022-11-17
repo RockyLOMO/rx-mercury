@@ -20,8 +20,8 @@ import static org.rx.core.Extends.quietly;
 @Service
 @RequiredArgsConstructor
 public class BrowserService {
-    private final AppConfig config;
-    private final BrowserAsyncTopic asyncTopic;
+    final AppConfig config;
+    final BrowserAsyncTopic asyncTopic;
     @Getter
     private BrowserPool pool;
 
@@ -29,9 +29,9 @@ public class BrowserService {
     public void init() {
         purgeProcesses();
 
-        System.setProperty("webdriver.chrome.driver", config.getChrome().getDriver());
-        System.setProperty("webdriver.ie.driver", config.getIe().getDriver());
-        quietly(() -> Remoting.register(pool = new BrowserPool(config, asyncTopic), config.getPool().getListenPort(), false));
+        System.setProperty("webdriver.chrome.driver", config.getChromeDriver());
+        System.setProperty("webdriver.ie.driver", config.getIeDriver());
+        quietly(() -> Remoting.register(pool = new BrowserPool(config.getBrowser(), asyncTopic), pool.conf.getListenPort(), false));
     }
 
     private void purgeProcesses() {

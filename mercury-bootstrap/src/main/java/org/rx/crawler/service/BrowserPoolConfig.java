@@ -1,6 +1,7 @@
 package org.rx.crawler.service;
 
 import lombok.Data;
+import org.openqa.selenium.Rectangle;
 import org.rx.core.Linq;
 import org.rx.core.Strings;
 import org.rx.util.IdGenerator;
@@ -18,6 +19,13 @@ public class BrowserPoolConfig {
 
     private int poolSize = 2;
     private boolean windowAutoBlank = true;
+    private int pageLoadTimeoutSeconds;
+    private int findElementTimeoutSeconds;
+    private String diskDataPath;
+    private String downloadPath;
+    private Rectangle windowRectangle;
+    private String cookieContainerType;
+    private String configureScriptExecutorType;
 
     public IdGenerator getPortGenerator() {
         if (portGenerator == null) {

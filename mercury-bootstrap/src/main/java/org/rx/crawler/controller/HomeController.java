@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.rx.crawler.config.AppConfig;
 import org.rx.core.Cache;
 import org.rx.core.Strings;
+import org.rx.crawler.service.BrowserService;
 import org.rx.net.http.HttpClient;
 import org.rx.redis.RedisCache;
 import org.springframework.stereotype.Controller;
@@ -25,8 +26,8 @@ import static org.rx.core.Extends.ifNull;
 @RequiredArgsConstructor
 @Controller
 public class HomeController {
-    private final AppConfig config;
     private final RedisCache<String, String> cache;
+    final BrowserService browserService;
 
     @RequestMapping("/pddName")
     @ResponseBody
@@ -60,11 +61,11 @@ public class HomeController {
         Cache<String, String> cache = Cache.getInstance(Cache.class);
         if (isWriteBack) {
             model.addAttribute("requestCookie", cache.get(k));
-            model.addAttribute("rawCookie", ifNull(config.getCookieContainer().get(regionUrl), Strings.EMPTY));
+            model.addAttribute("rawCookie", ifNull(browserService.getPool().getCookieContainer().get(regionUrl), Strings.EMPTY));
         } else {
             model.addAttribute("requestCookie", reqRawCookie);
             cache.put(k, reqRawCookie);
-            return config.getCookieContainer().handleWriteRequest(request, response);
+            return browserService.getPool().getCookieContainer().handleWriteRequest(request, response);
         }
         return "cookies";
     }

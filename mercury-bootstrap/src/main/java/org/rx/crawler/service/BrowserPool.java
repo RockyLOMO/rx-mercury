@@ -14,7 +14,6 @@ import org.rx.bean.WeakIdentityMap;
 import org.rx.core.*;
 import org.rx.core.StringBuilder;
 import org.rx.crawler.*;
-import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.exception.TraceHandler;
@@ -70,14 +69,14 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     }
                     for (TcpClient client : clients) {
                         DateTime connTime = client.attr(CONNECT_TIME);
-                        if (connTime == null || DateTime.now().subtract(connTime).getTotalMinutes() <= browserPoolConf.getMaxActiveMinutes()) {
+                        if (connTime == null || DateTime.now().subtract(connTime).getTotalMinutes() <= conf.getMaxActiveMinutes()) {
                             continue;
                         }
                         log.warn("CORRECT force close browser[{}]", id);
                         client.close();
                     }
                 }
-            }, browserPoolConf.getMaintenancePeriod());
+            }, conf.getMaintenancePeriod());
         }
 
         public StringBuilder dump() {
@@ -98,7 +97,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
             WebBrowser browser = new WebBrowser(browserConf, type);
             while (true) {
                 try {
-                    RpcServerConfig serverConfig = new RpcServerConfig(new TcpServerConfig(browserPoolConf.getPortGenerator().increment()));
+                    RpcServerConfig serverConfig = new RpcServerConfig(new TcpServerConfig(conf.getPortGenerator().increment()));
                     serverConfig.getTcpConfig().setCapacity(1);
                     TcpServer server = Remoting.register(browser, serverConfig);
                     server.onDisconnected.combine((s, e) -> release(browser));
@@ -138,14 +137,14 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     browser.clearCookies(true);
                     browser.setCookieRegion(null);
                 }
-                if (browserPoolConf.isWindowAutoBlank()) {
+                if (conf.isWindowAutoBlank()) {
                     browser.navigateBlank();
                 }
             });
         }
     }
 
-    final BrowserPoolConfig browserPoolConf;
+    final BrowserPoolConfig conf;
     final WebBrowserConfig browserConf;
     final BrowserAsyncTopic asyncTopic;
     final GenericKeyedObjectPool<BrowserType, Browser> pool;
@@ -156,18 +155,18 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
     }
 
     @SneakyThrows
-    public BrowserPool(AppConfig config, BrowserAsyncTopic asyncTopic) {
-        browserPoolConf = config.getBrowserPool();
-        browserConf = BeanMapper.DEFAULT.map(config.getBrowser(), WebBrowserConfig.class);
-        browserConf.setCookieContainer(Reflects.newInstance(Class.forName(config.getBrowser().getCookieContainerType())));
+    public BrowserPool(@NonNull BrowserPoolConfig config, BrowserAsyncTopic asyncTopic) {
+        conf = config;
+        browserConf = BeanMapper.DEFAULT.map(conf, WebBrowserConfig.class);
+        browserConf.setCookieContainer(Reflects.newInstance(Class.forName(conf.getCookieContainerType())));
         this.asyncTopic = asyncTopic;
-        int poolSize = browserPoolConf.getPoolSize();
+        int poolSize = conf.getPoolSize();
         GenericKeyedObjectPoolConfig<Browser> poolConfig = new GenericKeyedObjectPoolConfig<>();
         poolConfig.setLifo(false);
         poolConfig.setFairness(false);
         poolConfig.setTestOnBorrow(true);
         poolConfig.setJmxEnabled(false);
-        poolConfig.setMaxWaitMillis(browserPoolConf.getTakeTimeoutSeconds() * 1000L);
+        poolConfig.setMaxWaitMillis(conf.getTakeTimeoutSeconds() * 1000L);
         poolConfig.setMaxIdlePerKey(poolSize);
         poolConfig.setMaxTotalPerKey(poolSize);
         pool = new GenericKeyedObjectPool<>(new ObjectFactory(), poolConfig);
@@ -180,26 +179,23 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     pool.getNumIdle(BrowserType.CHROME), activeCount = pool.getNumActive(BrowserType.CHROME),
                     pool.getNumIdle(BrowserType.IE), pool.getNumActive(BrowserType.IE),
                     factory.dump());
-        }, browserPoolConf.getDumpPeriod());
+        }, conf.getDumpPeriod());
 
-        Tasks.schedulePeriod(() -> {
-            if ((float) activeCount / poolSize > browserPoolConf.getAsyncThreshold()) {
-                log.warn("Pool is busy, retry next time..");
-                return;
-            }
-//          BrowserAsyncRequest request = asyncTopic.poll();
-//          Inet4Address address = Sockets.getLocalAddress();
-//          int idleId = nextIdleId(BrowserType.Chrome);
-//          log.info("Async publish {}:{}", address, idleId);
-//          asyncTopic.publish(new BrowserAsyncResponse(request, new InetSocketAddress(address, idleId)));
+        if (asyncTopic != null) {
+            Tasks.schedulePeriod(() -> {
+                if ((float) activeCount / poolSize > conf.getAsyncThreshold()) {
+                    log.warn("Pool is busy, retry next time..");
+                    return;
+                }
 
-            for (BrowserAsyncRequest request : asyncTopic.poll(poolSize / 2)) {
-                Inet4Address address = (Inet4Address) Sockets.getLocalAddress();
-                int idleId = nextIdleId(BrowserType.CHROME);
-                log.info("Async publish {}:{}", address, idleId);
-                asyncTopic.publish(new BrowserAsyncResponse(request, new InetSocketAddress(address, idleId)));
-            }
-        }, 2000);
+                for (BrowserAsyncRequest request : asyncTopic.poll(poolSize / 2)) {
+                    Inet4Address address = (Inet4Address) Sockets.getLocalAddress();
+                    int idleId = nextIdleId(BrowserType.CHROME);
+                    log.info("Async publish {}:{}", address, idleId);
+                    asyncTopic.publish(new BrowserAsyncResponse(request, new InetSocketAddress(address, idleId)));
+                }
+            }, 2000);
+        }
     }
 
     @Override
@@ -210,7 +206,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
     @SneakyThrows
     private synchronized void fillPoolSize() {
         for (BrowserType type : BrowserType.values()) {
-            pool.addObjects(type, browserPoolConf.getPoolSize());
+            pool.addObjects(type, conf.getPoolSize());
         }
     }
 
