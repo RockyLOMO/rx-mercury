@@ -19,8 +19,9 @@ public class BrowserPoolConfig {
 
     private int poolSize = 2;
     private boolean windowAutoBlank = true;
-    private int pageLoadTimeoutSeconds;
-    private int findElementTimeoutSeconds;
+    private long waitMillis = 500;
+    private int pageLoadTimeoutSeconds = 30;
+    private int findElementTimeoutSeconds = 6;
     private String diskDataPath;
     private String downloadPath;
     private Rectangle windowRectangle;

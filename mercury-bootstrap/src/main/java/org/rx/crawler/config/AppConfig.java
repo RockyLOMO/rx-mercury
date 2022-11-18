@@ -47,14 +47,11 @@ public class AppConfig {
     private BrowserPoolConfig browser;
 
     private int fiddlerListenPort;
+    private String baseDir = "";
     @Value("${server.httpPort}")
     private int httpPort;
     @Value("${server.port}")
     private int httpsPort;
-
-    public String getFiddlerPath() {
-        return new File("./fiddler").getAbsolutePath();
-    }
 
     @Component
     @ConfigurationPropertiesBinding

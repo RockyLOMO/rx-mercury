@@ -16,7 +16,7 @@ spring:
     name: svc-mercury
 apollo:
   bootstrap:
-    enabled: false
+    enabled: true
     namespaces: application,middleware
 app:
   id: svc-mercury
@@ -31,9 +31,11 @@ app:
     dumpPeriod: 6000
     asyncThreshold: 0.8
     takeTimeoutSeconds: 6
+    remotingPortRange: 1220-1320
     poolSize: 2
     windowAutoBlank: true
 
+    waitMillis: 500
     pageLoadTimeoutSeconds: 30
     findElementTimeoutSeconds: 6
     diskDataPath: /app-crawler/data/chrome%s/

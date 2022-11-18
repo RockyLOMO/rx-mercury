@@ -18,7 +18,9 @@ public class FiddlerService implements FiddlerWatcher {
     final FileWatcher watcher;
 
     public FiddlerService(AppConfig config) {
-        watcher = new FileWatcher(config.getFiddlerPath());
+        String dir = Files.concatPath(config.getBaseDir(), "fiddler/");
+        Files.createDirectory(dir);
+        watcher = new FileWatcher(dir);
         watcher.onChanged.combine((sender, e) -> {
             log.info("File[{}] has {} change", e.getPath(), e.isModify());
             if (!e.isModify()) {
