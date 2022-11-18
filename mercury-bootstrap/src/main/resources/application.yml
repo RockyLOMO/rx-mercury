@@ -41,7 +41,7 @@ app:
     diskDataPath: /app-crawler/data/chrome%s/
     downloadPath: /app-crawler/temp/
     windowRectangle: "600,500,800,600"
-    cookieContainer: org.rx.crawler.service.impl.MemoryCookieContainer
+    cookieContainerType: org.rx.crawler.service.impl.MemoryCookieContainer
     configureScriptExecutorType: org.rx.crawler.service.impl.ApiConfigureScriptExecutor
   proxy:
     produceProxyTimes:
