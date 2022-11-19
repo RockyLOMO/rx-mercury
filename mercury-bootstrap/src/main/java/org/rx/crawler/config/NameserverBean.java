@@ -5,7 +5,7 @@ import com.ctrip.framework.apollo.ConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.rx.core.Container;
+import org.rx.core.IOC;
 import org.rx.core.Linq;
 import org.rx.exception.InvalidException;
 import org.rx.net.nameserver.NameserverClient;
@@ -38,7 +38,7 @@ public class NameserverBean {
                 if (endpoints != null) {
                     NameserverBean nsb = new NameserverBean(appName, endpoints);
                     nsb.init();
-                    Container.register(NameserverBean.class, nsb);
+                    IOC.register(NameserverBean.class, nsb);
                 }
             }
 //            System.out.println(bean);

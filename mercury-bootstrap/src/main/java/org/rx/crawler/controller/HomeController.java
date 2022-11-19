@@ -58,7 +58,7 @@ public class HomeController {
         String k = cacheKey(regionUrl);
         model.addAttribute("regionUrl", regionUrl);
         model.addAttribute("action", action);
-        Cache<String, String> cache = Cache.getInstance(Cache.class);
+        Cache<String, String> cache = Cache.getInstance();
         if (isWriteBack) {
             model.addAttribute("requestCookie", cache.get(k));
             model.addAttribute("rawCookie", ifNull(browserService.getPool().getCookieContainer().get(regionUrl), Strings.EMPTY));
