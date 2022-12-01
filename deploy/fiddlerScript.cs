@@ -1,10 +1,10 @@
+//*.jd.com; *.jd.hk; *.jingxi.com; *.alimama.com; *.taobao.com; *.tmall.com; *.yangkeduo.com; *.pinduoduo.com;
 var rootPath = "C:\\app-crawler\\fiddler\\";
 try{
     if (oSession.oResponse.headers.ExistsAndContains("Content-Type", "text/html")) {
         oSession.utilDecodeResponse();
         oSession.utilReplaceOnceInResponse("<head>", "<head><script>try{Object.defineProperty(navigator,'webdriver',{get:()=>undefined});}catch(e){}</script>", false);
 
-        //oSession.utilSetResponseBody(oBody);
         if (oSession.host.Contains("alimama.com") || oSession.host.Contains("taobao.com")) {
             var oBody = oSession.GetResponseBodyAsString();
             oBody = oBody.Replace("/mm/ieupdate/0.0.1/index.js","").Replace("/pointman/","").Replace("/mlog/aplus_v2.js","");
@@ -28,9 +28,6 @@ try{
                 "    document.body.appendChild(s);\n"+
                 "}, false);\n"+
                 "</script></body>", false);
-        } else if (oSession.host.Contains("zk.kaola.com")) {
-            var ts = new Date().getTime();
-            oSession.SaveRequest(rootPath + "Kaola_Cookie_" + ts + ".txt", true);
         }
 
         oSession.oResponse.headers["Content-Length"] = oSession.responseBodyBytes.Length.ToString();
@@ -38,10 +35,6 @@ try{
         oSession.utilDecodeResponse();
         var ts = new Date().getTime();
         oSession.SaveRequestBody(rootPath + "Jd_Goods_" + ts + ".txt");
-    } else if (oSession.host.Contains("gw.kaola.com") && oSession.PathAndQuery.StartsWith("/gw/goods/shareInfo")) {
-        oSession.utilDecodeResponse();
-        var ts = new Date().getTime();
-        oSession.SaveRequestBody(rootPath + "Kaola_Goods_" + ts + ".txt");
     } else if (oSession.host.Contains("xcxapp.pinduoduo.com") && oSession.PathAndQuery.StartsWith("/compose/vtx/goods/detail/first/v3")) {
         oSession.utilDecodeResponse();
         var ts = new Date().getTime();
