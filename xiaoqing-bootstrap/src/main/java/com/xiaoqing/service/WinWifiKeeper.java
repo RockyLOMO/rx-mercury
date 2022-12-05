@@ -15,7 +15,7 @@ import static org.rx.core.Extends.sleep;
 @Service
 public class WinWifiKeeper {
     final AtomicInteger counter = new AtomicInteger();
-    String testHost = "www.baidu.com";
+    String testHost = "cloud.f-li.cn";
     int maxTestFail = 4;
     String wifiName = "CowellTech-Staff";
 
