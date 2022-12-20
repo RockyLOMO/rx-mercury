@@ -30,6 +30,7 @@ import org.rx.crawler.service.CookieContainer;
 import org.rx.core.*;
 import org.rx.io.Files;
 import org.rx.util.Lazy;
+import org.rx.util.function.BiFunc;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
@@ -479,22 +480,30 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     }
 
     private Linq<WebElement> waitElementLocated(String selector, int timeoutSeconds, Predicate<Integer> checkComplete) throws TimeoutException {
-        Linq<WebElement> q = createWait(timeoutSeconds).until(s -> {
-            Linq<WebElement> elements = findElements(selector, false);
-            if (elements.any()) {
-                log.debug("Wait {} located ok", selector);
-                return elements;
+        Linq<WebElement> q = createWait(timeoutSeconds).until(new BiFunc<FluentWait, Linq<WebElement>>() {
+            @Override
+            public Linq<WebElement> invoke(FluentWait s) throws Throwable {
+                Linq<WebElement> elements = WebBrowser.this.findElements(selector, false);
+                if (elements.any()) {
+                    log.debug("Wait {} located ok", selector);
+                    return elements;
+                }
+
+                elements = WebBrowser.this.findElements(selector, false);
+                if (elements.any()) {
+                    log.debug("Wait {} located ok", selector);
+                    return elements;
+                }
+                if (checkComplete != null && checkComplete.test(s.getEvaluatedCount())) {
+                    return elements;
+                }
+                return null;
             }
 
-            elements = findElements(selector, false);
-            if (elements.any()) {
-                log.debug("Wait {} located ok", selector);
-                return elements;
+            @Override
+            public String toString() {
+                return String.format("cssSelector(%s)", selector);
             }
-            if (checkComplete != null && checkComplete.test(s.getEvaluatedCount())) {
-                return elements;
-            }
-            return null;
         });
         if (q == null || !q.any()) {
             throw new TimeoutException(String.format("No such elements '%s'", selector));
