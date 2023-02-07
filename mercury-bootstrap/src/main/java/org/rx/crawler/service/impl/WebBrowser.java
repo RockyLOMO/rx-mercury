@@ -480,7 +480,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     }
 
     private Linq<WebElement> waitElementLocated(String selector, int timeoutSeconds, Predicate<Integer> checkComplete) throws TimeoutException {
-        Linq<WebElement> q = createWait(timeoutSeconds).until(new BiFunc<FluentWait, Linq<WebElement>>() {
+        Linq<WebElement> q = createWait(timeoutSeconds).await(new BiFunc<>() {
             @Override
             public Linq<WebElement> invoke(FluentWait s) throws Throwable {
                 Linq<WebElement> elements = WebBrowser.this.findElements(selector, false);

@@ -38,7 +38,7 @@ public class FirefightingService {
             }
             p.elementPress(validCodeXpath, code.get(0));
             p.elementClick(btnXpath);
-            p.createWait(10).until(stat -> Strings.startsWith(p.getCurrentUrl(), "https://xfhyjd.119.gov.cn/#/signup/choosePlan"));
+            p.createWait(10).awaitTrue(stat -> Strings.startsWith(p.getCurrentUrl(), "https://xfhyjd.119.gov.cn/#/signup/choosePlan"));
         }, cookieRegion);
     }
 
@@ -50,7 +50,7 @@ public class FirefightingService {
             p.navigateUrl("https://xfhyjd.119.gov.cn/#/signup/choosePlan", Browser.BODY_SELECTOR);
 
             p.elementClick(baomingXpath);
-            p.createWait(30).until(stat -> eq(p.elementText(dianjiXpath), "点击报名"));
+            p.createWait(30).awaitTrue(stat -> eq(p.elementText(dianjiXpath), "点击报名"));
             p.elementClick(dianjiXpath);
 
             Map<String, String> xpaths = new HashMap<>();
