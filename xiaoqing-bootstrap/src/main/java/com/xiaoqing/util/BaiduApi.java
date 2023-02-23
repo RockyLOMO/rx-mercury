@@ -17,7 +17,7 @@ public class BaiduApi {
     public static final String API_KEY = "zFeWECfC5vQy152dcmVBxkiN";
     public static final String SECRET_KEY = "3vGW2L3NG9pdpqUsMc26X5T97UENIQHu";
 
-    public List<String> ocr(IOStream<?, ?> stream) {
+    public List<String> ocr(IOStream stream) {
         // 初始化一个AipOcr
         AipOcr client = new AipOcr(APP_ID, API_KEY, SECRET_KEY);
 
