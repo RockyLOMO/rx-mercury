@@ -144,7 +144,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                         .ignoreZoomSettings()
 //                            .introduceFlakinessByIgnoringSecurityDomains()  //NoSuchWindowException
                         .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
-                        .setCapability(CapabilityType.APPLICATION_NAME, "rxBrowser");
+//                        .setCapability(CapabilityType.APPLICATION_NAME, "rxBrowser")
+                ;
 
                 Linq<Long> iePids_before = getIePids();
                 driver = new InternetExplorerDriver((InternetExplorerDriverService) driverService, opt);
@@ -200,8 +201,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     }
 
     private <T extends MutableCapabilities> T fill(T opt) {
-        opt.setCapability(CapabilityType.SUPPORTS_APPLICATION_CACHE, true);
-        opt.setCapability(CapabilityType.SUPPORTS_ALERTS, false);
+//        opt.setCapability(CapabilityType.SUPPORTS_APPLICATION_CACHE, true);
+//        opt.setCapability(CapabilityType.SUPPORTS_ALERTS, false);
         opt.setCapability(CapabilityType.UNHANDLED_PROMPT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
         opt.setCapability(CapabilityType.UNEXPECTED_ALERT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
         return opt;
