@@ -185,6 +185,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                     Files.createDirectory(dataDir);
                     opt.addArguments("user-data-dir=" + dataDir, "restore-last-session");
                 }
+                opt.addArguments("--remote-allow-origins=*");
                 //disk-cache-dir,disk-cache-size
                 driver = new ChromeDriver((ChromeDriverService) driverService, opt);
                 break;
