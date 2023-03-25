@@ -7,7 +7,7 @@ metadata:
     app: xiaofan-crawler
 subsets:
   - addresses:
-      - ip: 192.168.31.10
+      - ip: 192.168.31.9
     ports:
       - name: xiaofan-crawler
         port: 8080

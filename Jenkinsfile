@@ -8,9 +8,9 @@ pipeline {
     environment {
         APP_NAME = 'mercury-bootstrap'
         JAR_NAME = 'mercury-bootstrap-1.0.jar'
-        APP_HOST = 'crawler.f-li.cn'
+        APP_HOST = 'bot.f-li.cn'
         REMOTE_PATH = '/c/app-crawler/'
-        HEALTH_URL = 'https://crawler.f-li.cn/health'
+        HEALTH_URL = 'https://bot.f-li.cn/health'
         U0 = 'jks'
     }
 
@@ -36,7 +36,7 @@ pipeline {
                     script {
                         sleep(2)
                     }
-                    sh '/home/sshx_w.sh ${APP_HOST} "schtasks /end /tn javabg & schtasks /run /tn javabg"'
+                    sh '/home/sshx_w2.sh ${APP_HOST} "schtasks /end /tn javabg & schtasks /run /tn javabg"'
                     script {
                         sleep(30)
 
@@ -44,7 +44,7 @@ pipeline {
                         if (publishOk) {
                             println("Publish ok!")
                         } else {
-                            sh '/home/sshx_w.sh ${APP_HOST} "schtasks /end /tn javabgrb & schtasks /run /tn javabgrb"'
+                            sh '/home/sshx_w2.sh ${APP_HOST} "schtasks /end /tn javabgrb & schtasks /run /tn javabgrb"'
                             currentBuild.result = "FAILURE"
                             throw new RuntimeException("Health check fail, and restore")
                         }
