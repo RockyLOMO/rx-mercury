@@ -25,7 +25,7 @@ public class NameserverBean {
     @Component
     @Order(Ordered.HIGHEST_PRECEDENCE)
     static class ApolloLoader implements BeanPostProcessor {
-        static final String NAMESPACE = "1.middleware";
+        static final String NAMESPACE = "middleware";
         @Value("${spring.application.name}")
         String appName;
         String[] endpoints;
