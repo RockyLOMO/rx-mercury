@@ -22,6 +22,8 @@ app:
   id: svc-mercury
   net:
     connectTimeoutMillis: 40000
+    ntp:
+      enableFlags: 3
   chromeDriver: /app-crawler/driver/chromedriver.exe
   ieDriver: /app-crawler/driver/IEDriverServer.exe
   browser:
@@ -32,13 +34,13 @@ app:
     asyncThreshold: 0.8
     takeTimeoutSeconds: 6
     remotingPortRange: 1220-1320
-    poolSize: 2
+    poolSize: 1
     windowAutoBlank: true
 
     waitMillis: 500
     pageLoadTimeoutSeconds: 30
     findElementTimeoutSeconds: 6
-    diskDataPath: /app-crawler/data/chrome%s/
+#    diskDataPath: /app-crawler/data/chrome%s/
     downloadPath: /app-crawler/temp/
     windowRectangle: "600,500,800,600"
     cookieContainerType: org.rx.crawler.service.impl.MemoryCookieContainer
