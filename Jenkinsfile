@@ -36,7 +36,7 @@ pipeline {
                     script {
                         sleep(2)
                     }
-                    sh '/home/sshx_w2.sh ${APP_HOST} "schtasks /end /tn javabg & schtasks /run /tn javabg"'
+                    sh '/home/sshx_w2.sh ${APP_HOST} "schtasks /end /tn javabg2 & schtasks /run /tn javabg2"'
                     script {
                         sleep(30)
 
@@ -44,7 +44,7 @@ pipeline {
                         if (publishOk) {
                             println("Publish ok!")
                         } else {
-                            sh '/home/sshx_w2.sh ${APP_HOST} "schtasks /end /tn javabgrb & schtasks /run /tn javabgrb"'
+                            sh '/home/sshx_w2.sh ${APP_HOST} "schtasks /end /tn javabgrb2 & schtasks /run /tn javabgrb2"'
                             currentBuild.result = "FAILURE"
                             throw new RuntimeException("Health check fail, and restore")
                         }
