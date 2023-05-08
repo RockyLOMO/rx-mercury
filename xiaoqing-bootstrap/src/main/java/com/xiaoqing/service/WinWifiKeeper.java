@@ -1,7 +1,7 @@
 package com.xiaoqing.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.rx.core.ShellCommander;
+import org.rx.core.ShellCommand;
 import org.rx.core.Tasks;
 import org.rx.net.PingClient;
 import org.springframework.stereotype.Service;
@@ -37,11 +37,11 @@ public class WinWifiKeeper {
 
     void reset() {
         log.info("WWK reset {} step1", wifiName);
-        ShellCommander cmd = new ShellCommander("netsh wlan disconnect");
+        ShellCommand cmd = new ShellCommand("netsh wlan disconnect");
         cmd.start().waitFor();
         sleep(1000);
         log.info("WWK reset {} step2", wifiName);
-        cmd = new ShellCommander(String.format("netsh wlan connect name=\"%s\"", wifiName));
+        cmd = new ShellCommand(String.format("netsh wlan connect name=\"%s\"", wifiName));
         cmd.start();
         counter.set(0);
     }
