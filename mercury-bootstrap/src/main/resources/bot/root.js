@@ -82,7 +82,8 @@ window._rx = {
             let a = slts[1], eq = "eq(", txt = "txt", html = "html", i;
             if ((i = a.indexOf(eq)) != -1) {
                 let arg = parseInt(a.substring(i + eq.length, a.length - 1));
-                temp = [temp[arg]] || [];
+                let tmp = temp[arg];
+                temp = tmp ? [tmp] : [];
                 console.log("eq:", arg, temp);
             } else if ((i = a.indexOf(txt)) != -1) {
                 let vals = [];
@@ -178,28 +179,29 @@ window._rx = {
     },
     _waitTimeout: 6,
     _delayMillis: 500,
+    _autoId: 0,
     batchClick: async function () {
         for (let i = 0; i < arguments.length; i++) {
             await _rx.waitClick(arguments[i]);
         }
     },
-    waitClick: async function (xpath, timeoutSeconds) {
-        let elms = await _rx.waitLocated(xpath, timeoutSeconds);
+    waitClick: async function (selector, timeoutSeconds) {
+        let elms = await _rx.waitLocated(selector, timeoutSeconds);
         for (let i = 0; i < elms.length; i++) {
             elms[i].click();
-            await sleep();
+            await sleep(500);
         }
         return elms;
     },
-    waitValue: async function (xpath, timeoutSeconds) {
-        let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
+    waitValue: async function (selector, timeoutSeconds) {
+        let sb = [], elms = await _rx.waitLocated(selector, timeoutSeconds);
         for (let i = 0; i < elms.length; i++) {
             sb.push(elms[i].value.trim());
         }
         return sb.join("");
     },
-    waitText: async function (xpath, timeoutSeconds) {
-        let sb = [], elms = await _rx.waitLocated(xpath, timeoutSeconds);
+    waitText: async function (selector, timeoutSeconds) {
+        let sb = [], elms = await _rx.waitLocated(selector, timeoutSeconds);
         for (let i = 0; i < elms.length; i++) {
             sb.push(elms[i].textContent.trim());
         }
@@ -211,6 +213,7 @@ window._rx = {
         for (let i = 0; i < xpaths.length; i++) {
             let xpath = xpaths[i];
             await _rx.waitComplete(timeoutSeconds, function () {
+                // console.log("wait query", xpath);
                 return !xpath || (elms = _rx.query(xpath)).length > 0;
             });
             if (elms.length > 0) {
@@ -222,17 +225,21 @@ window._rx = {
         }
         return elms;
     },
-    waitComplete: async function (timeoutSeconds, checkComplete, completeCallback) {
-        _rx._ok = false;
+    waitComplete: async function (timeoutSeconds, checkFunc, completeCallback) {
+        let k = new Date().getTime().toString() + _rx._autoId++;
+        _rx[k] = false;
+        // let isAsync = checkFunc.toString().lastIndexOf("Promise") != -1;
         let waitMillis = 500, count = 0, loopCount = Math.round(timeoutSeconds * 1000 / waitMillis);
-        if (_rx._ok = checkComplete(count)) {
+        let r = await checkFunc(count);
+        // console.log("waitComplete", k, r);
+        if (_rx[k] = r) {
             _rx.invoke(completeCallback);
             return;
         }
-        while (count++ < loopCount && !(_rx._ok = checkComplete(count))) {
+        while (count++ < loopCount && !(_rx[k] = await checkFunc(count))) {
             await sleep(waitMillis);
         }
-        if (_rx._ok) {
+        if (_rx[k]) {
             _rx.invoke(completeCallback);
         }
     },
