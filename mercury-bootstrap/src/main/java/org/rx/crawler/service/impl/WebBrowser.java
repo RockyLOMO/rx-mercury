@@ -205,7 +205,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
 //        opt.setCapability(CapabilityType.SUPPORTS_APPLICATION_CACHE, true);
 //        opt.setCapability(CapabilityType.SUPPORTS_ALERTS, false);
         opt.setCapability(CapabilityType.UNHANDLED_PROMPT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
-        opt.setCapability(CapabilityType.UNEXPECTED_ALERT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
+//        opt.setCapability(CapabilityType.UNEXPECTED_ALERT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
         return opt;
     }
 
