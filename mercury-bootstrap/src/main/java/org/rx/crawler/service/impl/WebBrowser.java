@@ -19,6 +19,7 @@ import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.remote.service.DriverService;
 import org.rx.bean.DateTime;
+import org.rx.core.cache.MemoryCache;
 import org.rx.crawler.Browser;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.service.ConfigureScriptExecutor;
@@ -567,7 +568,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         checkNotClosed();
 
         if (getType() != BrowserType.IE) {
-            String rootJs = Cache.<String, String>getInstance(Cache.MEMORY_CACHE).get(cacheKey("injectRootJs"), k -> Browser.readResourceJs(RESOURCE_JS_PATH));
+            String rootJs = Cache.<String, String>getInstance(MemoryCache.class).get(cacheKey("injectRootJs"), k -> Browser.readResourceJs(RESOURCE_JS_PATH));
 //            log.warn("injectScript:\n{}\n", rootJs);
             injectScript(rootJs);
         }

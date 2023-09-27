@@ -23,7 +23,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.test.skip>true</maven.test.skip>
         <java.version>11</java.version>
-        <lombok.version>1.18.28</lombok.version>
+        <lombok.version>1.18.30</lombok.version>
         <rxlib.version>2.19.11-SNAPSHOT</rxlib.version>
         <h2.version>2.2.220</h2.version>
         <rxsvc.version>1.0.2-SNAPSHOT</rxsvc.version>
@@ -119,6 +119,12 @@
             <scope>provided</scope>
         </dependency>
     </dependencies>
+    <repositories>
+        <repository>
+            <id>aliyun</id>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </repository>
+    </repositories>
 
     <build>
         <defaultGoal>compile</defaultGoal>
