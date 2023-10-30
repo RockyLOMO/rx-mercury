@@ -6,7 +6,7 @@ server:
       min-spare: 5
   ssl:
     key-store-type: PKCS12
-    key-store: classpath:cert/4121741_f-li.cn.pfx
+    key-store: classpath:cert/f-li.cn.pfx
     enabled: true
     client-auth: none
     ciphers: TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA256
