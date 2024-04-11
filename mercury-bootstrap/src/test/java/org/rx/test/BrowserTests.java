@@ -15,7 +15,6 @@ import org.rx.io.IOStream;
 import org.rx.net.http.HttpClient;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RpcClientConfig;
-import org.rx.util.UrlGenerator;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import javax.annotation.Resource;
@@ -97,9 +96,9 @@ public class BrowserTests {
 
     @Test
     public void other() {
-        UrlGenerator generator = new UrlGenerator("http://free-proxy.cz/zh/proxylist/country/CN/socks5/uptime/level1/[1-5]");
-        for (String url : generator) {
-            System.out.println(url);
-        }
+//        UrlGenerator generator = new UrlGenerator("http://free-proxy.cz/zh/proxylist/country/CN/socks5/uptime/level1/[1-5]");
+//        for (String url : generator) {
+//            System.out.println(url);
+//        }
     }
 }

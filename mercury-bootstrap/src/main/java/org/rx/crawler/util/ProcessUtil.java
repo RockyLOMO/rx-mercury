@@ -43,13 +43,13 @@ public class ProcessUtil {
         StringBuilder sb = new StringBuilder();
         ProcessHandle.Info pInfo = processHandle.info();
         Optional<ProcessHandle> parent = processHandle.parent();
-        parent.ifPresent(handle -> sb.append("parentPid: %s\t", handle.pid()));
-        sb.append("descendantsPids: %s\t", Linq.from(processHandle.descendants()).toJoinString(",", p -> String.valueOf(p.pid())));
-        sb.append("pid: %s\t", processHandle.pid());
-        sb.append("startTime: %s\t", processHandle.info().startInstant().orElse(null));
-        sb.append("command: %s\t", pInfo.command().orElse(null));
-        sb.append("commandLine: %s\t", pInfo.commandLine().orElse(null));
-        sb.append("arguments: %s", toJsonString(pInfo.arguments().orElse(Arrays.EMPTY_STRING_ARRAY)));
+        parent.ifPresent(handle -> sb.appendFormat("parentPid: %s\t", handle.pid()));
+        sb.appendFormat("descendantsPids: %s\t", Linq.from(processHandle.descendants()).toJoinString(",", p -> String.valueOf(p.pid())));
+        sb.appendFormat("pid: %s\t", processHandle.pid());
+        sb.appendFormat("startTime: %s\t", processHandle.info().startInstant().orElse(null));
+        sb.appendFormat("command: %s\t", pInfo.command().orElse(null));
+        sb.appendFormat("commandLine: %s\t", pInfo.commandLine().orElse(null));
+        sb.appendFormat("arguments: %s", toJsonString(pInfo.arguments().orElse(Arrays.EMPTY_STRING_ARRAY)));
         return sb.toString();
     }
 }

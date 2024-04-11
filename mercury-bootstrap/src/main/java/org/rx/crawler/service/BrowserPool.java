@@ -84,7 +84,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
             int i = 1;
             for (Map.Entry<Browser, Tuple<TcpServer, Integer>> entry : cache.entrySet()) {
                 Tuple<TcpServer, Integer> t = entry.getValue();
-                sb.append("\tBrowser[%s]: ClientSize=%s", (Object) t.right, t.left.getClients().size());
+                sb.appendFormat("\tBrowser[%s]: ClientSize=%s", t.right, t.left.getClients().size());
                 if (i++ % 3 == 0) {
                     sb.appendLine();
                 }
