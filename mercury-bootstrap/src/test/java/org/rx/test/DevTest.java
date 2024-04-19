@@ -7,7 +7,6 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.Rectangle;
 import org.openqa.selenium.ie.InternetExplorerDriver;
 import org.openqa.selenium.ie.InternetExplorerOptions;
-import org.rx.core.YamlConfiguration;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.MemoryCookieContainer;

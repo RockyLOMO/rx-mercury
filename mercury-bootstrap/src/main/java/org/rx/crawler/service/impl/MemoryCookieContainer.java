@@ -7,13 +7,13 @@ import lombok.extern.slf4j.Slf4j;
 import okhttp3.Cookie;
 import okhttp3.HttpUrl;
 import org.rx.bean.FlagsEnum;
+import org.rx.core.Arrays;
+import org.rx.core.Linq;
+import org.rx.core.Strings;
 import org.rx.crawler.Browser;
 import org.rx.crawler.RegionFlags;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.CookieContainer;
-import org.rx.core.Arrays;
-import org.rx.core.Linq;
-import org.rx.core.Strings;
 import org.rx.net.http.HttpClient;
 import org.rx.redis.RedisCache;
 import org.rx.spring.SpringContext;
@@ -24,8 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.rx.core.Sys.*;
 import static org.rx.core.Extends.*;
+import static org.rx.core.Sys.cacheKey;
 
 @Slf4j
 public class MemoryCookieContainer implements CookieContainer {

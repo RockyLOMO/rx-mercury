@@ -3,9 +3,9 @@ package org.rx.crawler.controller;
 import com.google.common.net.HttpHeaders;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.rx.crawler.config.AppConfig;
 import org.rx.core.Cache;
 import org.rx.core.Strings;
+import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserService;
 import org.rx.net.http.HttpClient;
 import org.rx.redis.RedisCache;
@@ -16,11 +16,10 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import java.util.Map;
 
-import static org.rx.core.Sys.*;
 import static org.rx.core.Extends.ifNull;
+import static org.rx.core.Sys.cacheKey;
 
 @Slf4j
 @RequiredArgsConstructor

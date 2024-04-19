@@ -2,7 +2,6 @@ package org.rx.crawler.service.impl;
 
 import lombok.Data;
 import org.openqa.selenium.Rectangle;
-import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.service.CookieContainer;
 
 @Data

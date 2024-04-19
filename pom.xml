@@ -26,7 +26,6 @@
         <lombok.version>1.18.30</lombok.version>
         <rxlib.version>2.20.1-SNAPSHOT</rxlib.version>
         <h2.version>2.2.220</h2.version>
-        <rxsvc.version>1.0.2-SNAPSHOT</rxsvc.version>
         <okhttp.version>4.11.0</okhttp.version>
         <selenium.version>4.17.0</selenium.version>
         <jsoup.version>1.15.3</jsoup.version>
@@ -93,24 +92,14 @@
             <version>${okhttp.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>31.1-jre</version>
-        </dependency>
-        <dependency>
             <groupId>com.github.rockylomo</groupId>
-            <artifactId>rxlib</artifactId>
+            <artifactId>rxlib-x</artifactId>
             <version>${rxlib.version}</version>
         </dependency>
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <version>${h2.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.rockylomo</groupId>
-            <artifactId>rxsvc</artifactId>
-            <version>${rxsvc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

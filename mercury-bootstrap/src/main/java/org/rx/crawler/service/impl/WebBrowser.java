@@ -5,10 +5,9 @@ import lombok.NonNull;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.openqa.selenium.*;
-import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.Rectangle;
+import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeDriverService;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -19,23 +18,26 @@ import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.remote.service.DriverService;
 import org.rx.bean.DateTime;
+import org.rx.bean.Tuple;
+import org.rx.core.*;
 import org.rx.core.cache.MemoryCache;
 import org.rx.crawler.Browser;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.service.ConfigureScriptExecutor;
-import org.rx.crawler.util.ProcessUtil;
-import org.rx.exception.TraceHandler;
-import org.rx.exception.InvalidException;
-import org.rx.bean.Tuple;
 import org.rx.crawler.service.CookieContainer;
-import org.rx.core.*;
+import org.rx.crawler.util.ProcessUtil;
+import org.rx.exception.InvalidException;
+import org.rx.exception.TraceHandler;
 import org.rx.io.Files;
 import org.rx.util.Lazy;
 import org.rx.util.function.BiFunc;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -43,8 +45,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.rx.core.Sys.*;
 import static org.rx.core.Extends.*;
+import static org.rx.core.Sys.cacheKey;
 
 /**
  * 不缓存DriverService，奔溃后自恢复

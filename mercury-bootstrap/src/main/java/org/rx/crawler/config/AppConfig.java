@@ -4,26 +4,28 @@ import com.alibaba.fastjson2.TypeReference;
 import com.ctrip.framework.apollo.spring.annotation.ApolloJsonValue;
 import lombok.Data;
 import org.openqa.selenium.Rectangle;
-import org.rx.crawler.dto.CrawlPageConfig;
 import org.rx.core.Linq;
 import org.rx.core.Strings;
+import org.rx.crawler.dto.CrawlPageConfig;
 import org.rx.crawler.service.BrowserPoolConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.ConfigurationPropertiesBinding;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
-import java.io.File;
 import java.util.List;
 
 import static org.rx.core.Sys.fromJson;
 
 @Data
-@Component
+@Configuration
 @ConfigurationProperties(prefix = "app")
+@RefreshScope
 @Validated
 @Order(1)
 public class AppConfig {
@@ -47,6 +49,7 @@ public class AppConfig {
     private BrowserPoolConfig browser;
 
     private int fiddlerListenPort;
+    private String cleanTaskTime = "03:00:00";
     private String baseDir = "";
     @Value("${server.httpPort}")
     private int httpPort;

@@ -3,13 +3,16 @@ package org.rx.test;
 import lombok.SneakyThrows;
 import okhttp3.HttpUrl;
 import org.junit.jupiter.api.Test;
-import org.rx.crawler.*;
-import org.rx.crawler.config.AppConfig;
-import org.rx.crawler.service.BrowserPool;
-import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.core.Cache;
 import org.rx.core.Linq;
 import org.rx.core.Tasks;
+import org.rx.crawler.Application;
+import org.rx.crawler.BrowserAsyncTopic;
+import org.rx.crawler.BrowserPoolListener;
+import org.rx.crawler.BrowserType;
+import org.rx.crawler.config.AppConfig;
+import org.rx.crawler.service.BrowserPool;
+import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.io.Files;
 import org.rx.io.IOStream;
 import org.rx.net.http.HttpClient;
@@ -22,8 +25,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.rx.core.Sys.*;
 import static org.rx.core.Extends.tryClose;
+import static org.rx.core.Sys.toJsonObject;
 
 @SpringBootTest(classes = Application.class)
 public class BrowserTests {

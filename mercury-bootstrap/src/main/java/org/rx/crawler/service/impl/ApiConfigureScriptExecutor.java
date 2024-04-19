@@ -3,12 +3,10 @@ package org.rx.crawler.service.impl;
 import com.ctrip.framework.apollo.ConfigService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.rx.core.Strings;
 import org.rx.crawler.Browser;
-//import org.rx.crawler.config.ApolloConfig;
 import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.exception.InvalidException;
-import org.rx.core.Strings;
-import org.rx.spring.SpringContext;
 
 @RequiredArgsConstructor
 public final class ApiConfigureScriptExecutor implements ConfigureScriptExecutor {

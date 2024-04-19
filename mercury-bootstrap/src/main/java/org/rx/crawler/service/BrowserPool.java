@@ -11,8 +11,8 @@ import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
 import org.rx.bean.DateTime;
 import org.rx.bean.Tuple;
 import org.rx.bean.WeakIdentityMap;
-import org.rx.core.*;
 import org.rx.core.StringBuilder;
+import org.rx.core.*;
 import org.rx.crawler.*;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
@@ -27,7 +27,8 @@ import org.rx.util.BeanMapper;
 
 import java.net.Inet4Address;
 import java.net.InetSocketAddress;
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
 
 import static org.rx.core.Extends.quietly;
 import static org.rx.core.Extends.tryClose;

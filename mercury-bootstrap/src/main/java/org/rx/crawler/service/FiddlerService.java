@@ -2,9 +2,10 @@ package org.rx.crawler.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
+import org.rx.core.Strings;
+import org.rx.core.Tasks;
 import org.rx.crawler.FiddlerWatcher;
 import org.rx.crawler.config.AppConfig;
-import org.rx.core.Strings;
 import org.rx.io.FileWatcher;
 import org.rx.io.Files;
 import org.rx.net.rpc.Remoting;
@@ -33,5 +34,10 @@ public class FiddlerService implements FiddlerWatcher {
             raiseEvent(EVENT_CALLBACK, new CallbackEventArgs(args[0] + "_" + args[1], Files.readLines(filePath).collect(Collectors.toList())));
         });
         Remoting.register(this, config.getFiddlerListenPort(), false);
+
+        Tasks.scheduleDaily(() -> {
+            Files.delete(dir);
+            Files.createDirectory(dir);
+        }, config.getCleanTaskTime());
     }
 }
