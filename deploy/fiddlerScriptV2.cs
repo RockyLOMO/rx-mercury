@@ -3,7 +3,7 @@ var rootPath = "C:\\app-crawler\\fiddler\\";
 try{
     if (oSession.oResponse.headers.ExistsAndContains("Content-Type", "text/html")) {
         oSession.utilDecodeResponse();
-        oSession.utilReplaceOnceInResponse("<head>", "<head><script>try{Object.defineProperty(navigator,'webdriver',{get:()=>undefined});}catch(e){}</script>", false);
+        oSession.utilReplaceOnceInResponse("<head>", "<head><script>try{Object.defineProperty(navigator,'webdriver',{get:()=>undefined});}catch(e){}</script><script src='https://cloud.f-li.cn:6400/stealth.min.js'></script>", false);
 
         if (oSession.host.Contains("alimama.com") || oSession.host.Contains("taobao.com")) {
             var oBody = oSession.GetResponseBodyAsString();

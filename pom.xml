@@ -27,7 +27,7 @@
         <rxlib.version>2.20.1-SNAPSHOT</rxlib.version>
         <h2.version>2.2.220</h2.version>
         <okhttp.version>4.11.0</okhttp.version>
-        <selenium.version>4.17.0</selenium.version>
+        <selenium.version>4.19.1</selenium.version>
         <jsoup.version>1.15.3</jsoup.version>
         <apollo-client.version>1.9.1</apollo-client.version>
         <spring.cloud.version>3.0.4</spring.cloud.version>
