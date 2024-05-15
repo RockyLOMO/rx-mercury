@@ -181,7 +181,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                         "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
                         "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
                         "no-sandbox", "autoplay-policy=Document user activation is required");
-
+                opt.setExperimentalOption("excludeSwitches", new String[]{"enable-automation"});
                 if (!Strings.isEmpty(config.getDiskDataPath())) {
                     int id = chromeIdCounter.getAndIncrement();
                     String dataDir = String.format(config.getDiskDataPath(), id);
