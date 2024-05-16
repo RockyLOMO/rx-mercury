@@ -174,7 +174,6 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 chromePrefs.put("pdfjs.disabled", true);
                 opt.setExperimentalOption("prefs", chromePrefs);
 
-//                opt.addArguments("user-agent=Mozilla/5.0 (iPad; CPU iPhone OS 8_3 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) FxiOS/1.0 Mobile/12F69 Safari/600.1.4");
                 opt.addArguments("no-first-run", "homepage=https://f-li.cn/",
                         "disable-infobars", "disable-web-security", "ignore-certificate-errors", "allow-running-insecure-content",
                         "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
