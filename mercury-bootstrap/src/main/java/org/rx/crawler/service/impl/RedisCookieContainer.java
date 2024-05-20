@@ -1,42 +1,38 @@
 package org.rx.crawler.service.impl;
 
 import com.google.common.net.HttpHeaders;
-import io.netty.handler.codec.http.HttpHeaderNames;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.Cookie;
 import okhttp3.HttpUrl;
 import org.rx.bean.FlagsEnum;
 import org.rx.core.Arrays;
 import org.rx.core.Linq;
+import org.rx.core.Strings;
 import org.rx.crawler.Browser;
 import org.rx.crawler.RegionFlags;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.net.http.HttpClient;
+import org.rx.redis.RedisCache;
 import org.rx.spring.SpringContext;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.net.*;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.rx.core.Extends.*;
+import static org.rx.core.Sys.cacheKey;
 
 @Slf4j
-public class MemoryCookieContainer implements CookieContainer {
+public class RedisCookieContainer implements CookieContainer {
     private static final long waitMillis = 1000;
-    final CookieHandler cookieHandler;
-    final CookieStore cookieStore;
 
-    public MemoryCookieContainer() {
-        cookieHandler = CookieManager.getDefault();
-        CookieManager mgr = (CookieManager) cookieHandler;
-        mgr.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
-        cookieStore = mgr.getCookieStore();
+    private RedisCache<String, String> getStore() {
+        return SpringContext.getBean(RedisCache.class);
     }
 
     @Override
@@ -48,37 +44,43 @@ public class MemoryCookieContainer implements CookieContainer {
 //        response.addHeader("P3P", "CP='CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR'");
         String rawCookie;
         HttpUrl reqHttpUrl = HttpUrl.get(regionUrl);
-        List<javax.servlet.http.Cookie> reqCookies = Arrays.toList(ifNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
+        List<javax.servlet.http.Cookie> servletCookies = Arrays.toList(ifNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
         switch (action) {
             case "loadTo":
                 rawCookie = get(regionUrl);
                 if (rawCookie != null) {
                     FlagsEnum<RegionFlags> flags = CookieContainer.getRegionFlags(regionUrl);
-                    log.info("load cookie from url={}[{}]\n{}", regionUrl, flags.name(), rawCookie);
-                    for (HttpCookie cookie : HttpCookie.parse("set-cookie2:" + rawCookie)) {
+                    log.debug("load cookie url={} flags={}\n{}\n", regionUrl, flags.name(), rawCookie);
+                    for (Cookie cookie : HttpClient.decodeCookie(reqHttpUrl, rawCookie)) {
                         quietly(() -> {
-                            javax.servlet.http.Cookie reqCookie = Linq.from(reqCookies).firstOrDefault(p -> eq(p.getName(), cookie.getName()));
-                            if (reqCookie == null) {
-                                reqCookie = new javax.servlet.http.Cookie(cookie.getName(), cookie.getValue());
+                            javax.servlet.http.Cookie servletCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.name()));
+                            boolean isChange;
+                            if (servletCookie == null) {
+                                servletCookie = new javax.servlet.http.Cookie(cookie.name(), cookie.value());
+                                servletCookie.setPath("/");
+                                isChange = true;
                             } else {
-                                reqCookies.remove(reqCookie);
+                                if (isChange = !Strings.equals(servletCookie.getValue(), cookie.value())) {
+                                    servletCookie.setValue(cookie.value());
+                                }
+                                servletCookies.remove(servletCookie);
                             }
-                            copy(cookie, reqCookie);
-                            //request cookie 只有name和value
-                            reqCookie.setPath("/");
-                            if (flags.has(RegionFlags.DOMAIN_TOP)) {
-                                reqCookie.setDomain("." + reqHttpUrl.topPrivateDomain());
-                                log.debug("set cookie {} with domain={}", reqCookie.getName(), reqCookie.getDomain());
+                            if (isChange) {
+                                //request cookie 只有name和value
+                                if (flags.has(RegionFlags.HTTP_ONLY)) {
+                                    servletCookie.setHttpOnly(true);
+                                }
+                                if (flags.has(RegionFlags.DOMAIN_TOP)) {
+                                    servletCookie.setDomain(cookie.domain());
+                                    log.debug("set cookie {} with domain={}", servletCookie.getName(), servletCookie.getDomain());
+                                }
+                                response.addCookie(servletCookie);
                             }
-                            if (flags.has(RegionFlags.HTTP_ONLY)) {
-                                reqCookie.setHttpOnly(true);
-                            }
-                            response.addCookie(reqCookie);
                         });
                     }
                 }
-                for (javax.servlet.http.Cookie c : reqCookies) {
-                    delCookie(response, c, reqHttpUrl.topPrivateDomain());
+                for (javax.servlet.http.Cookie servletCookie : servletCookies) {
+                    delCookie(response, servletCookie, reqHttpUrl.topPrivateDomain());
                 }
                 break;
             case "syncFrom":
@@ -87,7 +89,7 @@ public class MemoryCookieContainer implements CookieContainer {
                 save(reqHttpUrl.toString(), rawCookie);
                 break;
             case "clearCookie":
-                for (javax.servlet.http.Cookie servletCookie : reqCookies) {
+                for (javax.servlet.http.Cookie servletCookie : servletCookies) {
                     delCookie(response, servletCookie, reqHttpUrl.topPrivateDomain());
                 }
                 break;
@@ -100,15 +102,15 @@ public class MemoryCookieContainer implements CookieContainer {
         return String.format("redirect:%s", HttpClient.buildUrl(request.getRequestURL().toString(), params));
     }
 
-    private void delCookie(HttpServletResponse response, javax.servlet.http.Cookie c, String domain) {
-        c.setValue("");
-        c.setPath("/");
-        c.setMaxAge(0);
-        response.addCookie(c);
+    private void delCookie(HttpServletResponse response, javax.servlet.http.Cookie servletCookie, String domain) {
+        servletCookie.setValue("");
+        servletCookie.setPath("/");
+        servletCookie.setMaxAge(0);
+        response.addCookie(servletCookie);
 
-        javax.servlet.http.Cookie dc = new javax.servlet.http.Cookie(c.getName(), "");
-        dc.setDomain(domain);
+        javax.servlet.http.Cookie dc = new javax.servlet.http.Cookie(servletCookie.getName(), "");
         dc.setPath("/");
+        dc.setDomain(domain);
         dc.setMaxAge(0);
         response.addCookie(dc);
     }
@@ -132,6 +134,7 @@ public class MemoryCookieContainer implements CookieContainer {
         query.put("action", "syncFrom");
         browser.nativeGet(getWriteUrl(regionUrl, query));
         browser.waitElementLocated(Selector);
+//        browser.navigateUrl(getWriteUrl(url, query), Selector);
         sleep(waitMillis);
         return browser.elementAttr(Selector, "value");
     }
@@ -155,39 +158,26 @@ public class MemoryCookieContainer implements CookieContainer {
         return u;
     }
 
-    @SneakyThrows
     @Override
     public void save(String url, String rawCookie) {
         if (rawCookie == null) {
             log.warn("empty cookie {}", url);
             return;
         }
-        cookieHandler.put(URI.create(url), Collections.singletonMap(HttpHeaderNames.SET_COOKIE2.toString(), Collections.singletonList(rawCookie)));
+        getStore().put(getKey(url), rawCookie);
+    }
+
+    private String getKey(String url) {
+        return cacheKey(CookieContainer.getCookieDomain(url), CookieContainer.getRegionName(url));
     }
 
     @Override
     public void clear(String url) {
-        URI uri = URI.create(url);
-        for (HttpCookie cookie : cookieStore.get(uri)) {
-            cookieStore.remove(uri, cookie);
-        }
+        getStore().remove(getKey(url));
     }
 
-    @SneakyThrows
     @Override
     public String get(String url) {
-        List<String> cookies = cookieHandler.get(URI.create(url), Collections.emptyMap()).get("Cookie");
-        return String.join("; ", cookies);
-    }
-
-    void copy(HttpCookie a, javax.servlet.http.Cookie b) {
-        b.setDomain(a.getDomain());
-        b.setPath(a.getPath());
-        b.setHttpOnly(a.isHttpOnly());
-        b.setSecure(a.getSecure());
-        b.setMaxAge((int) a.getMaxAge());
-        b.setComment(a.getComment());
-        b.setVersion(a.getVersion());
-        b.setValue(a.getValue());
+        return getStore().get(getKey(url));
     }
 }
