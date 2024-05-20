@@ -9,6 +9,7 @@ import okhttp3.HttpUrl;
 import org.rx.bean.FlagsEnum;
 import org.rx.core.Arrays;
 import org.rx.core.Linq;
+import org.rx.core.Strings;
 import org.rx.crawler.Browser;
 import org.rx.crawler.RegionFlags;
 import org.rx.crawler.config.AppConfig;
@@ -41,8 +42,7 @@ public class MemoryCookieContainer implements CookieContainer {
 
     @Override
     public String handleWriteRequest(HttpServletRequest request, HttpServletResponse response) {
-        String regionUrl = request.getParameter("regionUrl"),
-                action = request.getParameter("action");
+        String regionUrl = request.getParameter("regionUrl"), action = request.getParameter("action");
 //                writeBack = request.getParameter("writeBack"),
 //                reqUrl = request.getRequestURL().toString();
 //        response.addHeader("P3P", "CP='CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR'");
@@ -52,7 +52,7 @@ public class MemoryCookieContainer implements CookieContainer {
         switch (action) {
             case "loadTo":
                 rawCookie = get(regionUrl);
-                if (rawCookie != null) {
+                if (!Strings.isEmpty(rawCookie)) {
                     FlagsEnum<RegionFlags> flags = CookieContainer.getRegionFlags(regionUrl);
                     log.info("load cookie from url={}[{}]\n{}", regionUrl, flags.name(), rawCookie);
                     for (HttpCookie cookie : HttpCookie.parse("set-cookie2:" + rawCookie)) {
