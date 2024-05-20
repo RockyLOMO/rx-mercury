@@ -77,9 +77,9 @@ public class MemoryCookieContainer implements CookieContainer {
                         });
                     }
                 }
-                for (javax.servlet.http.Cookie c : reqCookies) {
-                    delCookie(response, c, reqHttpUrl.topPrivateDomain());
-                }
+//                for (javax.servlet.http.Cookie c : reqCookies) {
+//                    delCookie(response, c, reqHttpUrl.topPrivateDomain());
+//                }
                 break;
             case "syncFrom":
                 rawCookie = request.getHeader(HttpHeaders.COOKIE);
