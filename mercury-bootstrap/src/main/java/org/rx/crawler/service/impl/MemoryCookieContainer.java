@@ -181,7 +181,9 @@ public class MemoryCookieContainer implements CookieContainer {
     }
 
     void copy(HttpCookie a, javax.servlet.http.Cookie b) {
-        b.setDomain(a.getDomain());
+        if (a.getDomain() != null) {
+            b.setDomain(a.getDomain());
+        }
         b.setPath(a.getPath());
         b.setHttpOnly(a.isHttpOnly());
         b.setSecure(a.getSecure());
