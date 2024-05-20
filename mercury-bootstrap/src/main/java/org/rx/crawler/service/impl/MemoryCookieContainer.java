@@ -67,7 +67,7 @@ public class MemoryCookieContainer implements CookieContainer {
                             //request cookie 只有name和value
                             reqCookie.setPath("/");
                             if (flags.has(RegionFlags.DOMAIN_TOP)) {
-                                reqCookie.setDomain("." + reqHttpUrl.topPrivateDomain());
+                                reqCookie.setDomain(reqHttpUrl.topPrivateDomain());
                                 log.debug("set cookie {} with domain={}", reqCookie.getName(), reqCookie.getDomain());
                             }
                             if (flags.has(RegionFlags.HTTP_ONLY)) {
