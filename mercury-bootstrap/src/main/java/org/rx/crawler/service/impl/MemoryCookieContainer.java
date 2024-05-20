@@ -33,7 +33,7 @@ public class MemoryCookieContainer implements CookieContainer {
     final CookieStore cookieStore;
 
     public MemoryCookieContainer() {
-        cookieHandler = CookieManager.getDefault();
+        cookieHandler = new CookieManager();
         CookieManager mgr = (CookieManager) cookieHandler;
         mgr.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
         cookieStore = mgr.getCookieStore();
