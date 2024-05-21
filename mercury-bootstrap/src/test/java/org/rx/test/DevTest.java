@@ -9,7 +9,7 @@ import org.openqa.selenium.ie.InternetExplorerDriver;
 import org.openqa.selenium.ie.InternetExplorerOptions;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.service.BrowserPool;
-import org.rx.crawler.service.impl.MemoryCookieContainer;
+import org.rx.crawler.service.impl.RedisCookieContainer;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 
@@ -28,7 +28,7 @@ public class DevTest {
         conf.setDiskDataPath("/app-crawler/data%s/");
 //        conf.setDownloadPath("/app-crawler/download/");
         conf.setWindowRectangle(new Rectangle(0, 0, 600, 800));
-        conf.setCookieContainer(new MemoryCookieContainer());
+        conf.setCookieContainer(new RedisCookieContainer());
         conf.setConfigureScriptExecutorType("org.rx.crawler.service.impl.ApiConfigureScriptExecutor");
         log.info("loadConf {}", conf);
         return new WebBrowser(conf, BrowserType.CHROME);

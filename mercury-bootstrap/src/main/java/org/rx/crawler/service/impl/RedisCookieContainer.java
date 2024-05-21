@@ -50,31 +50,31 @@ public class RedisCookieContainer implements CookieContainer {
                 rawCookie = get(regionUrl);
                 if (rawCookie != null) {
                     FlagsEnum<RegionFlags> flags = CookieContainer.getRegionFlags(regionUrl);
-                    log.debug("load cookie url={} flags={}\n{}\n", regionUrl, flags.name(), rawCookie);
+                    log.debug("load cookie from url={}[{}]\n{}", regionUrl, flags.name(), rawCookie);
                     for (Cookie cookie : HttpClient.decodeCookie(reqHttpUrl, rawCookie)) {
                         quietly(() -> {
-                            javax.servlet.http.Cookie servletCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.name()));
+                            javax.servlet.http.Cookie reqCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.name()));
                             boolean isChange;
-                            if (servletCookie == null) {
-                                servletCookie = new javax.servlet.http.Cookie(cookie.name(), cookie.value());
-                                servletCookie.setPath("/");
+                            if (reqCookie == null) {
+                                reqCookie = new javax.servlet.http.Cookie(cookie.name(), cookie.value());
+                                reqCookie.setPath("/");
                                 isChange = true;
                             } else {
-                                if (isChange = !Strings.equals(servletCookie.getValue(), cookie.value())) {
-                                    servletCookie.setValue(cookie.value());
+                                if (isChange = !Strings.equals(reqCookie.getValue(), cookie.value())) {
+                                    reqCookie.setValue(cookie.value());
                                 }
-                                servletCookies.remove(servletCookie);
+                                servletCookies.remove(reqCookie);
                             }
                             if (isChange) {
                                 //request cookie 只有name和value
-                                if (flags.has(RegionFlags.HTTP_ONLY)) {
-                                    servletCookie.setHttpOnly(true);
-                                }
                                 if (flags.has(RegionFlags.DOMAIN_TOP)) {
-                                    servletCookie.setDomain(cookie.domain());
-                                    log.debug("set cookie {} with domain={}", servletCookie.getName(), servletCookie.getDomain());
+                                    reqCookie.setDomain(cookie.domain());
+                                    log.debug("set cookie {} with domain={}", reqCookie.getName(), reqCookie.getDomain());
                                 }
-                                response.addCookie(servletCookie);
+                                if (flags.has(RegionFlags.HTTP_ONLY)) {
+                                    reqCookie.setHttpOnly(true);
+                                }
+                                response.addCookie(reqCookie);
                             }
                         });
                     }
@@ -102,15 +102,15 @@ public class RedisCookieContainer implements CookieContainer {
         return String.format("redirect:%s", HttpClient.buildUrl(request.getRequestURL().toString(), params));
     }
 
-    private void delCookie(HttpServletResponse response, javax.servlet.http.Cookie servletCookie, String domain) {
-        servletCookie.setValue("");
-        servletCookie.setPath("/");
-        servletCookie.setMaxAge(0);
-        response.addCookie(servletCookie);
+    private void delCookie(HttpServletResponse response, javax.servlet.http.Cookie c, String domain) {
+        c.setValue("");
+        c.setPath("/");
+        c.setMaxAge(0);
+        response.addCookie(c);
 
-        javax.servlet.http.Cookie dc = new javax.servlet.http.Cookie(servletCookie.getName(), "");
-        dc.setPath("/");
+        javax.servlet.http.Cookie dc = new javax.servlet.http.Cookie(c.getName(), "");
         dc.setDomain(domain);
+        dc.setPath("/");
         dc.setMaxAge(0);
         response.addCookie(dc);
     }

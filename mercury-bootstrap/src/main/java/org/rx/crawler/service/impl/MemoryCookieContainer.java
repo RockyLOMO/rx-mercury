@@ -48,7 +48,7 @@ public class MemoryCookieContainer implements CookieContainer {
 //        response.addHeader("P3P", "CP='CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR'");
         String rawCookie;
         HttpUrl reqHttpUrl = HttpUrl.get(regionUrl);
-        List<javax.servlet.http.Cookie> reqCookies = Arrays.toList(ifNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
+        List<javax.servlet.http.Cookie> servletCookies = Arrays.toList(ifNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
         switch (action) {
             case "loadTo":
                 rawCookie = get(regionUrl);
@@ -57,14 +57,13 @@ public class MemoryCookieContainer implements CookieContainer {
                     log.info("load cookie from url={}[{}]\n{}", regionUrl, flags.name(), rawCookie);
                     for (HttpCookie cookie : HttpCookie.parse("set-cookie2:" + rawCookie)) {
                         quietly(() -> {
-                            javax.servlet.http.Cookie reqCookie = Linq.from(reqCookies).firstOrDefault(p -> eq(p.getName(), cookie.getName()));
+                            javax.servlet.http.Cookie reqCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.getName()));
                             if (reqCookie == null) {
                                 reqCookie = new javax.servlet.http.Cookie(cookie.getName(), cookie.getValue());
                             } else {
-                                reqCookies.remove(reqCookie);
+                                servletCookies.remove(reqCookie);
                             }
                             copy(cookie, reqCookie);
-                            //request cookie 只有name和value
                             reqCookie.setPath("/");
                             if (flags.has(RegionFlags.DOMAIN_TOP)) {
                                 reqCookie.setDomain(reqHttpUrl.topPrivateDomain());
@@ -77,9 +76,9 @@ public class MemoryCookieContainer implements CookieContainer {
                         });
                     }
                 }
-//                for (javax.servlet.http.Cookie c : reqCookies) {
-//                    delCookie(response, c, reqHttpUrl.topPrivateDomain());
-//                }
+                for (javax.servlet.http.Cookie c : servletCookies) {
+                    delCookie(response, c, reqHttpUrl.topPrivateDomain());
+                }
                 break;
             case "syncFrom":
                 rawCookie = request.getHeader(HttpHeaders.COOKIE);
@@ -87,7 +86,7 @@ public class MemoryCookieContainer implements CookieContainer {
                 save(reqHttpUrl.toString(), rawCookie);
                 break;
             case "clearCookie":
-                for (javax.servlet.http.Cookie servletCookie : reqCookies) {
+                for (javax.servlet.http.Cookie servletCookie : servletCookies) {
                     delCookie(response, servletCookie, reqHttpUrl.topPrivateDomain());
                 }
                 break;
