@@ -174,7 +174,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 //disk-cache-dir,disk-cache-size
 
                 opt.setExperimentalOption("excludeSwitches", Arrays.toList("enable-automation"));
-                opt.setExperimentalOption("useAutomationExtension", false);
+//                opt.setExperimentalOption("useAutomationExtension", false);
                 opt.addArguments("--disable-blink-features=AutomationControlled");
                 driver = new ChromeDriver((ChromeDriverService) driverService, opt);
                 break;
