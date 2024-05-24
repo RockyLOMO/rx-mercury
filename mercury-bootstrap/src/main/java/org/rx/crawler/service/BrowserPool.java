@@ -14,6 +14,7 @@ import org.rx.bean.WeakIdentityMap;
 import org.rx.core.StringBuilder;
 import org.rx.core.*;
 import org.rx.crawler.*;
+import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.exception.TraceHandler;
@@ -145,7 +146,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         }
     }
 
-    final BrowserPoolConfig conf;
+    final AppConfig.BrowserPoolConfig conf;
     final WebBrowserConfig browserConf;
     final BrowserAsyncTopic asyncTopic;
     final GenericKeyedObjectPool<BrowserType, Browser> pool;
@@ -156,7 +157,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
     }
 
     @SneakyThrows
-    public BrowserPool(@NonNull BrowserPoolConfig config, BrowserAsyncTopic asyncTopic) {
+    public BrowserPool(@NonNull AppConfig.BrowserPoolConfig config, BrowserAsyncTopic asyncTopic) {
         conf = config;
         browserConf = BeanMapper.DEFAULT.map(conf, WebBrowserConfig.class);
         browserConf.setCookieContainer(Reflects.newInstance(Class.forName(conf.getCookieContainerType())));

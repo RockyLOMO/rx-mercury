@@ -8,16 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.Rectangle;
 import org.openqa.selenium.*;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeDriverService;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.firefox.FirefoxBinary;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.firefox.FirefoxOptions;
-import org.openqa.selenium.firefox.GeckoDriverService;
+import org.openqa.selenium.ie.InternetExplorerDriver;
+import org.openqa.selenium.ie.InternetExplorerDriverService;
+import org.openqa.selenium.ie.InternetExplorerOptions;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.remote.service.DriverService;
+import org.rx.bean.DateTime;
 import org.rx.bean.Tuple;
 import org.rx.core.*;
 import org.rx.core.cache.MemoryCache;
@@ -25,53 +22,56 @@ import org.rx.crawler.Browser;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.service.CookieContainer;
+import org.rx.crawler.util.ProcessUtil;
 import org.rx.exception.InvalidException;
 import org.rx.exception.TraceHandler;
-import org.rx.io.Files;
-import org.rx.util.Lazy;
 import org.rx.util.function.BiFunc;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
-import java.io.File;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.rx.core.Extends.ifNull;
-import static org.rx.core.Extends.require;
+import static org.rx.core.Extends.*;
 import static org.rx.core.Sys.cacheKey;
 
 /**
  * 不缓存DriverService，奔溃后自恢复
  */
+@Deprecated
 @Slf4j
-public final class WebBrowser extends Disposable implements Browser, EventPublisher<WebBrowser> {
+final class IEBrowser extends Disposable implements Browser, EventPublisher<IEBrowser> {
     //region static
     static final String RESOURCE_JS_PATH = "/bot/root.js";
-    static final Lazy<ChromeDriverService> chromeService = new Lazy<>(() -> new ChromeDriverService.Builder()
-            .withSilent(true)
-            .withVerbose(false)
-            .build());
-    static final Lazy<GeckoDriverService> fireFoxService = new Lazy<>(() -> new GeckoDriverService.Builder()
-            .usingFirefoxBinary(new FirefoxBinary(new File("C:\\Program Files\\Mozilla Firefox\\firefox.exe")))
-            .build());
-    static final AtomicInteger chromeIdCounter = new AtomicInteger();
+    static final ConcurrentHashMap<RemoteWebDriver, Tuple<DateTime, Linq<Long>>> iePidMap = new ConcurrentHashMap<>();
+
+    static void killIe(RemoteWebDriver driver) {
+        quietly(() -> {
+            Tuple<DateTime, Linq<Long>> tuple = iePidMap.remove(driver);
+            if (tuple != null) {
+                for (Long pid : tuple.right) {
+                    ProcessUtil.killProcess(pid);
+                }
+            }
+        });
+    }
+
+    static Linq<Long> getIePids() {
+        return ProcessUtil.getProcesses(BrowserType.IE.getProcessName(), BrowserType.IE.getDriverName()).select(ProcessHandle::pid);
+    }
     //endregion
 
     //region init
-    public final Delegate<WebBrowser, EventArgs> onNavigating = Delegate.create(), onNavigated = Delegate.create();
+    public final Delegate<IEBrowser, EventArgs> onNavigating = Delegate.create(), onNavigated = Delegate.create();
     final WebBrowserConfig config;
     final CookieContainer cookieContainer;
     final ConfigureScriptExecutor configureScriptExecutor;
     final Set<String> injectedScript = new HashSet<>();
-    //设置后才会自动装载cookie
     @Getter
     @Setter
     private String cookieRegion;
@@ -84,10 +84,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
 
     @Override
     public BrowserType getType() {
-        if (driver instanceof FirefoxDriver) {
-            return BrowserType.FIRE_FOX;
-        }
-        return BrowserType.CHROME;
+        return BrowserType.IE;
     }
 
     public String getCurrentUrl() {
@@ -114,7 +111,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     }
 
     @SneakyThrows
-    public WebBrowser(@NonNull WebBrowserConfig config, @NonNull BrowserType type) {
+    public IEBrowser(@NonNull WebBrowserConfig config, @NonNull BrowserType type) {
         this.config = config;
         this.cookieContainer = config.getCookieContainer();
         this.configureScriptExecutor = Reflects.newInstance(Class.forName(config.getConfigureScriptExecutorType()), this);
@@ -123,62 +120,28 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         driver = tuple.right;
     }
 
-    //共享一个ChromeDriverService会出问题
     @SneakyThrows
     private Tuple<DriverService, RemoteWebDriver> createDriver(BrowserType type) {
+        if (type != BrowserType.IE) {
+            throw new InvalidException("BrowserType must be IE");
+        }
+
         DriverService driverService;
         RemoteWebDriver driver;
-        switch (type) {
-            case FIRE_FOX: {
-                driverService = fireFoxService.getValue();
+        driverService = InternetExplorerDriverService.createDefaultService();
 
-                FirefoxOptions opt = fill(new FirefoxOptions())
-//                        .setHeadless(false)
-                        .setAcceptInsecureCerts(true)
-                        .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
-                        .setPageLoadStrategy(PageLoadStrategy.NORMAL);
+        InternetExplorerOptions opt = fill(new InternetExplorerOptions());
+        opt.withInitialBrowserUrl(BLANK_URL)
+                .ignoreZoomSettings()
+//                .introduceFlakinessByIgnoringSecurityDomains()  //NoSuchWindowException
+                .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
+//                .setCapability(CapabilityType.APPLICATION_NAME, "rxBrowser")
+        ;
 
-                driver = new FirefoxDriver((GeckoDriverService) driverService, opt);
-            }
-            break;
-            default:
-                driverService = chromeService.getValue();
-
-                ChromeOptions opt = (ChromeOptions) fill(new ChromeOptions())
-//                        .setHeadless(false)
-                        .setAcceptInsecureCerts(true)
-                        .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
-                        .setPageLoadStrategy(PageLoadStrategy.NORMAL);
-
-                Map<String, Object> chromePrefs = new HashMap<>();
-                if (config.getDownloadPath() != null) {
-                    Files.createDirectory(config.getDownloadPath());
-                    chromePrefs.put("download.default_directory", config.getDownloadPath());
-                }
-                chromePrefs.put("profile.default_content_settings.popups", 0);
-                chromePrefs.put("pdfjs.disabled", true);
-                opt.setExperimentalOption("prefs", chromePrefs);
-
-                opt.addArguments("no-first-run", "homepage=https://f-li.cn/",
-                        "disable-infobars", "disable-web-security", "ignore-certificate-errors", "allow-running-insecure-content",
-                        "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
-                        "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
-                        "no-sandbox", "autoplay-policy=Document user activation is required");
-                if (!Strings.isEmpty(config.getDiskDataPath())) {
-                    int id = chromeIdCounter.getAndIncrement();
-                    String dataDir = String.format(config.getDiskDataPath(), id);
-                    Files.createDirectory(dataDir);
-                    opt.addArguments("user-data-dir=" + dataDir, "restore-last-session");
-                }
-                opt.addArguments("--remote-allow-origins=*");
-                //disk-cache-dir,disk-cache-size
-
-                opt.setExperimentalOption("excludeSwitches", Arrays.toList("enable-automation"));
-                opt.setExperimentalOption("useAutomationExtension", false);
-                opt.addArguments("--disable-blink-features=AutomationControlled");
-                driver = new ChromeDriver((ChromeDriverService) driverService, opt);
-                break;
-        }
+        Linq<Long> iePids_before = getIePids();
+        driver = new InternetExplorerDriver((InternetExplorerDriverService) driverService, opt);
+        sleep(500);
+        iePidMap.put(driver, Tuple.of(DateTime.now(), getIePids().except(iePids_before)));
         WebDriver.Options manage = driver.manage();
         manage.timeouts().pageLoadTimeout(config.getPageLoadTimeoutSeconds(), TimeUnit.SECONDS);
         manage.timeouts().setScriptTimeout(config.getPageLoadTimeoutSeconds(), TimeUnit.SECONDS);
@@ -202,6 +165,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     protected void freeObjects() {
         driver.quit();
         driverService.stop();
+        killIe(driver);
     }
     //endregion
 
@@ -224,7 +188,11 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         checkNotClosed();
 
         injectedScript.clear();
+        boolean isIe = getType() == BrowserType.IE;
         try {
+            if (isIe) {
+                exchangeDriver(url, true);
+            }
             if (cookieRegion != null) {
                 //不要变更url
                 cookieContainer.loadTo(this, CookieContainer.buildRegionUrl(url, cookieRegion));
@@ -246,6 +214,12 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                     log.warn("ignore cookieDomain reset {}", e.getMessage());
                 }
             }
+        } catch (WebDriverException e) {
+            if (isIe) {
+                exchangeDriver(url, false);
+                sleep(waitMillis);
+            }
+            throw e;
         } catch (TimeoutException e) {
             TraceHandler.INSTANCE.log("waitElementLocated fail, url={} selector={}|{}", url, locatorSelector, timeoutSeconds, e);
             throw e;
@@ -254,6 +228,29 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         } finally {
             navigatedSelector = null;
         }
+    }
+
+    private synchronized void exchangeDriver(String url, boolean isCheck) {
+        Tuple<DriverService, RemoteWebDriver> temp = Tuple.of(driverService, driver), exchange;
+        boolean doIt = true;
+        if (isCheck) {
+            Tuple<DateTime, Linq<Long>> tuple = iePidMap.get(temp.right);
+            doIt = tuple == null || DateTime.now().subtract(tuple.left).getTotalMinutes() > 30;
+        }
+        if (!doIt) {
+            return;
+        }
+
+        log.warn("exchangeDriver for {}", url);
+        quietly(() -> {
+            temp.right.quit();
+            temp.left.stop();
+            killIe(temp.right);
+        });
+        sleep(800);
+        exchange = createDriver(getType());
+        driverService = exchange.left;
+        driver = exchange.right;
     }
 
     @Override
@@ -440,13 +437,13 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         Linq<WebElement> q = createWait(timeoutSeconds).await(new BiFunc<>() {
             @Override
             public Linq<WebElement> invoke(FluentWait s) throws Throwable {
-                Linq<WebElement> elements = WebBrowser.this.findElements(selector, false);
+                Linq<WebElement> elements = IEBrowser.this.findElements(selector, false);
                 if (elements.any()) {
                     log.debug("Wait {} located ok", selector);
                     return elements;
                 }
 
-                elements = WebBrowser.this.findElements(selector, false);
+                elements = IEBrowser.this.findElements(selector, false);
                 if (elements.any()) {
                     log.debug("Wait {} located ok", selector);
                     return elements;
@@ -521,9 +518,11 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     public synchronized <T> T executeScript(@NonNull String script, Object... args) {
         checkNotClosed();
 
-        String rootJs = Cache.<String, String>getInstance(MemoryCache.class).get(cacheKey("injectRootJs"), k -> Browser.readResourceJs(RESOURCE_JS_PATH));
+        if (getType() != BrowserType.IE) {
+            String rootJs = Cache.<String, String>getInstance(MemoryCache.class).get(cacheKey("injectRootJs"), k -> Browser.readResourceJs(RESOURCE_JS_PATH));
 //            log.warn("injectScript:\n{}\n", rootJs);
-        injectScript(rootJs);
+            injectScript(rootJs);
+        }
         try {
             return (T) driver.executeScript(script, args);
         } catch (JavascriptException e) {

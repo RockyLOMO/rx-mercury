@@ -24,8 +24,6 @@ app:
     connectTimeoutMillis: 40000
     ntp:
       enableFlags: 3
-  chromeDriver: /app-crawler/driver/chromedriver.exe
-  ieDriver: /app-crawler/driver/IEDriverServer.exe
   browser:
     listenPort: 1210
     maintenancePeriod: 10000
@@ -37,15 +35,6 @@ app:
     poolSize: 1
     windowAutoBlank: true
 
-    waitMillis: 500
-    pageLoadTimeoutSeconds: 30
-    findElementTimeoutSeconds: 6
-#    diskDataPath: /app-crawler/data/chrome%s/
-    downloadPath: /app-crawler/temp/
+    #    diskDataPath: /app-crawler/data/chrome%s/
     windowRectangle: "600,500,800,600"
     cookieContainerType: org.rx.crawler.service.impl.MemoryCookieContainer
-    configureScriptExecutorType: org.rx.crawler.service.impl.ApiConfigureScriptExecutor
-  proxy:
-    produceProxyTimes:
-      - "6:00:00"
-#      - "21:00:00"

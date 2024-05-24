@@ -30,6 +30,7 @@ public class BrowserService {
         purgeProcesses();
 
         System.setProperty("webdriver.chrome.driver", config.getChromeDriver());
+        System.setProperty("webdriver.gecko.driver", config.getFireFoxDriver());
         System.setProperty("webdriver.ie.driver", config.getIeDriver());
         quietly(() -> Remoting.register(pool = new BrowserPool(config.getBrowser(), asyncTopic), pool.conf.getListenPort(), false));
     }
