@@ -39,7 +39,7 @@ public class DevTest {
 
     @SneakyThrows
     @Test
-    public void dev() {
+    public void chrome() {
         WebBrowser browser = init(BrowserType.CHROME);
 
         String cs1 = ".icon-qrcode";
@@ -48,6 +48,8 @@ public class DevTest {
         sleep(1000);
         byte[] bytes = browser.screenshotAsBytes(".qrcode-img");
         System.out.println(bytes.length);
+
+        System.in.read();
     }
 
     @SneakyThrows
