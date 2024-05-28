@@ -42,13 +42,17 @@ public class DevTest {
     public void chrome() {
         WebBrowser browser = init(BrowserType.CHROME);
 
-        String cs1 = ".icon-qrcode";
-        browser.navigateUrl("https://login.taobao.com/member/login.jhtml?style=mini&newMini2=true&from=alimama&redirectURL=http:%2F%2Flogin.taobao.com%2Fmember%2Ftaobaoke%2Flogin.htm%3Fis_login%3d1&full_redirect=true&disableQuickLogin=false", cs1);
-        browser.elementClick(cs1);
-        sleep(1000);
-        byte[] bytes = browser.screenshotAsBytes(".qrcode-img");
-        System.out.println(bytes.length);
-
+//        while (true) {
+//            byte[] bytes = System.in.readAllBytes();
+//            String s = new String(bytes);
+//            switch (s) {
+//                case "1":
+                    browser.navigateUrl("https://union.jd.com/proManager/index?keywords=100075085022");
+//                    break;
+//                case "0":
+//                    return;
+//            }
+//        }
         System.in.read();
     }
 

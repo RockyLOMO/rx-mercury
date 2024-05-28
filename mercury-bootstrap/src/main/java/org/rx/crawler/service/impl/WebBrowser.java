@@ -159,8 +159,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 chromePrefs.put("pdfjs.disabled", true);
                 opt.setExperimentalOption("prefs", chromePrefs);
 
-                opt.addArguments("no-first-run", "homepage=https://f-li.cn/",
-                        "disable-infobars", "disable-web-security", "ignore-certificate-errors", "allow-running-insecure-content",
+                opt.addArguments("no-first-run", "disable-infobars", "disable-web-security", "ignore-certificate-errors", "allow-running-insecure-content",
                         "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
                         "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
                         "no-sandbox", "autoplay-policy=Document user activation is required");
@@ -176,6 +175,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 opt.setExperimentalOption("excludeSwitches", Arrays.toList("enable-automation"));
 //                opt.setExperimentalOption("useAutomationExtension", false);
                 opt.addArguments("--disable-blink-features=AutomationControlled");
+
+//                opt.setExperimentalOption("debuggerAddress", "127.0.0.1:9222");
                 driver = new ChromeDriver((ChromeDriverService) driverService, opt);
                 break;
         }
