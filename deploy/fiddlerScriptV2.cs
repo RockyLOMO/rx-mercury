@@ -23,7 +23,7 @@ try{
         oSession.SaveRequest(rootPath + "Jd_API_" + ts + ".txt", false);
     } else if (oSession.host.Contains("neptune.jd.com") && oSession.PathAndQuery.StartsWith("/log/m")) {
         oSession.utilDecodeResponse();
-        var ts = DateTime.Now.ToString("MMddHHmmss.fff.ffffff");
+        var ts = Guid.NewGuid().ToString();
         oSession.SaveRequestBody(rootPath + "Jd_Goods_" + ts + ".txt");
     }
 }
