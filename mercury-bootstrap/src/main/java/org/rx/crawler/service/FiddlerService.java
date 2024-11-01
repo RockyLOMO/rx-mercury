@@ -1,6 +1,7 @@
 package org.rx.crawler.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.rx.core.Strings;
 import org.rx.core.Tasks;
@@ -11,6 +12,7 @@ import org.rx.io.Files;
 import org.rx.net.rpc.Remoting;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,7 +39,10 @@ public class FiddlerService implements FiddlerWatcher {
 
         Tasks.scheduleDaily(() -> {
             Files.delete(dir);
-            Files.createDirectory(dir);
+//            Files.createDirectory(dir);
+            for (File file : Files.listFiles(dir, false)) {
+                FileUtils.forceDelete(file);
+            }
         }, config.getCleanTaskTime());
     }
 }
