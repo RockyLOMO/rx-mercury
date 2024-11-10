@@ -38,7 +38,7 @@ public class FiddlerService implements FiddlerWatcher {
         Remoting.register(this, config.getFiddlerListenPort(), false);
 
         Tasks.scheduleDaily(() -> {
-            Files.delete(dir);
+//            Files.delete(dir);
 //            Files.createDirectory(dir);
             for (File file : Files.listFiles(dir, false)) {
                 FileUtils.forceDelete(file);
