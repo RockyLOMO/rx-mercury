@@ -1,5 +1,6 @@
 package org.rx.crawler.service;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -12,15 +13,35 @@ import org.rx.io.Files;
 import org.rx.net.rpc.Remoting;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @Slf4j
 @Service
 public class FiddlerService implements FiddlerWatcher {
-    final FileWatcher watcher;
+    final AppConfig config;
+    FileWatcher watcher;
 
-    public FiddlerService(AppConfig config) {
+    @PostConstruct
+    public void init() {
+        createWatch();
+        Remoting.register(this, config.getFiddlerListenPort(), false);
+
+        Tasks.scheduleDaily(() -> {
+            String dir = Files.concatPath(config.getBaseDir(), "fiddler/");
+//            Files.delete(dir);
+//            Files.createDirectory(dir);
+            for (File file : Files.listFiles(dir, false)) {
+                FileUtils.forceDelete(file);
+            }
+
+            createWatch();
+        }, config.getCleanTaskTime());
+    }
+
+    void createWatch() {
         String dir = Files.concatPath(config.getBaseDir(), "fiddler/");
         Files.createDirectory(dir);
         watcher = new FileWatcher(dir);
@@ -35,14 +56,5 @@ public class FiddlerService implements FiddlerWatcher {
             String[] args = Strings.split(filename, "_", 3);
             raiseEvent(EVENT_CALLBACK, new CallbackEventArgs(args[0] + "_" + args[1], Files.readLines(filePath).collect(Collectors.toList())));
         });
-        Remoting.register(this, config.getFiddlerListenPort(), false);
-
-        Tasks.scheduleDaily(() -> {
-//            Files.delete(dir);
-//            Files.createDirectory(dir);
-            for (File file : Files.listFiles(dir, false)) {
-                FileUtils.forceDelete(file);
-            }
-        }, config.getCleanTaskTime());
     }
 }
