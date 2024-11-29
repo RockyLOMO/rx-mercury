@@ -3,12 +3,13 @@ package org.rx.crawler.service;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.map.AbstractReferenceMap;
+import org.apache.commons.collections4.map.ReferenceIdentityMap;
 import org.apache.commons.pool2.BaseKeyedPooledObjectFactory;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
-import org.rx.bean.ConcurrentWeakMap;
 import org.rx.bean.DateTime;
 import org.rx.bean.Tuple;
 import org.rx.core.StringBuilder;
@@ -29,6 +30,7 @@ import org.rx.util.BeanMapper;
 import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.rx.core.Extends.quietly;
@@ -38,7 +40,7 @@ import static org.rx.core.Extends.tryClose;
 public final class BrowserPool extends Disposable implements BrowserPoolListener {
     private class ObjectFactory extends BaseKeyedPooledObjectFactory<BrowserType, Browser> {
         static final String CONNECT_TIME = "connectTime";
-        final Map<Browser, Tuple<TcpServer, Integer>> cache = new ConcurrentWeakMap<>(true);
+        final Map<Browser, Tuple<TcpServer, Integer>> cache = Collections.synchronizedMap(new ReferenceIdentityMap<>(AbstractReferenceMap.ReferenceStrength.WEAK, AbstractReferenceMap.ReferenceStrength.HARD));
 
         public ObjectFactory() {
             Tasks.schedulePeriod(() -> {
