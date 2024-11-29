@@ -8,9 +8,9 @@ import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
 import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
+import org.rx.bean.ConcurrentWeakMap;
 import org.rx.bean.DateTime;
 import org.rx.bean.Tuple;
-import org.rx.bean.WeakIdentityMap;
 import org.rx.core.StringBuilder;
 import org.rx.core.*;
 import org.rx.crawler.*;
@@ -38,7 +38,7 @@ import static org.rx.core.Extends.tryClose;
 public final class BrowserPool extends Disposable implements BrowserPoolListener {
     private class ObjectFactory extends BaseKeyedPooledObjectFactory<BrowserType, Browser> {
         static final String CONNECT_TIME = "connectTime";
-        final Map<Browser, Tuple<TcpServer, Integer>> cache = new WeakIdentityMap<>();
+        final Map<Browser, Tuple<TcpServer, Integer>> cache = new ConcurrentWeakMap<>(true);
 
         public ObjectFactory() {
             Tasks.schedulePeriod(() -> {
