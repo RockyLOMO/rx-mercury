@@ -17,10 +17,10 @@ try{
         }
 
         oSession.oResponse.headers["Content-Length"] = oSession.responseBodyBytes.Length.ToString();
-    } else if (oSession.host.Contains("api.m.jd.com") && oSession.PathAndQuery.StartsWith("/api")) {
+    } else if (oSession.host.Contains("api.m.jd.com") && oSession.PathAndQuery.StartsWith("/api?functionId=unionSearchRecommend")) {
         oSession.utilDecodeResponse();
         var ts = DateTime.Now.ToString("MMddHHmmss.fff.ffffff");
-        oSession.SaveRequest(rootPath + "Jd_API_" + ts + ".txt", false);
+        oSession.SaveRequest(rootPath + "Jd_api_" + ts + ".txt", false);
     } else if (oSession.host.Contains("neptune.jd.com") && oSession.PathAndQuery.StartsWith("/log/m")) {
         oSession.utilDecodeResponse();
         var ts = Guid.NewGuid().ToString();
