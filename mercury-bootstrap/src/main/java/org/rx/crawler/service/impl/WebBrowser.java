@@ -240,13 +240,13 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 waitElementLocated(locatorSelector, timeoutSeconds, checkComplete);
             }
             raiseEvent(onNavigated, EventArgs.EMPTY);
-//            if (cookieRegion != null) {
+            if (cookieRegion != null) {
                 try {
                     saveCookies(true);
                 } catch (TimeoutException e) {
                     log.warn("ignore cookieDomain reset {}", e.getMessage());
                 }
-//            }
+            }
         } catch (TimeoutException e) {
             TraceHandler.INSTANCE.log("waitElementLocated fail, url={} selector={}|{}", url, locatorSelector, timeoutSeconds, e);
             throw e;
