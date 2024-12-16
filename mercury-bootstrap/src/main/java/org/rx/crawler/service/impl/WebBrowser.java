@@ -115,11 +115,11 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         switch (type) {
             default:
                 driverService = chromeService.getValue();
-                ChromeOptions opt = new ChromeOptions();
-                opt.addArguments("--window-size=1024,768");
-                opt.addArguments("--headless=chrome");
-
-                driver = new ChromeDriverBuilder().build(opt, driver_home);
+//                ChromeOptions opt = new ChromeOptions();
+//                opt.addArguments("--window-size=1024,768");
+//                opt.addArguments("--headless=chrome");
+//                driver = new ChromeDriverBuilder().build(opt, driver_home);
+                driver = new ChromeDriverBuilder().build(driver_home);
                 break;
         }
         WebDriver.Options manage = driver.manage();
