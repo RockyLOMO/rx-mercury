@@ -1,5 +1,6 @@
 package org.rx.crawler.service.impl;
 
+import com.frogking.chromedriver.ChromeDriverBuilder;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
@@ -8,14 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.Rectangle;
 import org.openqa.selenium.*;
-import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeDriverService;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.firefox.FirefoxBinary;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.firefox.FirefoxOptions;
-import org.openqa.selenium.firefox.GeckoDriverService;
-import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.remote.service.DriverService;
 import org.rx.bean.Tuple;
@@ -27,20 +22,15 @@ import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.exception.InvalidException;
 import org.rx.exception.TraceHandler;
-import org.rx.io.Files;
 import org.rx.util.Lazy;
 import org.rx.util.function.BiFunc;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
-import java.io.File;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -55,14 +45,11 @@ import static org.rx.core.Sys.cacheKey;
 public final class WebBrowser extends Disposable implements Browser, EventPublisher<WebBrowser> {
     //region static
     static final String RESOURCE_JS_PATH = "/bot/root.js";
+    String driver_home = "driver/chromedriver.exe";
     static final Lazy<ChromeDriverService> chromeService = new Lazy<>(() -> new ChromeDriverService.Builder()
             .withSilent(true)
             .withVerbose(false)
             .build());
-    static final Lazy<GeckoDriverService> fireFoxService = new Lazy<>(() -> new GeckoDriverService.Builder()
-            .usingFirefoxBinary(new FirefoxBinary(new File("C:\\Program Files\\Mozilla Firefox\\firefox.exe")))
-            .build());
-    static final AtomicInteger chromeIdCounter = new AtomicInteger();
     //endregion
 
     //region init
@@ -84,9 +71,6 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
 
     @Override
     public BrowserType getType() {
-        if (driver instanceof FirefoxDriver) {
-            return BrowserType.FIRE_FOX;
-        }
         return BrowserType.CHROME;
     }
 
@@ -129,55 +113,13 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         DriverService driverService;
         RemoteWebDriver driver;
         switch (type) {
-            case FIRE_FOX: {
-                driverService = fireFoxService.getValue();
-
-                FirefoxOptions opt = fill(new FirefoxOptions())
-//                        .setHeadless(false)
-                        .setAcceptInsecureCerts(true)
-                        .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
-                        .setPageLoadStrategy(PageLoadStrategy.NORMAL);
-
-                driver = new FirefoxDriver((GeckoDriverService) driverService, opt);
-            }
-            break;
             default:
                 driverService = chromeService.getValue();
+                ChromeOptions opt = new ChromeOptions();
+                opt.addArguments("--window-size=1024,768");
+                opt.addArguments("--headless=chrome");
 
-                ChromeOptions opt = (ChromeOptions) fill(new ChromeOptions())
-//                        .setHeadless(false)
-                        .setAcceptInsecureCerts(true)
-                        .setUnhandledPromptBehaviour(UnexpectedAlertBehaviour.ACCEPT)
-                        .setPageLoadStrategy(PageLoadStrategy.NORMAL);
-
-                Map<String, Object> chromePrefs = new HashMap<>();
-                if (config.getDownloadPath() != null) {
-                    Files.createDirectory(config.getDownloadPath());
-                    chromePrefs.put("download.default_directory", config.getDownloadPath());
-                }
-                chromePrefs.put("profile.default_content_settings.popups", 0);
-                chromePrefs.put("pdfjs.disabled", true);
-                opt.setExperimentalOption("prefs", chromePrefs);
-
-                opt.addArguments("no-first-run", "disable-infobars", "disable-web-security", "ignore-certificate-errors", "allow-running-insecure-content",
-                        "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
-                        "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
-                        "no-sandbox", "autoplay-policy=Document user activation is required");
-                if (!Strings.isEmpty(config.getDiskDataPath())) {
-                    int id = chromeIdCounter.getAndIncrement();
-                    String dataDir = String.format(config.getDiskDataPath(), id);
-                    Files.createDirectory(dataDir);
-                    opt.addArguments("user-data-dir=" + dataDir, "restore-last-session");
-                }
-                opt.addArguments("--remote-allow-origins=*");
-                //disk-cache-dir,disk-cache-size
-
-                opt.setExperimentalOption("excludeSwitches", Arrays.toList("enable-automation"));
-//                opt.setExperimentalOption("useAutomationExtension", false);
-                opt.addArguments("--disable-blink-features=AutomationControlled");
-
-//                opt.setExperimentalOption("debuggerAddress", "127.0.0.1:9222");
-                driver = new ChromeDriver((ChromeDriverService) driverService, opt);
+                driver = new ChromeDriverBuilder().build(opt, driver_home);
                 break;
         }
         WebDriver.Options manage = driver.manage();
@@ -189,14 +131,6 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             manage.window().setSize(rectangle.getDimension());
         }
         return Tuple.of(driverService, driver);
-    }
-
-    private <T extends MutableCapabilities> T fill(T opt) {
-//        opt.setCapability(CapabilityType.SUPPORTS_APPLICATION_CACHE, true);
-//        opt.setCapability(CapabilityType.SUPPORTS_ALERTS, false);
-        opt.setCapability(CapabilityType.UNHANDLED_PROMPT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
-//        opt.setCapability(CapabilityType.UNEXPECTED_ALERT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
-        return opt;
     }
 
     @Override

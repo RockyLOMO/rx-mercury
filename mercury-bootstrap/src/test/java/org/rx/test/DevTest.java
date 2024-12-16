@@ -5,8 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Rectangle;
-import org.openqa.selenium.ie.InternetExplorerDriver;
-import org.openqa.selenium.ie.InternetExplorerOptions;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
