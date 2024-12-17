@@ -9,11 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.Rectangle;
 import org.openqa.selenium.*;
-import org.openqa.selenium.chrome.ChromeDriverService;
-import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.remote.RemoteWebDriver;
-import org.openqa.selenium.remote.service.DriverService;
-import org.rx.bean.Tuple;
 import org.rx.core.*;
 import org.rx.core.cache.MemoryCache;
 import org.rx.crawler.Browser;
@@ -22,7 +18,6 @@ import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.exception.InvalidException;
 import org.rx.exception.TraceHandler;
-import org.rx.util.Lazy;
 import org.rx.util.function.BiFunc;
 
 import java.awt.*;
@@ -38,18 +33,11 @@ import static org.rx.core.Extends.ifNull;
 import static org.rx.core.Extends.require;
 import static org.rx.core.Sys.cacheKey;
 
-/**
- * 不缓存DriverService，奔溃后自恢复
- */
 @Slf4j
 public final class WebBrowser extends Disposable implements Browser, EventPublisher<WebBrowser> {
     //region static
     static final String RESOURCE_JS_PATH = "/bot/root.js";
     String driver_home = "driver/chromedriver.exe";
-    static final Lazy<ChromeDriverService> chromeService = new Lazy<>(() -> new ChromeDriverService.Builder()
-            .withSilent(true)
-            .withVerbose(false)
-            .build());
     //endregion
 
     //region init
@@ -65,7 +53,6 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     @Getter
     @Setter
     private long waitMillis = 500;
-    private DriverService driverService;
     private RemoteWebDriver driver;
     private volatile String navigatedUrl, navigatedSelector;
 
@@ -102,19 +89,15 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         this.config = config;
         this.cookieContainer = config.getCookieContainer();
         this.configureScriptExecutor = Reflects.newInstance(Class.forName(config.getConfigureScriptExecutorType()), this);
-        Tuple<DriverService, RemoteWebDriver> tuple = createDriver(type);
-        driverService = tuple.left;
-        driver = tuple.right;
+        driver = createDriver(type);
     }
 
     //共享一个ChromeDriverService会出问题
     @SneakyThrows
-    private Tuple<DriverService, RemoteWebDriver> createDriver(BrowserType type) {
-        DriverService driverService;
+    private RemoteWebDriver createDriver(BrowserType type) {
         RemoteWebDriver driver;
         switch (type) {
             default:
-                driverService = chromeService.getValue();
 //                ChromeOptions opt = new ChromeOptions();
 //                opt.addArguments("--window-size=1024,768");
 //                opt.addArguments("--headless=chrome");
@@ -130,13 +113,12 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             manage.window().setPosition(rectangle.getPoint());
             manage.window().setSize(rectangle.getDimension());
         }
-        return Tuple.of(driverService, driver);
+        return driver;
     }
 
     @Override
     protected void freeObjects() {
         driver.quit();
-        driverService.stop();
     }
     //endregion
 
