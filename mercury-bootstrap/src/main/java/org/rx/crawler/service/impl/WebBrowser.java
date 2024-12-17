@@ -33,6 +33,11 @@ import static org.rx.core.Extends.ifNull;
 import static org.rx.core.Extends.require;
 import static org.rx.core.Sys.cacheKey;
 
+/**
+ * https://github.com/mabinogi233/UndetectedChromedriver
+ * https://bot.sannysoft.com/
+ * https://www.browserscan.net/bot-detection
+ */
 @Slf4j
 public final class WebBrowser extends Disposable implements Browser, EventPublisher<WebBrowser> {
     //region static
