@@ -24,12 +24,10 @@ import org.rx.crawler.service.CookieContainer;
 import org.rx.exception.InvalidException;
 import org.rx.exception.TraceHandler;
 import org.rx.io.Files;
-import org.rx.util.Lazy;
 import org.rx.util.function.BiFunc;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
-import java.io.File;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
