@@ -192,7 +192,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     return;
                 }
 
-                for (BrowserAsyncRequest request : asyncTopic.poll(poolSize / 2)) {
+                for (BrowserAsyncRequest request : asyncTopic.poll(poolSize)) {
                     Inet4Address address = (Inet4Address) Sockets.getLocalAddress();
                     int idleId = nextIdleId(BrowserType.CHROME);
                     log.info("Async publish {}:{}", address, idleId);
