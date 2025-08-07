@@ -176,7 +176,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     }
 
     @Override
-    protected void freeObjects() {
+    protected void dispose() {
         driver.quit();
         driverService.stop();
     }

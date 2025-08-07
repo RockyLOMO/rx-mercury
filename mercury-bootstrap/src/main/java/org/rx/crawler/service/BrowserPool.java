@@ -203,7 +203,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
     }
 
     @Override
-    protected void freeObjects() {
+    protected void dispose() {
         pool.close();
     }
 

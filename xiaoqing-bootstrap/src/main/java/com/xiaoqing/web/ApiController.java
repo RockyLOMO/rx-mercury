@@ -1,7 +1,7 @@
 package com.xiaoqing.web;
 
 import lombok.Data;
-import org.rx.spring.SpringContext;
+import org.springframework.service.SpringContext;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -33,7 +33,7 @@ public class ApiController {
 
     @PostConstruct
     public void init() {
-        SpringContext.setControllerExceptionHandler((e, m) -> {
+        SpringContext.exceptionHandle = (e, m) -> {
             if (e instanceof MethodArgumentNotValidException) {
                 FieldError fieldError = ((MethodArgumentNotValidException) e).getFieldError();
                 if (fieldError != null) {
@@ -41,6 +41,6 @@ public class ApiController {
                 }
             }
             return e;
-        });
+        };
     }
 }

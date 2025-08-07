@@ -24,7 +24,7 @@
         <maven.test.skip>true</maven.test.skip>
         <java.version>11</java.version>
         <lombok.version>1.18.30</lombok.version>
-        <rxlib.version>2.21.2-SNAPSHOT</rxlib.version>
+        <rxlib.version>2.21.5-SNAPSHOT</rxlib.version>
         <h2.version>2.2.224</h2.version>
         <netty.version>4.1.121.Final</netty.version>
         <selenium.version>3.141.59</selenium.version>

@@ -16,7 +16,7 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.CookieContainer;
 import org.rx.net.http.HttpClient;
 import org.rx.redis.RedisCache;
-import org.rx.spring.SpringContext;
+import org.springframework.service.SpringContext;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;

@@ -162,7 +162,7 @@
 //    }
 //
 //    @Override
-//    protected void freeObjects() {
+//    protected void dispose() {
 //        driver.quit();
 //        driverService.stop();
 //        killIe(driver);
