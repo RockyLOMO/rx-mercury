@@ -209,9 +209,9 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
 
     @SneakyThrows
     private synchronized void fillPoolSize() {
-//        for (BrowserType type : BrowserType.values()) {
-//            pool.addObjects(type, conf.getPoolSize());
-//        }
+        for (BrowserType type : BrowserType.values()) {
+            pool.addObjects(type, conf.getPoolSize());
+        }
     }
 
     //随机访问减少cookie监控
