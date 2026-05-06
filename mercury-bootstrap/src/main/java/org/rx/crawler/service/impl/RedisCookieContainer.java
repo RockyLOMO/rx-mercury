@@ -51,7 +51,7 @@ public class RedisCookieContainer implements CookieContainer {
                 if (rawCookie != null) {
                     FlagsEnum<RegionFlags> flags = CookieContainer.getRegionFlags(regionUrl);
                     log.debug("load cookie from url={}[{}]\n{}", regionUrl, flags.name(), rawCookie);
-                    for (Cookie cookie : HttpClient.decodeCookie(reqHttpUrl, rawCookie)) {
+                    for (Cookie cookie : decodeCookies(reqHttpUrl, rawCookie)) {
                         quietly(() -> {
                             javax.servlet.http.Cookie reqCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.name()));
                             boolean isChange;
@@ -113,6 +113,27 @@ public class RedisCookieContainer implements CookieContainer {
         dc.setPath("/");
         dc.setMaxAge(0);
         response.addCookie(dc);
+    }
+
+    private List<Cookie> decodeCookies(HttpUrl url, String rawCookie) {
+        if (Strings.isEmpty(rawCookie)) {
+            return java.util.Collections.emptyList();
+        }
+        return Linq.from(Strings.split(rawCookie, ";"))
+                .select(p -> {
+                    int i = p.indexOf('=');
+                    if (i <= 0) {
+                        return null;
+                    }
+                    return new Cookie.Builder()
+                            .name(p.substring(0, i).trim())
+                            .value(p.substring(i + 1).trim())
+                            .domain(url.host())
+                            .path("/")
+                            .build();
+                })
+                .where(p -> p != null)
+                .toList();
     }
 
     @SneakyThrows

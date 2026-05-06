@@ -15,16 +15,15 @@
     </parent>
     <modules>
         <module>mercury-bootstrap</module>
-        <module>xiaoqing-bootstrap</module>
     </modules>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.test.skip>true</maven.test.skip>
-        <java.version>11</java.version>
+        <java.version>17</java.version>
         <lombok.version>1.18.30</lombok.version>
-        <rxlib.version>2.21.5-SNAPSHOT</rxlib.version>
+        <rxlib.version>2.22.6-SNAPSHOT</rxlib.version>
         <h2.version>2.2.224</h2.version>
         <netty.version>4.1.121.Final</netty.version>
         <selenium.version>3.141.59</selenium.version>
@@ -33,15 +32,9 @@
         <jsoup.version>1.15.3</jsoup.version>
         <apollo-client.version>1.9.1</apollo-client.version>
         <spring.cloud.version>3.0.4</spring.cloud.version>
-        <commons-pool2.version>2.11.1</commons-pool2.version>
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-pool2</artifactId>
-            <version>${commons-pool2.version}</version>
-        </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-context</artifactId>
@@ -125,8 +118,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
                 <configuration>
-                    <source>11</source>
-                    <target>11</target>
+                    <source>17</source>
+                    <target>17</target>
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>

@@ -206,7 +206,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 //不要变更url
                 cookieContainer.loadTo(this, CookieContainer.buildRegionUrl(url, cookieRegion));
             }
-            raiseEvent(onNavigating, EventArgs.EMPTY);
+            publishEvent(onNavigating, EventArgs.EMPTY);
 
             driver.get(url);
             navigatedUrl = url;
@@ -215,7 +215,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             if (locatorSelector != null) {
                 waitElementLocated(locatorSelector, timeoutSeconds, checkComplete);
             }
-            raiseEvent(onNavigated, EventArgs.EMPTY);
+            publishEvent(onNavigated, EventArgs.EMPTY);
             if (cookieRegion != null) {
                 try {
                     saveCookies(true);
@@ -224,7 +224,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 }
             }
         } catch (TimeoutException e) {
-            TraceHandler.INSTANCE.log("waitElementLocated fail, url={} selector={}|{}", url, locatorSelector, timeoutSeconds, e);
+            TraceHandler.INSTANCE.saveExceptionTrace(Thread.currentThread(),
+                    String.format("waitElementLocated fail, url=%s selector=%s|%s", url, locatorSelector, timeoutSeconds), e);
             throw e;
         } catch (Exception e) {
             throw new InvalidException("NavigateUrl {} fail", url, e);

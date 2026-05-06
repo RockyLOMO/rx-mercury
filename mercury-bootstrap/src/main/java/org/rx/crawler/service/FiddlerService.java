@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -45,7 +44,7 @@ public class FiddlerService implements FiddlerWatcher {
         String dir = Files.concatPath(config.getBaseDir(), "fiddler/");
         Files.createDirectory(dir);
         watcher = new FileWatcher(dir);
-        watcher.onChanged.combine((sender, e) -> {
+        watcher.onChanged.add((sender, e) -> {
             log.info("File[{}] has {} change", e.getPath(), e.isModify());
             if (!e.isModify()) {
                 return;
@@ -54,7 +53,7 @@ public class FiddlerService implements FiddlerWatcher {
             String filePath = e.getPath().toString();
             String filename = FilenameUtils.getName(filePath);
             String[] args = Strings.split(filename, "_", 3);
-            raiseEvent(EVENT_CALLBACK, new CallbackEventArgs(args[0] + "_" + args[1], Files.readLines(filePath).collect(Collectors.toList())));
+            publishEvent(EVENT_CALLBACK, new CallbackEventArgs(args[0] + "_" + args[1], Files.readLines(filePath)));
         });
     }
 }

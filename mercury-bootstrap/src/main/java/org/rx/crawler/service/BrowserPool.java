@@ -3,13 +3,6 @@ package org.rx.crawler.service;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.map.AbstractReferenceMap;
-import org.apache.commons.collections4.map.ReferenceIdentityMap;
-import org.apache.commons.pool2.BaseKeyedPooledObjectFactory;
-import org.apache.commons.pool2.PooledObject;
-import org.apache.commons.pool2.impl.DefaultPooledObject;
-import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
-import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
 import org.rx.bean.DateTime;
 import org.rx.bean.Tuple;
 import org.rx.core.StringBuilder;
@@ -31,23 +24,43 @@ import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import static org.rx.core.Extends.quietly;
 import static org.rx.core.Extends.tryClose;
 
 @Slf4j
 public final class BrowserPool extends Disposable implements BrowserPoolListener {
-    private class ObjectFactory extends BaseKeyedPooledObjectFactory<BrowserType, Browser> {
+    final class PooledBrowser implements AutoCloseable {
+        final Browser browser;
+        final TcpServer server;
+        final int id;
+
+        PooledBrowser(Browser browser, TcpServer server) {
+            this.browser = browser;
+            this.server = server;
+            id = server.getConfig().getListenPort();
+        }
+
+        @Override
+        public void close() {
+            cache.remove(browser);
+            tryClose(server);
+            tryClose(browser);
+        }
+    }
+
+    private class ObjectFactory {
         static final String CONNECT_TIME = "connectTime";
-        final Map<Browser, Tuple<TcpServer, Integer>> cache = Collections.synchronizedMap(new ReferenceIdentityMap<>(AbstractReferenceMap.ReferenceStrength.WEAK, AbstractReferenceMap.ReferenceStrength.HARD));
 
         public ObjectFactory() {
             Tasks.schedulePeriod(() -> {
-                for (Map.Entry<Browser, Tuple<TcpServer, Integer>> entry : cache.entrySet()) {
-                    Browser browser = entry.getKey();
-                    TcpServer server = entry.getValue().left;
-                    Integer id = entry.getValue().right;
+                for (PooledBrowser pooledBrowser : snapshot()) {
+                    Browser browser = pooledBrowser.browser;
+                    TcpServer server = pooledBrowser.server;
+                    Integer id = pooledBrowser.id;
                     if (asyncTopic != null && asyncTopic.isPublishing(server.getConfig().getListenPort())) {
                         continue;
                     }
@@ -55,17 +68,14 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     Collection<TcpClient> clients = server.getClients().values();
                     if (clients.size() == 0) {
                         try {
-                            pool.returnObject(browser.getType(), browser);
+                            pool.recycle(pooledBrowser);
                             log.warn("CORRECT browser[{}] idle status..", id);
                         } catch (IllegalStateException e) {
-                            if (Strings.startsWith(e.getMessage(), "Returned object not currently part of this pool")) {
-                                log.warn("CORRECT discard browser[{}] {}", id, e.getMessage());
-                                cache.remove(browser);
-                                browser.close();
-                                server.close();
-                                continue;
-                            }
                             if (!Strings.startsWith(e.getMessage(), "Object has already been returned")) {
+                                log.warn("CORRECT not handle.. {}", e.getMessage());
+                            }
+                        } catch (Exception e) {
+                            if (!Strings.startsWith(e.getMessage(), "Object has already in this pool")) {
                                 log.warn("CORRECT not handle.. {}", e.getMessage());
                             }
                         }
@@ -73,7 +83,7 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     }
                     for (TcpClient client : clients) {
                         DateTime connTime = client.attr(CONNECT_TIME);
-                        if (connTime == null || DateTime.now().subtract(connTime).getTotalMinutes() <= conf.getMaxActiveMinutes()) {
+                        if (connTime == null || DateTime.now().subtract(connTime).toMinutes() <= conf.getMaxActiveMinutes()) {
                             continue;
                         }
                         log.warn("CORRECT force close browser[{}]", id);
@@ -86,9 +96,8 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         public StringBuilder dump() {
             StringBuilder sb = new StringBuilder();
             int i = 1;
-            for (Map.Entry<Browser, Tuple<TcpServer, Integer>> entry : cache.entrySet()) {
-                Tuple<TcpServer, Integer> t = entry.getValue();
-                sb.appendFormat("\tBrowser[%s]: ClientSize=%s", t.right, t.left.getClients().size());
+            for (PooledBrowser p : snapshot()) {
+                sb.appendFormat("\tBrowser[%s]: ClientSize=%s", p.id, p.server.getClients().size());
                 if (i++ % 3 == 0) {
                     sb.appendLine();
                 }
@@ -96,44 +105,30 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
             return sb;
         }
 
-        @Override
-        public Browser create(BrowserType type) {
-            WebBrowser browser = new WebBrowser(browserConf, type);
+        public PooledBrowser create() {
+            WebBrowser browser = new WebBrowser(browserConf, BrowserType.CHROME);
             while (true) {
                 try {
                     RpcServerConfig serverConfig = new RpcServerConfig(new TcpServerConfig(conf.getPortGenerator().increment()));
                     serverConfig.getTcpConfig().setCapacity(1);
                     TcpServer server = Remoting.register(browser, serverConfig);
-                    server.onDisconnected.combine((s, e) -> release(browser));
-                    server.onConnected.combine((s, e) -> e.getClient().attr(CONNECT_TIME, DateTime.now()));
-                    cache.put(browser, Tuple.of(server, server.getConfig().getListenPort()));
-                    break;
+                    server.onDisconnected.add((s, e) -> quietly(() -> release(browser)));
+                    server.onConnected.add((s, e) -> e.getClient().attr(CONNECT_TIME, DateTime.now()));
+                    PooledBrowser pooledBrowser = new PooledBrowser(browser, server);
+                    cache.put(browser, pooledBrowser);
+                    return pooledBrowser;
                 } catch (Exception e) {
                     log.warn("BrowserPool create error {}", e.getMessage());
                 }
             }
-            return browser;
         }
 
-        @Override
-        public PooledObject<Browser> wrap(Browser browser) {
-            return new DefaultPooledObject<>(browser);
+        public boolean validate(PooledBrowser p) {
+            return !((WebBrowser) p.browser).isClosed();
         }
 
-        @Override
-        public boolean validateObject(BrowserType key, PooledObject<Browser> p) {
-            return !((WebBrowser) p.getObject()).isClosed();
-        }
-
-        @Override
-        public void destroyObject(BrowserType key, PooledObject<Browser> p) {
-            tryClose(cache.get(p.getObject()));
-            tryClose(p.getObject());
-        }
-
-        @Override
-        public void passivateObject(BrowserType key, PooledObject<Browser> p) {
-            WebBrowser browser = (WebBrowser) p.getObject();
+        public void passivate(PooledBrowser p) {
+            WebBrowser browser = (WebBrowser) p.browser;
             browser.onNavigated.purge();
             browser.onNavigating.purge();
             quietly(() -> {
@@ -146,12 +141,20 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                 }
             });
         }
+
+        PooledBrowser[] snapshot() {
+            synchronized (cache) {
+                return cache.values().toArray(new PooledBrowser[0]);
+            }
+        }
     }
 
     final AppConfig.BrowserPoolConfig conf;
     final WebBrowserConfig browserConf;
     final BrowserAsyncTopic asyncTopic;
-    final GenericKeyedObjectPool<BrowserType, Browser> pool;
+    final ObjectFactory factory;
+    final ObjectPool<PooledBrowser> pool;
+    final Map<Browser, PooledBrowser> cache = Collections.synchronizedMap(new IdentityHashMap<>());
     volatile int activeCount;
 
     public CookieContainer getCookieContainer() {
@@ -165,29 +168,23 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         browserConf.setCookieContainer(Reflects.newInstance(Class.forName(conf.getCookieContainerType())));
         this.asyncTopic = asyncTopic;
         int poolSize = conf.getPoolSize();
-        GenericKeyedObjectPoolConfig<Browser> poolConfig = new GenericKeyedObjectPoolConfig<>();
-        poolConfig.setLifo(false);
-        poolConfig.setFairness(false);
-        poolConfig.setTestOnBorrow(true);
-        poolConfig.setJmxEnabled(false);
-        poolConfig.setMaxWaitMillis(conf.getTakeTimeoutSeconds() * 1000L);
-        poolConfig.setMaxIdlePerKey(poolSize);
-        poolConfig.setMaxTotalPerKey(poolSize);
-        pool = new GenericKeyedObjectPool<>(new ObjectFactory(), poolConfig);
-        fillPoolSize();
+        factory = new ObjectFactory();
+        pool = new ObjectPool<>(poolSize, poolSize, factory::create, factory::validate, null, factory::passivate);
+        pool.setName("browser");
+        pool.setBorrowTimeout(conf.getTakeTimeoutSeconds() * 1000L);
+        pool.setIdleTimeout(0);
 
         Tasks.schedulePeriod(() -> {
-            ObjectFactory factory = (ObjectFactory) pool.getFactory();
             log.info("\n\tChromePool: Idle={} Active={}\tIEPool: Idle={} Active={}" +
                             "\n{}\n",
-                    pool.getNumIdle(BrowserType.CHROME), activeCount = pool.getNumActive(BrowserType.CHROME),
-                    pool.getNumIdle(BrowserType.IE), pool.getNumActive(BrowserType.IE),
+                    pool.idleSize(), activeCount = activeCount(),
+                    0, 0,
                     factory.dump());
         }, conf.getDumpPeriod());
 
         if (asyncTopic != null) {
             Tasks.schedulePeriod(() -> {
-                if ((float) activeCount / poolSize > conf.getAsyncThreshold()) {
+                if ((float) activeCount() / poolSize > conf.getAsyncThreshold()) {
                     log.warn("Pool is busy, retry next time..");
                     return;
                 }
@@ -207,41 +204,47 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         pool.close();
     }
 
-    @SneakyThrows
-    private synchronized void fillPoolSize() {
-        pool.addObjects(BrowserType.CHROME, conf.getPoolSize());
-    }
-
     //随机访问减少cookie监控
     @SneakyThrows
     public Browser take(@NonNull BrowserType type) {
         checkNotClosed();
+        if (type != BrowserType.CHROME) {
+            throw new TimeoutException("Only CHROME browser pool is supported");
+        }
 
-        Browser browser = pool.borrowObject(type);
-        ObjectFactory factory = (ObjectFactory) pool.getFactory();
-        log.info("take {} Browser {} from pool", type, factory.cache.get(browser).right);
-        return browser;
+        PooledBrowser pooledBrowser = pool.borrow();
+        log.info("take {} Browser {} from pool", type, pooledBrowser.id);
+        return pooledBrowser.browser;
     }
 
     public void release(@NonNull Browser browser) {
         checkNotClosed();
 
-        ObjectFactory factory = (ObjectFactory) pool.getFactory();
-        log.info("release {} Browser {} to pool", browser.getType(), factory.cache.get(browser).right);
+        PooledBrowser pooledBrowser = cache.get(browser);
+        if (pooledBrowser == null) {
+            log.warn("release {} Browser not found", browser.getType());
+            return;
+        }
+        log.info("release {} Browser {} to pool", browser.getType(), pooledBrowser.id);
         try {
-            pool.returnObject(browser.getType(), browser);
-        } catch (IllegalStateException e) {
-            if (Strings.startsWith(e.getMessage(), "Object has already been returned")) {
+            pool.recycle(pooledBrowser);
+        } catch (RuntimeException e) {
+            if (Strings.startsWith(e.getMessage(), "Object has already been returned")
+                    || Strings.startsWith(e.getMessage(), "Object has already in this pool")) {
                 log.warn("release error, {}", e.getMessage());
                 return;
             }
-            TraceHandler.INSTANCE.log("release", e);
+            TraceHandler.INSTANCE.saveExceptionTrace(Thread.currentThread(), "release", e);
         }
     }
 
     @Override
     public int nextIdleId(BrowserType type) {
-        ObjectFactory factory = (ObjectFactory) pool.getFactory();
-        return factory.cache.get(take(type)).right;
+        Browser browser = take(type);
+        return cache.get(browser).id;
+    }
+
+    int activeCount() {
+        return Math.max(0, pool.size() - pool.idleSize());
     }
 }
