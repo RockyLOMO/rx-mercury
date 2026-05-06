@@ -13,7 +13,6 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.io.Files;
-import org.rx.io.IOStream;
 import org.rx.net.http.HttpClient;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RpcClientConfig;
@@ -58,7 +57,7 @@ public class BrowserTests {
                 System.out.println("resource is null");
                 return "";
             }
-            return IOStream.readString(stream, StandardCharsets.UTF_8) + "\n";
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8) + "\n";
         });
         System.out.println(baseScript);
     }
@@ -79,7 +78,7 @@ public class BrowserTests {
 ////                "Host: pub.alimama.com\n" +
 ////                "Connection: Keep-Alive\n" +
 //                "Cookie: "+rawCookie));
-        caller.get(url).toFile("D:\\a.xls");
+        caller.get(url).bodyAsFile("D:\\a.xls");
     }
 
     @SneakyThrows

@@ -1,0 +1,97 @@
+name: Build & Push to ssh - mercury
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-and-push:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'pub mercury')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set environment variables
+        run: |
+          echo "APP_MODULE=mercury-bootstrap" >> $GITHUB_ENV
+          echo "REMOTE_DIR=app-crawler" >> $GITHUB_ENV
+          echo "HEALTH_URL=https://bot.f-li.cn/health" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+
+      - name: Build with Maven
+        run: |
+          mvn clean package -pl ${{ env.APP_MODULE }} -am -DskipTests --no-transfer-progress --batch-mode
+          JAR_FULL_PATH=$(ls ${PWD}/${{ env.APP_MODULE }}/target/*.jar | head -n1) || { echo "Error: No JAR file found in target directory"; exit 1; }
+          if [[ -z "${JAR_FULL_PATH}" ]]; then
+            echo "Error: JAR file path is empty"
+            exit 1
+          fi
+          echo "APP_JAR_PATH=${JAR_FULL_PATH}" >> $GITHUB_ENV
+
+      - name: Copy JAR to context root
+        run: |
+          cp -f ${{ env.APP_JAR_PATH }} ./app.jar.publish
+          cp jmx_prometheus_javaagent.jar ./
+          cp jmx_prometheus_config.yaml ./
+          cp deploy/${{ env.REMOTE_DIR }}/start.bat ./
+          cp deploy/${{ env.REMOTE_DIR }}/rollback.bat ./
+
+      - name: Copy JAR to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SCP_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          source: jmx_prometheus_javaagent.jar,jmx_prometheus_config.yaml,app.jar.publish,start.bat,rollback.bat
+          target: /c/${{ env.REMOTE_DIR }}/
+          overwrite: true
+
+      - name: Initial Wait for Service Startup
+        run: sleep 2s
+
+      - name: Execute remote commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            schtasks /end /tn javabg2 & schtasks /run /tn javabg2
+            echo "Deployment completed"
+
+      - name: Initial Wait for Service Startup
+        run: sleep 30s
+
+      - name: Health Check After Initial Delay
+        id: health-check
+        continue-on-error: true
+        uses: jtalk/url-health-check-action@v4
+        with:
+          url: ${{ env.HEALTH_URL }}
+          max-attempts: 20
+          retry-delay: 10s
+          retry-all: true
+          follow-redirect: true
+
+      - name: Rollback to latest on Health Check Failure
+        if: steps.health-check.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            echo "Health check failed. Rolling back to latest tag."
+            schtasks /end /tn javabgrb2 & schtasks /run /tn javabgrb2
