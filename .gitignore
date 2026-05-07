@@ -20,3 +20,5 @@ rx-bot/__pycache__/util.cpython-37.pyc
 *.log
 rx.mv.db
 rxdaemon-1.0.jar
+crawler-bootstrap/geoip.mmdb
+crawler-bootstrap/geosite-direct.txt

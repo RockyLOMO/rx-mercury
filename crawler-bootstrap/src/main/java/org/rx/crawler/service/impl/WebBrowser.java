@@ -28,11 +28,11 @@ import org.rx.util.function.BiFunc;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -139,11 +139,17 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                         "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
                         "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
                         "no-sandbox", "autoplay-policy=Document user activation is required");
+                if (Boolean.parseBoolean(System.getProperty("app.browser.headless", String.valueOf(config.isHeadless())))) {
+                    opt.addArguments("--headless=new", "--disable-gpu");
+                }
                 if (!Strings.isEmpty(config.getDiskDataPath())) {
                     int id = chromeIdCounter.getAndIncrement();
                     String dataDir = String.format(config.getDiskDataPath(), id);
                     Files.createDirectory(dataDir);
-                    opt.addArguments("user-data-dir=" + dataDir, "restore-last-session");
+                    opt.addArguments("user-data-dir=" + dataDir);
+                    if (!Boolean.parseBoolean(System.getProperty("app.browser.headless", String.valueOf(config.isHeadless())))) {
+                        opt.addArguments("--restore-last-session");
+                    }
                 }
                 opt.addArguments("--remote-allow-origins=*");
                 //disk-cache-dir,disk-cache-size
@@ -157,8 +163,9 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 break;
         }
         WebDriver.Options manage = driver.manage();
-        manage.timeouts().pageLoadTimeout(config.getPageLoadTimeoutSeconds(), TimeUnit.SECONDS);
-        manage.timeouts().setScriptTimeout(config.getPageLoadTimeoutSeconds(), TimeUnit.SECONDS);
+        Duration pageLoadTimeout = Duration.ofSeconds(config.getPageLoadTimeoutSeconds());
+        manage.timeouts().pageLoadTimeout(pageLoadTimeout);
+        manage.timeouts().scriptTimeout(pageLoadTimeout);
         Rectangle rectangle = config.getWindowRectangle();
         if (rectangle != null) {
             manage.window().setPosition(rectangle.getPoint());

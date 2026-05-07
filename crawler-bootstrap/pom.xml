@@ -8,7 +8,7 @@
         <artifactId>mercury</artifactId>
         <version>1.0</version>
     </parent>
-    <artifactId>mercury-bootstrap</artifactId>
+    <artifactId>crawler-bootstrap</artifactId>
 
     <dependencies>
         <dependency>

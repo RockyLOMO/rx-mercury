@@ -9,6 +9,7 @@ public class WebBrowserConfig {
     private long waitMillis = 500;
     private int pageLoadTimeoutSeconds = 30;
     private int findElementTimeoutSeconds = 6;
+    private boolean headless = true;
     private String diskDataPath;
     private String downloadPath;
     private Rectangle windowRectangle;

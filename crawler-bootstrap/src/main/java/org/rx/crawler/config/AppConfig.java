@@ -46,6 +46,7 @@ public class AppConfig {
         private long waitMillis = 500;
         private int pageLoadTimeoutSeconds = 30;
         private int findElementTimeoutSeconds = 6;
+        private boolean headless = true;
         private String diskDataPath;
         private String downloadPath = "/app-crawler/temp/";
         private Rectangle windowRectangle;
