@@ -28,11 +28,15 @@ import org.rx.util.function.BiFunc;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -54,6 +58,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             .withVerbose(false)
             .build();
     static final AtomicInteger chromeIdCounter = new AtomicInteger();
+    static final Map<String, String> jsResourceCache = new ConcurrentHashMap<>();
     //endregion
 
     //region init
@@ -133,13 +138,23 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 }
                 chromePrefs.put("profile.default_content_settings.popups", 0);
                 chromePrefs.put("pdfjs.disabled", true);
+                if (isChromeFingerprintEnabled()) {
+                    chromePrefs.put("credentials_enable_service", false);
+                    chromePrefs.put("profile.password_manager_enabled", false);
+                    chromePrefs.put("intl.accept_languages", "zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7");
+                }
                 opt.setExperimentalOption("prefs", chromePrefs);
 
-                opt.addArguments("no-first-run", "disable-infobars", "disable-web-security", "ignore-certificate-errors", "allow-running-insecure-content",
-                        "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
-                        "disable-desktop-notifications", "disable-speech-input", "disable-translate", "safebrowsing-disable-download-protection", "no-pings",
-                        "no-sandbox", "autoplay-policy=Document user activation is required");
-                if (Boolean.parseBoolean(System.getProperty("app.browser.headless", String.valueOf(config.isHeadless())))) {
+                opt.addArguments("no-first-run", "disable-infobars", "ignore-certificate-errors", "allow-running-insecure-content",
+                        "disable-desktop-notifications", "disable-speech-input", "disable-translate", "no-pings",
+                        "no-sandbox", "--autoplay-policy=document-user-activation-required");
+                if (isChromeFingerprintEnabled()) {
+                    opt.addArguments("--disable-dev-shm-usage", "--lang=zh-CN");
+                } else {
+                    opt.addArguments("disable-web-security", "disable-java", "disable-plugins", "disable-plugins-discovery", "disable-extensions",
+                            "safebrowsing-disable-download-protection");
+                }
+                if (isHeadless()) {
                     opt.addArguments("--headless=new", "--disable-gpu");
                 }
                 if (!Strings.isEmpty(config.getDiskDataPath())) {
@@ -147,7 +162,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                     String dataDir = String.format(config.getDiskDataPath(), id);
                     Files.createDirectory(dataDir);
                     opt.addArguments("user-data-dir=" + dataDir);
-                    if (!Boolean.parseBoolean(System.getProperty("app.browser.headless", String.valueOf(config.isHeadless())))) {
+                    if (!isHeadless()) {
                         opt.addArguments("--restore-last-session");
                     }
                 }
@@ -155,11 +170,12 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 //disk-cache-dir,disk-cache-size
 
                 opt.setExperimentalOption("excludeSwitches", Arrays.toList("enable-automation"));
-//                opt.setExperimentalOption("useAutomationExtension", false);
                 opt.addArguments("--disable-blink-features=AutomationControlled");
 
 //                opt.setExperimentalOption("debuggerAddress", "127.0.0.1:9222");
-                driver = new ChromeDriver((ChromeDriverService) driverService, opt);
+                ChromeDriver chromeDriver = new ChromeDriver((ChromeDriverService) driverService, opt);
+                registerChromeFingerprint(chromeDriver);
+                driver = chromeDriver;
                 break;
         }
         WebDriver.Options manage = driver.manage();
@@ -180,6 +196,79 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         opt.setCapability(CapabilityType.UNHANDLED_PROMPT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
 //        opt.setCapability(CapabilityType.UNEXPECTED_ALERT_BEHAVIOUR, UnexpectedAlertBehaviour.ACCEPT);
         return opt;
+    }
+
+    private boolean isChromeFingerprintEnabled() {
+        return Boolean.parseBoolean(System.getProperty("app.browser.fingerprintEnabled", String.valueOf(config.isFingerprintEnabled())));
+    }
+
+    private boolean isChromeFingerprintDiagnostics() {
+        return Boolean.parseBoolean(System.getProperty("app.browser.fingerprintDiagnostics", String.valueOf(config.isFingerprintDiagnostics())));
+    }
+
+    private boolean isHeadless() {
+        if (isChromeFingerprintEnabled()) {
+            return Boolean.parseBoolean(System.getProperty("app.browser.fingerprintHeadless", String.valueOf(config.isFingerprintHeadless())));
+        }
+        return Boolean.parseBoolean(System.getProperty("app.browser.headless", String.valueOf(config.isHeadless())));
+    }
+
+    private void registerChromeFingerprint(ChromeDriver chromeDriver) {
+        if (!isChromeFingerprintEnabled()) {
+            return;
+        }
+
+        try {
+            overrideChromeUserAgent(chromeDriver);
+            String script = loadJsResource(config.getFingerprintStealthScriptPath()) + "\n;\n" + loadJsResource(config.getFingerprintScriptPath());
+            Map<String, Object> params = new HashMap<>();
+            params.put("source", script);
+            chromeDriver.executeCdpCommand("Page.addScriptToEvaluateOnNewDocument", params);
+            log.info("Chrome fingerprint preload registered, script={}, stealth={}, headless={}",
+                    config.getFingerprintScriptPath(), config.getFingerprintStealthScriptPath(), isHeadless());
+        } catch (Exception e) {
+            if (isChromeFingerprintDiagnostics()) {
+                throw new InvalidException("Chrome fingerprint preload init fail, script={}", config.getFingerprintScriptPath(), e);
+            }
+            log.warn("Chrome fingerprint preload init fail, script={}, error={}", config.getFingerprintScriptPath(), e.getMessage());
+        }
+    }
+
+    private void overrideChromeUserAgent(ChromeDriver chromeDriver) {
+        Map<String, Object> empty = new HashMap<>();
+        Map<String, Object> version = chromeDriver.executeCdpCommand("Browser.getVersion", empty);
+        Object rawUserAgent = version.get("userAgent");
+        if (rawUserAgent == null) {
+            return;
+        }
+
+        String userAgent = rawUserAgent.toString().replace("HeadlessChrome/", "Chrome/");
+        Map<String, Object> params = new HashMap<>();
+        params.put("userAgent", userAgent);
+        params.put("acceptLanguage", "zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7");
+        chromeDriver.executeCdpCommand("Network.setUserAgentOverride", params);
+    }
+
+    private String loadJsResource(String path) {
+        return jsResourceCache.computeIfAbsent(path, p -> {
+            try (InputStream in = WebBrowser.class.getResourceAsStream(p)) {
+                if (in == null) {
+                    throw new InvalidException("Resource {} not found", p);
+                }
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buffer = new byte[8192];
+                int len;
+                while ((len = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, len);
+                }
+                return new String(out.toByteArray(), StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                if (e instanceof InvalidException) {
+                    throw (InvalidException) e;
+                }
+                throw new InvalidException("Resource {} read fail", p, e);
+            }
+        });
     }
 
     @Override

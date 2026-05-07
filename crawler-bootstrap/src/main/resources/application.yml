@@ -38,3 +38,9 @@ app:
     #    diskDataPath: /app-crawler/data/chrome%s/
     windowRectangle: "600,500,800,600"
     cookieContainerType: org.rx.crawler.service.impl.MemoryCookieContainer
+    fingerprintEnabled: false
+    fingerprintScriptPath: /bot/chrome-fingerprint.js
+    fingerprintStealthScriptPath: /static/js/stealth.min.js
+    fingerprintCheckUrl: https://bot.sannysoft.com/
+    fingerprintHeadless: false
+    fingerprintDiagnostics: false

@@ -15,4 +15,10 @@ public class WebBrowserConfig {
     private Rectangle windowRectangle;
     private CookieContainer cookieContainer;
     private String configureScriptExecutorType;
+    private boolean fingerprintEnabled = false;
+    private String fingerprintScriptPath = "/bot/chrome-fingerprint.js";
+    private String fingerprintStealthScriptPath = "/static/js/stealth.min.js";
+    private String fingerprintCheckUrl = "https://bot.sannysoft.com/";
+    private boolean fingerprintHeadless = false;
+    private boolean fingerprintDiagnostics = false;
 }

@@ -52,6 +52,12 @@ public class AppConfig {
         private Rectangle windowRectangle;
         private String cookieContainerType;
         private String configureScriptExecutorType = "org.rx.crawler.service.impl.ApiConfigureScriptExecutor";
+        private boolean fingerprintEnabled = false;
+        private String fingerprintScriptPath = "/bot/chrome-fingerprint.js";
+        private String fingerprintStealthScriptPath = "/static/js/stealth.min.js";
+        private String fingerprintCheckUrl = "https://bot.sannysoft.com/";
+        private boolean fingerprintHeadless = false;
+        private boolean fingerprintDiagnostics = false;
 
         public IdGenerator getPortGenerator() {
             if (portGenerator == null) {
