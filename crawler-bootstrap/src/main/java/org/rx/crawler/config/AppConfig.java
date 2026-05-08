@@ -6,6 +6,8 @@ import org.openqa.selenium.Rectangle;
 import org.rx.core.Linq;
 import org.rx.core.Strings;
 import org.rx.crawler.dto.CrawlPageConfig;
+import org.rx.crawler.task.common.ChromeProfileConfig;
+import org.rx.crawler.task.jd.JdUnionConfig;
 import org.rx.util.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -48,6 +50,7 @@ public class AppConfig {
         private int findElementTimeoutSeconds = 6;
         private boolean headless = true;
         private String diskDataPath;
+        private String profileDataPath;
         private String downloadPath = "/app-crawler/temp/";
         private Rectangle windowRectangle;
         private String cookieContainerType;
@@ -68,10 +71,19 @@ public class AppConfig {
         }
     }
 
+    @Data
+    public static class CustomTaskConfig {
+        private boolean remotingEnabled = true;
+        private int remotingListenPort = 1211;
+        private ChromeProfileConfig chrome = new ChromeProfileConfig();
+        private JdUnionConfig jdUnion = new JdUnionConfig();
+    }
+
     private String chromeDriver = "/app-crawler/driver/chromedriver.exe";
     private String fireFoxDriver = "/app-crawler/driver/geckodriver.exe";
     private String ieDriver = "/app-crawler/driver/IEDriverServer.exe";
     private BrowserPoolConfig browser = new BrowserPoolConfig();
+    private CustomTaskConfig custom = new CustomTaskConfig();
 
     private int fiddlerListenPort;
     private String cleanTaskTime = "03:00:00";

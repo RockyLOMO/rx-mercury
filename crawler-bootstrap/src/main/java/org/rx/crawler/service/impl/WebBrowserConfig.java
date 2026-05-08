@@ -11,6 +11,7 @@ public class WebBrowserConfig {
     private int findElementTimeoutSeconds = 6;
     private boolean headless = true;
     private String diskDataPath;
+    private String profileDataPath;
     private String downloadPath;
     private Rectangle windowRectangle;
     private CookieContainer cookieContainer;

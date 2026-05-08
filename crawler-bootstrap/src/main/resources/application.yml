@@ -44,3 +44,28 @@ app:
     fingerprintCheckUrl: https://bot.sannysoft.com/
     fingerprintHeadless: false
     fingerprintDiagnostics: false
+  custom:
+    remotingEnabled: true
+    remotingListenPort: 1211
+    chrome:
+      profileBasePath: D:/app-crawler/data/chrome
+      defaultProfileName: common
+    jdUnion:
+      profileName: common
+      fingerprintEnabled: true
+      headless: false
+      preflightEnabled: true
+      preflightUrl: https://bot.sannysoft.com/
+      preflightStrict: false
+      preflightCacheMinutes: 30
+      forcePreflight: true
+      loginCheckUrl: https://union.jd.com/proManager/shopPromotion
+      workbenchUrl: https://union.jd.com/proManager/index?pageNo=1
+      loginUrlPrefix: https://union.jd.com/index?returnUrl=
+      defaultMediaType: 导购媒体推广
+      defaultMediaName: 微信
+      pageTimeoutSeconds: 30
+      stepDelayMillis: 600
+      keepBrowserOpenOnLoginRequired: true
+      keepBrowserOpenSecondsOnLoginRequired: 300
+      defaultOutputPath: D:/app-crawler/data/jd-union/output.jsonl

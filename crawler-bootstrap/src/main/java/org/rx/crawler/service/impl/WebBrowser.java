@@ -157,9 +157,17 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 if (isHeadless()) {
                     opt.addArguments("--headless=new", "--disable-gpu");
                 }
-                if (!Strings.isEmpty(config.getDiskDataPath())) {
+                String profileDataPath = config.getProfileDataPath();
+                if (!Strings.isEmpty(profileDataPath)) {
+                    Files.createDirectory(profileDataPath);
+                    opt.addArguments("user-data-dir=" + profileDataPath);
+                    if (!isHeadless()) {
+                        opt.addArguments("--restore-last-session");
+                    }
+                } else if (!Strings.isEmpty(config.getDiskDataPath())) {
                     int id = chromeIdCounter.getAndIncrement();
-                    String dataDir = String.format(config.getDiskDataPath(), id);
+                    String diskDataPath = config.getDiskDataPath();
+                    String dataDir = diskDataPath.contains("%s") ? String.format(diskDataPath, id) : diskDataPath;
                     Files.createDirectory(dataDir);
                     opt.addArguments("user-data-dir=" + dataDir);
                     if (!isHeadless()) {

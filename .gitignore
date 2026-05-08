@@ -22,3 +22,5 @@ rx.mv.db
 rxdaemon-1.0.jar
 crawler-bootstrap/geoip.mmdb
 crawler-bootstrap/geosite-direct.txt
+crawler-bootstrap/geoip_0mmdb
+crawler-bootstrap/geosite-direct_0txt
