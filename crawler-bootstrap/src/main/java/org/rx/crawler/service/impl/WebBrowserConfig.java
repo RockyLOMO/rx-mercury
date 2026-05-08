@@ -1,7 +1,7 @@
 package org.rx.crawler.service.impl;
 
 import lombok.Data;
-import org.openqa.selenium.Rectangle;
+import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.CookieContainer;
 
 @Data
@@ -13,7 +13,7 @@ public class WebBrowserConfig {
     private String diskDataPath;
     private String profileDataPath;
     private String downloadPath;
-    private Rectangle windowRectangle;
+    private BrowserWindowRect windowRectangle;
     private CookieContainer cookieContainer;
     private String configureScriptExecutorType;
     private boolean fingerprintEnabled = false;
@@ -22,4 +22,17 @@ public class WebBrowserConfig {
     private String fingerprintCheckUrl = "https://bot.sannysoft.com/";
     private boolean fingerprintHeadless = false;
     private boolean fingerprintDiagnostics = false;
+    private String playwrightChannel = "chrome";
+    private String playwrightExecutablePath;
+    private String locale = "zh-CN";
+    private String timezoneId = "Asia/Shanghai";
+    private String userAgent;
+    private boolean blockResourceEnabled = false;
+    private boolean humanInputEnabled = true;
+    private int humanActionMinDelayMillis = 180;
+    private int humanActionMaxDelayMillis = 650;
+    private int mouseMoveMinSteps = 24;
+    private int mouseMoveMaxSteps = 56;
+    private int typingMinDelayMillis = 90;
+    private int typingMaxDelayMillis = 260;
 }

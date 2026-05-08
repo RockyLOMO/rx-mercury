@@ -20,8 +20,8 @@ public class JdUnionConfig {
     private String defaultMediaType = "导购媒体推广";
     private String defaultMediaName = "微信";
 
-    private int pageTimeoutSeconds = 30;
-    private int stepDelayMillis = 600;
+    private int pageTimeoutSeconds = 60;
+    private int stepDelayMillis = 1200;
     private boolean keepBrowserOpenOnLoginRequired = true;
     private int keepBrowserOpenSecondsOnLoginRequired = 300;
     private int loginWaitSeconds = 300;

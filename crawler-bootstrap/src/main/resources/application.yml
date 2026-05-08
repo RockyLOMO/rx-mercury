@@ -44,6 +44,18 @@ app:
     fingerprintCheckUrl: https://bot.sannysoft.com/
     fingerprintHeadless: false
     fingerprintDiagnostics: false
+    playwrightChannel: chrome
+    playwrightExecutablePath:
+    locale: zh-CN
+    timezoneId: Asia/Shanghai
+    blockResourceEnabled: false
+    humanInputEnabled: true
+    humanActionMinDelayMillis: 180
+    humanActionMaxDelayMillis: 650
+    mouseMoveMinSteps: 24
+    mouseMoveMaxSteps: 56
+    typingMinDelayMillis: 90
+    typingMaxDelayMillis: 260
   custom:
     remotingEnabled: true
     remotingListenPort: 1211
@@ -64,8 +76,8 @@ app:
       loginUrlPrefix: https://union.jd.com/index?returnUrl=
       defaultMediaType: 导购媒体推广
       defaultMediaName: 微信
-      pageTimeoutSeconds: 30
-      stepDelayMillis: 600
+      pageTimeoutSeconds: 60
+      stepDelayMillis: 1200
       keepBrowserOpenOnLoginRequired: true
       keepBrowserOpenSecondsOnLoginRequired: 300
       loginWaitSeconds: 300

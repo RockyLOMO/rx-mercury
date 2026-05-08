@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.rx.core.Extends.tryClose;
 import static org.rx.core.Sys.toJsonObject;
 
@@ -38,11 +39,12 @@ public class BrowserTests {
     @SneakyThrows
     @Test
     public void poolListener() {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("browser.dev.integration", "false")));
         Remoting.register(new BrowserPool(appConfig.getBrowser(), asyncTopic), 1210, false);
 
         Tasks.schedulePeriod(() -> {
             BrowserPoolListener listener = Remoting.createFacade(BrowserPoolListener.class, RpcClientConfig.statefulMode("127.0.0.1:1210", 0));
-            System.out.println(listener.nextIdleId(BrowserType.IE));
+            System.out.println(listener.nextIdleId(BrowserType.CHROME));
             tryClose(listener);
         }, 1000);
 

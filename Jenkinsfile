@@ -1,7 +1,7 @@
 pipeline {
     agent {
         node {
-            label 'maven-jdk-11'
+            label 'maven-jdk-21'
         }
     }
 
@@ -17,7 +17,7 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                container ('maven-jdk-11') {
+                container ('maven-jdk-21') {
                     sh 'mvn -B clean package -pl ${APP_NAME} -am -Dmaven.test.skip=true'
                     sh 'cp -f ${PWD}/${APP_NAME}/target/${JAR_NAME} ${PWD}/${JAR_NAME}'
                 }
@@ -26,7 +26,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                container ('maven-jdk-11') {
+                container ('maven-jdk-21') {
                     sh '/home/scpx.sh deploy/jmx/${APP_NAME}_start.bat ${APP_HOST} ${REMOTE_PATH}start.bat ${U0}'
                     sh '/home/scpx.sh deploy/jmx/${APP_NAME}_rollback.bat ${APP_HOST} ${REMOTE_PATH}rollback.bat ${U0}'
                     

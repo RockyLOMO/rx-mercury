@@ -3,17 +3,15 @@ package org.rx.test;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.By;
-import org.openqa.selenium.Rectangle;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
-import org.rx.crawler.service.impl.RedisCookieContainer;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.util.BeanMapper;
 
-import static org.rx.core.Extends.sleep;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.rx.core.Extends.tryClose;
 
 @Slf4j
 public class DevTest {
@@ -21,14 +19,9 @@ public class DevTest {
 
     public WebBrowser init(BrowserType type) {
         AppConfig config = new AppConfig();
-        System.setProperty("webdriver.chrome.driver", config.getChromeDriver());
-        System.setProperty("webdriver.gecko.driver", config.getFireFoxDriver());
-        System.setProperty("webdriver.ie.driver", config.getIeDriver());
-
         WebBrowserConfig conf = BeanMapper.DEFAULT.map(config.getBrowser(), WebBrowserConfig.class);
         conf.setDiskDataPath(conf.getDiskDataPath());
         conf.setDownloadPath(conf.getDownloadPath());
-//        conf.setWindowRectangle(new Rectangle(0, 0, 600, 800));
 //        conf.setCookieContainer(new RedisCookieContainer());
         conf.setConfigureScriptExecutorType(conf.getConfigureScriptExecutorType());
         log.info("loadConf {}", conf);
@@ -38,7 +31,9 @@ public class DevTest {
     @SneakyThrows
     @Test
     public void chrome() {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("browser.dev.integration", "false")));
         WebBrowser browser = init(BrowserType.CHROME);
+        try {
 
 //        while (true) {
 //            byte[] bytes = System.in.readAllBytes();
@@ -51,38 +46,50 @@ public class DevTest {
 //                    return;
 //            }
 //        }
-        System.in.read();
+            System.in.read();
+        } finally {
+            tryClose(browser);
+        }
     }
 
     @SneakyThrows
     @Test
     public void firefox() {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("browser.dev.integration", "false")));
         WebBrowser browser = init(BrowserType.FIRE_FOX);
-        browser.navigateUrl("https://union.jd.com");
-
-        System.in.read();
+        try {
+            browser.navigateUrl("https://union.jd.com");
+            System.in.read();
+        } finally {
+            tryClose(browser);
+        }
     }
 
     @SneakyThrows
     @Test
     public void changeTab() {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("browser.dev.integration", "false")));
         WebBrowser caller = init(BrowserType.CHROME);
-        String currentHandle = caller.getCurrentHandle();
-        System.out.println(currentHandle);
+        try {
+            String currentHandle = caller.getCurrentHandle();
+            System.out.println(currentHandle);
 
-        String handle = caller.openTab();
-        System.out.println(handle);
-        Thread.sleep(2000);
+            String handle = caller.openTab();
+            System.out.println(handle);
+            Thread.sleep(2000);
 
-        caller.openTab();
-        System.out.println(handle);
-        Thread.sleep(2000);
+            caller.openTab();
+            System.out.println(handle);
+            Thread.sleep(2000);
 
-        caller.switchTab(handle);
-        System.out.println("switch");
-        Thread.sleep(2000);
+            caller.switchTab(handle);
+            System.out.println("switch");
+            Thread.sleep(2000);
 
-        caller.closeTab(handle);
-        System.out.println("close");
+            caller.closeTab(handle);
+            System.out.println("close");
+        } finally {
+            tryClose(caller);
+        }
     }
 }

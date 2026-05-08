@@ -2,9 +2,9 @@ package org.rx.crawler.config;
 
 import com.alibaba.fastjson2.TypeReference;
 import lombok.Data;
-import org.openqa.selenium.Rectangle;
 import org.rx.core.Linq;
 import org.rx.core.Strings;
+import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.dto.CrawlPageConfig;
 import org.rx.crawler.task.common.ChromeProfileConfig;
 import org.rx.crawler.task.jd.JdUnionConfig;
@@ -52,7 +52,7 @@ public class AppConfig {
         private String diskDataPath;
         private String profileDataPath;
         private String downloadPath = "/app-crawler/temp/";
-        private Rectangle windowRectangle;
+        private BrowserWindowRect windowRectangle;
         private String cookieContainerType;
         private String configureScriptExecutorType = "org.rx.crawler.service.impl.ApiConfigureScriptExecutor";
         private boolean fingerprintEnabled = false;
@@ -61,6 +61,19 @@ public class AppConfig {
         private String fingerprintCheckUrl = "https://bot.sannysoft.com/";
         private boolean fingerprintHeadless = false;
         private boolean fingerprintDiagnostics = false;
+        private String playwrightChannel = "chrome";
+        private String playwrightExecutablePath;
+        private String locale = "zh-CN";
+        private String timezoneId = "Asia/Shanghai";
+        private String userAgent;
+        private boolean blockResourceEnabled = false;
+        private boolean humanInputEnabled = true;
+        private int humanActionMinDelayMillis = 180;
+        private int humanActionMaxDelayMillis = 650;
+        private int mouseMoveMinSteps = 24;
+        private int mouseMoveMaxSteps = 56;
+        private int typingMinDelayMillis = 90;
+        private int typingMaxDelayMillis = 260;
 
         public IdGenerator getPortGenerator() {
             if (portGenerator == null) {
@@ -79,9 +92,6 @@ public class AppConfig {
         private JdUnionConfig jdUnion = new JdUnionConfig();
     }
 
-    private String chromeDriver = "/app-crawler/driver/chromedriver.exe";
-    private String fireFoxDriver = "/app-crawler/driver/geckodriver.exe";
-    private String ieDriver = "/app-crawler/driver/IEDriverServer.exe";
     private BrowserPoolConfig browser = new BrowserPoolConfig();
     private CustomTaskConfig custom = new CustomTaskConfig();
 
@@ -95,15 +105,14 @@ public class AppConfig {
 
     @Component
     @ConfigurationPropertiesBinding
-    public static class RectangleConverter implements Converter<String, Rectangle> {
+    public static class RectangleConverter implements Converter<String, BrowserWindowRect> {
         @Override
-        public Rectangle convert(String windowRectangle) {
+        public BrowserWindowRect convert(String windowRectangle) {
             if (Strings.isEmpty(windowRectangle)) {
                 return null;
             }
             List<Integer> list = Linq.from(windowRectangle.split(",")).select(p -> Integer.valueOf(p)).toList();
-            //width height 反了
-            return new Rectangle(list.get(0), list.get(1), list.get(3), list.get(2));
+            return new BrowserWindowRect(list.get(0), list.get(1), list.get(2), list.get(3));
         }
     }
 

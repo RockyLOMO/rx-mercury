@@ -2,10 +2,10 @@ package org.rx.test;
 
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.Rectangle;
 import org.rx.core.Extends;
 import org.rx.crawler.BrowserType;
 import org.rx.crawler.config.AppConfig;
+import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.impl.ApiConfigureScriptExecutor;
 import org.rx.crawler.service.impl.MemoryCookieContainer;
 import org.rx.crawler.service.impl.WebBrowser;
@@ -13,8 +13,6 @@ import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.util.BeanMapper;
 
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,9 +34,6 @@ public class BrowserFingerprintTests {
         assumeTrue(Boolean.parseBoolean(System.getProperty("fingerprint.integration", "false")));
 
         AppConfig appConfig = new AppConfig();
-        if (System.getProperty("webdriver.chrome.driver") == null && Files.exists(Paths.get(appConfig.getChromeDriver()))) {
-            System.setProperty("webdriver.chrome.driver", appConfig.getChromeDriver());
-        }
         System.setProperty("app.browser.fingerprintEnabled", "true");
         System.setProperty("app.browser.fingerprintDiagnostics", "true");
 
@@ -51,7 +46,7 @@ public class BrowserFingerprintTests {
         config.setConfigureScriptExecutorType(ApiConfigureScriptExecutor.class.getName());
         config.setDownloadPath(System.getProperty("app.browser.downloadPath", "D:/app-crawler/temp/"));
         config.setDiskDataPath(System.getProperty("app.browser.diskDataPath", "D:/app-crawler/data/chrome%s/"));
-        config.setWindowRectangle(new Rectangle(0, 0, 900, 1365));
+        config.setWindowRectangle(new BrowserWindowRect(0, 0, 900, 1365));
 
         WebBrowser browser = new WebBrowser(config, BrowserType.CHROME);
         try {

@@ -482,7 +482,9 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         if (Strings.isEmpty(text)) {
             return false;
         }
-        Boolean ok = browser.executeScript("var target=norm(arguments[0]), exact=arguments[1];" +
+        String selector = "[data-rx-jd-click-target='1']";
+        Boolean marked = browser.executeScript("var attr='data-rx-jd-click-target', target=norm(arguments[0]), exact=arguments[1];" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
                 "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
@@ -490,9 +492,17 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}" +
                 "var txt=norm(e.innerText||e.value||e.getAttribute('title')||e.getAttribute('placeholder'));" +
                 "if(!txt){continue;}var matched=exact?txt===target:txt.indexOf(target)>=0;" +
-                "if(matched){e.scrollIntoView({block:'center',inline:'center'});e.click();return true;}}" +
+                "if(matched){e.setAttribute(attr,'1');e.scrollIntoView({block:'center',inline:'center'});return true;}}" +
                 "return false;", text, exact);
-        return Boolean.TRUE.equals(ok);
+        if (!Boolean.TRUE.equals(marked)) {
+            return false;
+        }
+        try {
+            browser.elementClick(selector, false);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private long countByText(Browser browser, String text) {
