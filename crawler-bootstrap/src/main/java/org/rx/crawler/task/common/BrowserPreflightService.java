@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Extends;
 import org.rx.core.Strings;
 import org.rx.crawler.Browser;
-import org.rx.crawler.task.jd.JdUnionConfig;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -17,11 +16,12 @@ import java.util.concurrent.TimeUnit;
 public class BrowserPreflightService {
     private final Map<String, CachedPreflight> cache = new ConcurrentHashMap<String, CachedPreflight>();
 
-    public BrowserPreflightResult check(Browser browser, String profileName, JdUnionConfig config, boolean force) {
+    public BrowserPreflightResult check(Browser browser, CrawlEntryOptions config, boolean force) {
         if (!config.isPreflightEnabled()) {
             return BrowserPreflightResult.pass(false);
         }
 
+        String profileName = config.getProfileName();
         String cacheKey = Strings.isEmpty(profileName) ? "common" : profileName;
         CachedPreflight cached = cache.get(cacheKey);
         if (!force && cached != null && !cached.isExpired(config.getPreflightCacheMinutes())) {
@@ -31,7 +31,7 @@ public class BrowserPreflightService {
         }
 
         try {
-            browser.navigateUrl(config.getPreflightUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
+            browser.navigateUrl(config.getPreflightUrl(), Browser.BODY_SELECTOR, config.getInitialPageTimeoutSeconds());
             Extends.sleep(config.getStepDelayMillis());
 
             Map<String, Object> probe = browser.executeScript("return {" +
@@ -52,7 +52,7 @@ public class BrowserPreflightService {
             boolean passed = webdriverOk && userAgentOk && pluginsOk && languagesOk && chromeOk && reportOk;
 
             BrowserPreflightResult result = passed ? BrowserPreflightResult.pass(false)
-                    : BrowserPreflightResult.fail("Chrome fingerprint baseline check failed");
+                    : BrowserPreflightResult.fail("Sannysoft fingerprint check failed");
             result.getDiagnostics().put("webdriverOk", webdriverOk);
             result.getDiagnostics().put("userAgentOk", userAgentOk);
             result.getDiagnostics().put("pluginsOk", pluginsOk);

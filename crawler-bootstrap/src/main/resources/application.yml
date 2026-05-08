@@ -68,17 +68,19 @@ app:
       headless: false
       preflightEnabled: true
       preflightUrl: https://bot.sannysoft.com/
-      preflightStrict: false
+      preflightStrict: true
       preflightCacheMinutes: 30
       forcePreflight: true
-      loginCheckUrl: https://union.jd.com/proManager/shopPromotion
+      overviewUrl: https://union.jd.com/overview
+      loginCheckUrl: https://union.jd.com/overview
       workbenchUrl: https://union.jd.com/proManager/index?pageNo=1
       loginUrlPrefix: https://union.jd.com/index?returnUrl=
       defaultMediaType: 导购媒体推广
       defaultMediaName: 微信
       pageTimeoutSeconds: 60
+      initialPageTimeoutSeconds: 60
       stepDelayMillis: 1200
       keepBrowserOpenOnLoginRequired: true
-      keepBrowserOpenSecondsOnLoginRequired: 300
-      loginWaitSeconds: 300
+      keepBrowserOpenSecondsOnLoginRequired: 180
+      loginWaitSeconds: 180
       defaultOutputPath: D:/app-crawler/data/jd-union/output.jsonl

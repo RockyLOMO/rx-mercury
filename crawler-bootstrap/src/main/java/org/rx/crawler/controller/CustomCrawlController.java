@@ -25,6 +25,12 @@ import java.util.List;
 public class CustomCrawlController {
     private final JdUnionPromotionTask jdUnionPromotionTask;
 
+    @PostMapping("/jd-union/getPromotionUrl")
+    public Result<JdUnionPromotionResult> getPromotionUrl(@Valid @RequestBody JdUnionPromotionRequest request) {
+        JdUnionPromotionResult result = jdUnionPromotionTask.getPromotionUrl(request);
+        return wrap(result);
+    }
+
     @PostMapping("/jd-union/promotion")
     public Result<JdUnionPromotionResult> promotion(@Valid @RequestBody JdUnionPromotionRequest request) {
         JdUnionPromotionResult result = jdUnionPromotionTask.promotion(request);
