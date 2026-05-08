@@ -68,4 +68,5 @@ app:
       stepDelayMillis: 600
       keepBrowserOpenOnLoginRequired: true
       keepBrowserOpenSecondsOnLoginRequired: 300
+      loginWaitSeconds: 300
       defaultOutputPath: D:/app-crawler/data/jd-union/output.jsonl

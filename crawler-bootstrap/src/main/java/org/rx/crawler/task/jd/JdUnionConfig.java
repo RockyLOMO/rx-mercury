@@ -24,5 +24,6 @@ public class JdUnionConfig {
     private int stepDelayMillis = 600;
     private boolean keepBrowserOpenOnLoginRequired = true;
     private int keepBrowserOpenSecondsOnLoginRequired = 300;
+    private int loginWaitSeconds = 300;
     private String defaultOutputPath = "D:/app-crawler/data/jd-union/output.jsonl";
 }

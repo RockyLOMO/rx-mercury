@@ -10,6 +10,7 @@ import org.rx.crawler.task.common.ResultWriter;
 import org.rx.crawler.task.jd.JdUnionPromotionRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
+import org.rx.crawler.task.common.CustomCrawlStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -50,7 +51,7 @@ public class JdUnionPromotionTaskTests {
     }
 
     @Test
-    public void jdUnionAuthorizedIntegration() {
+    public void jdUnionAuthorizedIntegration() throws Exception {
         assumeTrue(Boolean.parseBoolean(System.getProperty("jd.union.integration", "false")));
 
         ObjectMapper objectMapper = new ObjectMapper();
@@ -61,6 +62,8 @@ public class JdUnionPromotionTaskTests {
         config.getCustom().getJdUnion().setDefaultOutputPath(tempDir.resolve("jd-output.jsonl").toString());
         config.getCustom().getJdUnion().setForcePreflight(
                 Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.forcePreflight", "true")));
+        config.getCustom().getJdUnion().setPreflightEnabled(
+                Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.preflightEnabled", "true")));
 
         JdUnionPromotionTask task = new JdUnionPromotionTask(config, new BrowserProfileManager(config),
                 new BrowserPreflightService(), new ResultWriter(objectMapper), objectMapper);
@@ -69,7 +72,12 @@ public class JdUnionPromotionTaskTests {
         request.setAdSiteName(System.getProperty("jd.union.adSiteName", "5"));
 
         JdUnionPromotionResult result = task.promotion(request);
+        System.out.println("JD_UNION_RESULT=" + objectMapper.writeValueAsString(result));
         assertNotNull(result.getStatus());
+        if (result.getStatus() == CustomCrawlStatus.LOGIN_REQUIRED) {
+            Thread.sleep(Long.parseLong(System.getProperty("jd.union.loginWaitMillis", "300000")));
+            return;
+        }
         task.closeProfile(result.getProfileName());
     }
 }

@@ -29,6 +29,8 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.File;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -109,6 +111,14 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return results;
     }
 
+    private String buildWorkbenchUrl(String workbenchUrl, String skuId) {
+        if (Strings.isEmpty(skuId) || workbenchUrl.contains("keywords=")) {
+            return workbenchUrl;
+        }
+        String separator = workbenchUrl.contains("?") ? "&" : "?";
+        return workbenchUrl + separator + "keywords=" + URLEncoder.encode(skuId, StandardCharsets.UTF_8);
+    }
+
     private JdUnionPromotionResult executeInternal(JdUnionPromotionRequest rawRequest, boolean doPromotion) {
         JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
         JdUnionPromotionRequest request = normalizeRequest(rawRequest, jdConfig);
@@ -169,42 +179,78 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
 
         result.setLoginRequired(true);
-        fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
-                "JD Union login required. Finish login in the opened Chrome profile, then retry.");
         boolean keepOpen = request.getKeepBrowserOpenOnLoginRequired() == null
                 ? config.isKeepBrowserOpenOnLoginRequired() : request.getKeepBrowserOpenOnLoginRequired();
+        if (keepOpen && waitLoginCompleted(browser, config, result)) {
+            result.setLoginRequired(false);
+            result.setCurrentUrl(browser.getCurrentUrl());
+            result.getDiagnostics().put("loginWaitCompleted", true);
+            return true;
+        }
+
+        fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
+                "JD Union login required. Finish login in the opened Chrome profile, then retry.");
         if (keepOpen) {
             lease.keepOpen(config.getKeepBrowserOpenSecondsOnLoginRequired());
         }
         return false;
     }
 
+    private boolean waitLoginCompleted(Browser browser, JdUnionConfig config, JdUnionPromotionResult result) {
+        int waitSeconds = Math.max(0, config.getLoginWaitSeconds());
+        long deadline = System.currentTimeMillis() + waitSeconds * 1000L;
+        result.getDiagnostics().put("loginWaitSeconds", waitSeconds);
+        while (System.currentTimeMillis() < deadline) {
+            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            String currentUrl = browser.getCurrentUrl();
+            result.setCurrentUrl(currentUrl);
+            if (isLoginRequired(currentUrl, config)) {
+                continue;
+            }
+            if (isLoggedInUrl(currentUrl)) {
+                return true;
+            }
+            String body = bodySnippet(browser);
+            if (!containsAny(body, "登录", "扫码", "验证码") && containsAny(body, "京东联盟", "我要推广", "推广管理", "商品")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void runPromotionFlow(Browser browser, JdUnionPromotionRequest request, JdUnionConfig config,
             JdUnionPromotionResult result) throws TimeoutException {
-        browser.navigateUrl(config.getWorkbenchUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
+        browser.navigateUrl(buildWorkbenchUrl(config.getWorkbenchUrl(), request.getSkuId()),
+                Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
         Extends.sleep(config.getStepDelayMillis());
         result.setCurrentUrl(browser.getCurrentUrl());
 
-        if (!setSearchValue(browser, request.getSkuId())) {
+        if (!nativeSetSearchValue(browser, request.getSkuId())) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union search input not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
             return;
         }
-        if (!clickByText(browser, "搜索全部商品", false) && !clickByText(browser, "搜索", false)) {
+        if (!nativeClickByText(browser, "搜索全部商品", true) && !nativeClickByText(browser, "搜索", false)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union search button not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
             return;
         }
         Extends.sleep(config.getStepDelayMillis() * 2L);
 
+        String searchBody = bodySnippet(browser);
+        if (containsAny(searchBody, "抱歉，没有找到相关商品", "没有找到相关商品", "暂无相关商品")) {
+            fail(result, CustomCrawlStatus.NOT_FOUND, "JD Union product not found");
+            result.getDiagnostics().put("body", searchBody);
+            return;
+        }
+
         long promoteCount = countByText(browser, "我要推广");
         result.getDiagnostics().put("promoteButtonCount", promoteCount);
         if (promoteCount == 0) {
-            String body = bodySnippet(browser);
-            CustomCrawlStatus status = containsAny(body, "暂无", "没有", "无结果")
+            CustomCrawlStatus status = containsAny(searchBody, "暂无", "没有", "无结果")
                     ? CustomCrawlStatus.NOT_FOUND : CustomCrawlStatus.PAGE_CHANGED;
             fail(result, status, "JD Union promotion entry not found");
-            result.getDiagnostics().put("body", body);
+            result.getDiagnostics().put("body", searchBody);
             return;
         }
         if (promoteCount > 1) {
@@ -324,6 +370,15 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 || lower.contains("/login");
     }
 
+    private boolean isLoggedInUrl(String currentUrl) {
+        if (Strings.isEmpty(currentUrl)) {
+            return false;
+        }
+        String lower = currentUrl.toLowerCase(Locale.ROOT);
+        return lower.contains("union.jd.com/promanager")
+                || lower.contains("union.jd.com/manager");
+    }
+
     private void fail(JdUnionPromotionResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
@@ -356,7 +411,31 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private boolean setSearchValue(Browser browser, String value) {
+    private boolean nativeSetSearchValue(Browser browser, String value) {
+        String selector = "[data-rx-jd-search-input='1']";
+        Boolean marked = browser.executeScript("var attr='data-rx-jd-search-input';" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('input,textarea'));" +
+                "var chosen=null;" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i],p=(e.getAttribute('placeholder')||'')+(e.getAttribute('aria-label')||'');" +
+                "if(visible(e)&&(/商品|sku|关键词|搜索|keyword/i).test(p)){chosen=e;break;}}" +
+                "if(!chosen){for(var j=0;j<nodes.length;j++){if(visible(nodes[j])){chosen=nodes[j];break;}}}" +
+                "if(!chosen){return false;}" +
+                "chosen.setAttribute(attr,'1');chosen.scrollIntoView({block:'center',inline:'center'});chosen.focus();return true;");
+        if (!Boolean.TRUE.equals(marked)) {
+            return setSearchValueByScript(browser, value);
+        }
+        try {
+            browser.elementPress(selector, value, false);
+            return true;
+        } catch (Exception e) {
+            return setSearchValueByScript(browser, value);
+        }
+    }
+
+    private boolean setSearchValueByScript(Browser browser, String value) {
         Boolean ok = browser.executeScript("var value=arguments[0];" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
                 "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}" +
@@ -373,6 +452,30 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "chosen.dispatchEvent(new Event('change',{bubbles:true}));" +
                 "return true;", value);
         return Boolean.TRUE.equals(ok);
+    }
+
+    private boolean nativeClickByText(Browser browser, String text, boolean exact) {
+        String selector = "[data-rx-jd-click-target='1']";
+        Boolean marked = browser.executeScript("var attr='data-rx-jd-click-target', target=norm(arguments[0]), exact=arguments[1];" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,li,span,div,p'));" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}" +
+                "var txt=norm(e.innerText||e.value||e.getAttribute('title'));" +
+                "if(!txt){continue;}var matched=exact?txt===target:txt.indexOf(target)>=0;" +
+                "if(matched){e.setAttribute(attr,'1');e.scrollIntoView({block:'center',inline:'center'});return true;}}" +
+                "return false;", text, exact);
+        if (!Boolean.TRUE.equals(marked)) {
+            return clickByText(browser, text, exact);
+        }
+        try {
+            browser.elementClick(selector, false);
+            return true;
+        } catch (Exception e) {
+            return clickByText(browser, text, exact);
+        }
     }
 
     private boolean clickByText(Browser browser, String text, boolean exact) {

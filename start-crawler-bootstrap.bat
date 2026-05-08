@@ -33,8 +33,34 @@ set "APP_ARGS=-Dapollo.config-service=http://%TARGET_IP%:8080 -Dapollo.meta=http
 pushd "%ROOT_DIR%crawler-bootstrap" || exit /b 1
 echo [INFO] JAVA_HOME=%JAVA_HOME%
 echo [INFO] Maven=%MAVEN_CMD%
-echo [INFO] Starting crawler-bootstrap...
-call "%MAVEN_CMD%" "-Dspring-boot.run.jvmArguments=%JVM_OPENS% %APP_ARGS%" spring-boot:run
+
+set "LAUNCH_METHOD=1"
+if "%~1"=="jar" (
+  set "LAUNCH_METHOD=2"
+) else if "%~1"=="mvn" (
+  set "LAUNCH_METHOD=1"
+) else (
+  echo Select launch method:
+  echo [1] Maven (spring-boot:run) - default
+  echo [2] Jar (package first, then java -jar)
+  choice /c 12 /t 5 /d 1 /m "Make your choice (auto-select [1] in 5s): "
+  set "LAUNCH_METHOD=!ERRORLEVEL!"
+)
+
+if "!LAUNCH_METHOD!"=="2" (
+  echo [INFO] Packaging application (mvn clean package -Dmaven.test.skip=true)...
+  call "%MAVEN_CMD%" clean package -Dmaven.test.skip=true
+  if !ERRORLEVEL! neq 0 (
+    echo [ERROR] Build failed!
+    popd
+    exit /b !ERRORLEVEL!
+  )
+  echo [INFO] Starting crawler-bootstrap via JAR...
+  java %JVM_OPENS% %APP_ARGS% -jar target\crawler-bootstrap-1.0.jar
+) else (
+  echo [INFO] Starting crawler-bootstrap via Maven...
+  call "%MAVEN_CMD%" "-Dspring-boot.run.jvmArguments=%JVM_OPENS% %APP_ARGS%" spring-boot:run
+)
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 exit /b %EXIT_CODE%
