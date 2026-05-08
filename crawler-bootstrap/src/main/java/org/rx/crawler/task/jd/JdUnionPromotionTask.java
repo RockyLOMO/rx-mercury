@@ -90,10 +90,6 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return result;
     }
 
-    @Override
-    public JdUnionPromotionResult promotion(JdUnionPromotionRequest request) {
-        return getPromotionUrl(request);
-    }
 
     @Override
     public JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request) {

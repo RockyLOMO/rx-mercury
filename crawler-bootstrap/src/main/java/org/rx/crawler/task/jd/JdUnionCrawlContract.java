@@ -7,8 +7,6 @@ public interface JdUnionCrawlContract extends EventPublisher<JdUnionCrawlContrac
 
     JdUnionPromotionResult getPromotionUrl(JdUnionPromotionRequest request);
 
-    JdUnionPromotionResult promotion(JdUnionPromotionRequest request);
-
     JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request);
 
     boolean closeProfile(String profileName);

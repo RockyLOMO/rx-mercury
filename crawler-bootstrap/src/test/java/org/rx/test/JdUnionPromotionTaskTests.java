@@ -108,13 +108,13 @@ public class JdUnionPromotionTaskTests {
         request.setSkuId(System.getProperty("jd.union.skuId", "100059484008"));
         request.setAdSiteName(System.getProperty("jd.union.adSiteName", "5"));
 
-        JdUnionPromotionResult result = task.promotion(request);
+        JdUnionPromotionResult result = task.getPromotionUrl(request);
         System.out.println("JD_UNION_RESULT=" + objectMapper.writeValueAsString(result));
         assertNotNull(result.getStatus());
         if (result.getStatus() == CustomCrawlStatus.LOGIN_REQUIRED) {
             Thread.sleep(Long.parseLong(System.getProperty("jd.union.loginWaitMillis", "300000")));
             if (Boolean.parseBoolean(System.getProperty("jd.union.retryAfterLogin", "true"))) {
-                result = task.promotion(request);
+                result = task.getPromotionUrl(request);
                 System.out.println("JD_UNION_RESULT_RETRY=" + objectMapper.writeValueAsString(result));
                 assertNotNull(result.getStatus());
             }

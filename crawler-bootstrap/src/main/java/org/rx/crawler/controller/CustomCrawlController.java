@@ -31,11 +31,6 @@ public class CustomCrawlController {
         return wrap(result);
     }
 
-    @PostMapping("/jd-union/promotion")
-    public Result<JdUnionPromotionResult> promotion(@Valid @RequestBody JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = jdUnionPromotionTask.promotion(request);
-        return wrap(result);
-    }
 
     @PostMapping("/jd-union/login/check")
     public Result<JdUnionPromotionResult> loginCheck(@RequestBody(required = false) JdUnionPromotionRequest request) {
