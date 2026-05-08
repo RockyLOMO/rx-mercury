@@ -1,0 +1,241 @@
+package org.rx.crawler.task.common;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.rx.core.Extends;
+import org.rx.core.Strings;
+import org.rx.crawler.config.AppConfig;
+import org.rx.crawler.task.jd.JdUnionBatchRequest;
+import org.rx.crawler.task.jd.JdUnionPromotionRequest;
+import org.rx.crawler.task.jd.JdUnionPromotionResult;
+import org.rx.crawler.task.jd.JdUnionPromotionTask;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CustomCrawlQueueService {
+    private static final String TABLE_NAME = "custom_crawl_task_queue";
+
+    private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
+    private final AppConfig appConfig;
+    private final JdUnionPromotionTask jdUnionPromotionTask;
+    private final AtomicInteger runningCount = new AtomicInteger();
+    private ExecutorService executor;
+
+    @PostConstruct
+    public void init() {
+        jdbcTemplate.execute("create table if not exists " + TABLE_NAME + " (" +
+                "id bigint auto_increment primary key," +
+                "task_action varchar(64) not null," +
+                "request_json clob not null," +
+                "result_json clob," +
+                "status varchar(16) not null," +
+                "priority int not null," +
+                "error_message varchar(2000)," +
+                "created_at timestamp not null," +
+                "updated_at timestamp not null," +
+                "started_at timestamp," +
+                "finished_at timestamp" +
+                ")");
+        jdbcTemplate.execute("create index if not exists idx_" + TABLE_NAME + "_status_priority on " + TABLE_NAME + "(status, priority, id)");
+        jdbcTemplate.execute("update " + TABLE_NAME + " set status='PENDING', updated_at=current_timestamp where status='RUNNING'");
+        executor = Executors.newFixedThreadPool(Math.max(1, appConfig.getCustom().getQueueMaxConcurrency()));
+    }
+
+    @PreDestroy
+    public void destroy() {
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+    }
+
+    @Scheduled(fixedDelay = 1000)
+    public void refreshQueue() {
+        dispatch();
+    }
+
+    public JdUnionPromotionResult submitAndWait(String action, JdUnionPromotionRequest request, Class<JdUnionPromotionResult> resultType) {
+        long taskId = enqueue(action, request, 0);
+        return waitResult(taskId, resultType);
+    }
+
+    public List<JdUnionPromotionResult> batch(JdUnionBatchRequest request) {
+        List<JdUnionPromotionRequest> items = loadBatchItems(request);
+        List<JdUnionPromotionResult> results = new ArrayList<JdUnionPromotionResult>();
+        for (JdUnionPromotionRequest item : items) {
+            if (Strings.isEmpty(item.getOutputPath()) && !Strings.isEmpty(request.getOutputPath())) {
+                item.setOutputPath(request.getOutputPath());
+            }
+            results.add(submitAndWait("getPromotionUrl", item, JdUnionPromotionResult.class));
+        }
+        return results;
+    }
+
+    public boolean closeProfile(String profileName) {
+        return jdUnionPromotionTask.closeProfile(profileName);
+    }
+
+    private long enqueue(String action, JdUnionPromotionRequest request, int priority) {
+        try {
+            String requestJson = objectMapper.writeValueAsString(request);
+            Timestamp now = new Timestamp(System.currentTimeMillis());
+            jdbcTemplate.update("insert into " + TABLE_NAME +
+                            "(task_action, request_json, status, priority, created_at, updated_at) values (?, ?, ?, ?, ?, ?)",
+                    action, requestJson, CustomTaskQueueStatus.PENDING.name(), priority, now, now);
+            Long id = jdbcTemplate.queryForObject("select max(id) from " + TABLE_NAME, Long.class);
+            if (id == null) {
+                throw new IllegalStateException("Insert task queue row failed");
+            }
+            dispatch();
+            return id;
+        } catch (Exception e) {
+            throw new IllegalStateException("Enqueue custom crawl task failed", e);
+        }
+    }
+
+    private JdUnionPromotionResult waitResult(long taskId, Class<JdUnionPromotionResult> resultType) {
+        long deadline = System.currentTimeMillis() + java.util.concurrent.TimeUnit.SECONDS.toMillis(appConfig.getCustom().getQueueTimeoutSeconds());
+        while (System.currentTimeMillis() <= deadline) {
+            TaskSnapshot snapshot = loadSnapshot(taskId);
+            if (snapshot != null && snapshot.isFinished()) {
+                if (snapshot.status == CustomTaskQueueStatus.FAILED) {
+                    JdUnionPromotionResult result = new JdUnionPromotionResult();
+                    result.setTaskType(snapshot.action);
+                    result.setStatus(CustomCrawlStatus.FAILED);
+                    result.setMessage(snapshot.errorMessage);
+                    return result;
+                }
+                try {
+                    return objectMapper.readValue(snapshot.resultJson, resultType);
+                } catch (Exception e) {
+                    throw new IllegalStateException("Read queued task result failed", e);
+                }
+            }
+            Extends.sleep(300);
+            dispatch();
+        }
+        throw new IllegalStateException("Queued custom crawl task timeout, taskId=" + taskId);
+    }
+
+    private void dispatch() {
+        if (executor == null) {
+            return;
+        }
+        while (runningCount.get() < Math.max(1, appConfig.getCustom().getQueueMaxConcurrency())) {
+            TaskSnapshot snapshot = claimNext();
+            if (snapshot == null) {
+                return;
+            }
+            runningCount.incrementAndGet();
+            executor.submit(() -> {
+                try {
+                    execute(snapshot);
+                } finally {
+                    runningCount.decrementAndGet();
+                }
+            });
+        }
+    }
+
+    private synchronized TaskSnapshot claimNext() {
+        List<TaskSnapshot> items = jdbcTemplate.query("select id, task_action, request_json, status, priority, error_message, result_json from " + TABLE_NAME +
+                        " where status='PENDING' order by priority desc, id asc limit 1",
+                (ResultSet rs, int rowNum) -> new TaskSnapshot(
+                        rs.getLong("id"),
+                        rs.getString("task_action"),
+                        rs.getString("request_json"),
+                        CustomTaskQueueStatus.valueOf(rs.getString("status")),
+                        rs.getInt("priority"),
+                        rs.getString("error_message"),
+                        rs.getString("result_json")));
+        if (items.isEmpty()) {
+            return null;
+        }
+        TaskSnapshot snapshot = items.get(0);
+        int updated = jdbcTemplate.update("update " + TABLE_NAME + " set status=?, started_at=current_timestamp, updated_at=current_timestamp where id=? and status='PENDING'",
+                CustomTaskQueueStatus.RUNNING.name(), snapshot.id);
+        return updated > 0 ? snapshot : null;
+    }
+
+    private TaskSnapshot loadSnapshot(long taskId) {
+        List<TaskSnapshot> items = jdbcTemplate.query("select id, task_action, request_json, status, priority, error_message, result_json from " + TABLE_NAME + " where id=?",
+                (ResultSet rs, int rowNum) -> new TaskSnapshot(
+                        rs.getLong("id"),
+                        rs.getString("task_action"),
+                        rs.getString("request_json"),
+                        CustomTaskQueueStatus.valueOf(rs.getString("status")),
+                        rs.getInt("priority"),
+                        rs.getString("error_message"),
+                        rs.getString("result_json")), taskId);
+        return items.isEmpty() ? null : items.get(0);
+    }
+
+    private void execute(TaskSnapshot snapshot) {
+        try {
+            JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
+            JdUnionPromotionResult result;
+            if ("loginCheck".equals(snapshot.action)) {
+                result = jdUnionPromotionTask.loginCheck(request);
+            } else {
+                result = jdUnionPromotionTask.getPromotionUrl(request);
+            }
+            jdbcTemplate.update("update " + TABLE_NAME + " set status=?, result_json=?, error_message=null, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
+                    CustomTaskQueueStatus.SUCCESS.name(), objectMapper.writeValueAsString(result), snapshot.id);
+        } catch (Exception e) {
+            log.warn("Execute queued custom crawl task failed, id={}, action={}, error={}", snapshot.id, snapshot.action, e.getMessage(), e);
+            jdbcTemplate.update("update " + TABLE_NAME + " set status=?, error_message=?, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
+                    CustomTaskQueueStatus.FAILED.name(), truncate(e.getMessage(), 2000), snapshot.id);
+        }
+    }
+
+    private List<JdUnionPromotionRequest> loadBatchItems(JdUnionBatchRequest request) {
+        List<JdUnionPromotionRequest> items = request.getItems();
+        return items == null ? new ArrayList<JdUnionPromotionRequest>() : items;
+    }
+
+    private static class TaskSnapshot {
+        private final long id;
+        private final String action;
+        private final String requestJson;
+        private final CustomTaskQueueStatus status;
+        private final int priority;
+        private final String errorMessage;
+        private final String resultJson;
+
+        TaskSnapshot(long id, String action, String requestJson, CustomTaskQueueStatus status, int priority, String errorMessage, String resultJson) {
+            this.id = id;
+            this.action = action;
+            this.requestJson = requestJson;
+            this.status = status;
+            this.priority = priority;
+            this.errorMessage = errorMessage;
+            this.resultJson = resultJson;
+        }
+
+        boolean isFinished() {
+            return status == CustomTaskQueueStatus.SUCCESS || status == CustomTaskQueueStatus.FAILED;
+        }
+    }
+
+    private String truncate(String value, int maxLen) {
+        if (value == null || value.length() <= maxLen) {
+            return value;
+        }
+        return value.substring(0, maxLen);
+    }
+}

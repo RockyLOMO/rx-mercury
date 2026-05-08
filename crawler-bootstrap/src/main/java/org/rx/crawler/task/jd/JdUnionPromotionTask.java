@@ -970,10 +970,22 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     private String readPromotionUrl(Browser browser) {
-        return browser.executeScript("function pick(v){if(!v){return '';}var m=String(v).match(/https?:\\/\\/[^\\s\"'<>]+/);return m?m[0]:'';}" +
+        return browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "function pick(v){if(!v){return '';}var m=String(v).match(/https?:\\/\\/[^\\s\"'<>]+/);return m?m[0]:'';}" +
+                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function score(el){var t=norm(el.innerText||el.value||el.getAttribute('title')||el.getAttribute('placeholder'));" +
+                "var p=el;for(var i=0;i<5&&p;i++,p=p.parentElement){t+=norm(p.innerText||p.getAttribute('title'));}" +
+                "var s=0;if(/优惠券|券|coupon/.test(t)){s+=1000;}if(/推广链接|短链接/.test(t)){s+=100;}return s;}" +
                 "var nodes=Array.prototype.slice.call(document.querySelectorAll('input,textarea'));" +
-                "for(var i=0;i<nodes.length;i++){var v=pick(nodes[i].value);if(v){return v;}}" +
-                "return pick(document.body?document.body.innerText:'');");
+                "var best='';var bestScore=-1;" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var v=pick(e.value||e.innerText);if(!v){continue;}" +
+                "var sc=score(e);if(sc>bestScore){best=v;bestScore=sc;}}" +
+                "if(best){return best;}" +
+                "var body=document.body?document.body.innerText:'';" +
+                "var coupon=body.match(/https?:\\/\\/[^\\s\"'<>]+/g)||[];" +
+                "for(var j=0;j<coupon.length;j++){if(/u\\.jd\\.com/i.test(coupon[j])){return coupon[j];}}" +
+                "return coupon[0]||'';");
     }
 
     private Map<String, Object> collectPromotionDialogDiagnostics(Browser browser) {

@@ -12,7 +12,6 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.exception.TraceHandler;
-import org.rx.net.Sockets;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RpcServerConfig;
 import org.rx.net.transport.TcpClient;
@@ -32,7 +31,7 @@ import static org.rx.core.Extends.quietly;
 import static org.rx.core.Extends.tryClose;
 
 @Slf4j
-public final class BrowserPool extends Disposable implements BrowserPoolListener {
+public final class BrowserPool extends Disposable {
     final class PooledBrowser implements AutoCloseable {
         final Browser browser;
         final TcpServer server;
@@ -58,12 +57,8 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
         public ObjectFactory() {
             Tasks.schedulePeriod(() -> {
                 for (PooledBrowser pooledBrowser : snapshot()) {
-                    Browser browser = pooledBrowser.browser;
                     TcpServer server = pooledBrowser.server;
                     Integer id = pooledBrowser.id;
-                    if (asyncTopic != null && asyncTopic.isPublishing(server.getConfig().getListenPort())) {
-                        continue;
-                    }
 
                     Collection<TcpClient> clients = server.getClients().values();
                     if (clients.size() == 0) {
@@ -151,7 +146,6 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
 
     final AppConfig.BrowserPoolConfig conf;
     final WebBrowserConfig browserConf;
-    final BrowserAsyncTopic asyncTopic;
     final ObjectFactory factory;
     final ObjectPool<PooledBrowser> pool;
     final Map<Browser, PooledBrowser> cache = Collections.synchronizedMap(new IdentityHashMap<>());
@@ -162,11 +156,10 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
     }
 
     @SneakyThrows
-    public BrowserPool(@NonNull AppConfig.BrowserPoolConfig config, BrowserAsyncTopic asyncTopic) {
+    public BrowserPool(@NonNull AppConfig.BrowserPoolConfig config) {
         conf = config;
         browserConf = BeanMapper.DEFAULT.map(conf, WebBrowserConfig.class);
         browserConf.setCookieContainer(Reflects.newInstance(Class.forName(conf.getCookieContainerType())));
-        this.asyncTopic = asyncTopic;
         int poolSize = conf.getPoolSize();
         factory = new ObjectFactory();
         pool = new ObjectPool<>(poolSize, poolSize, factory::create, factory::validate, null, factory::passivate);
@@ -181,22 +174,6 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
                     0, 0,
                     factory.dump());
         }, conf.getDumpPeriod());
-
-        if (asyncTopic != null) {
-            Tasks.schedulePeriod(() -> {
-                if ((float) activeCount() / poolSize > conf.getAsyncThreshold()) {
-                    log.warn("Pool is busy, retry next time..");
-                    return;
-                }
-
-                for (BrowserAsyncRequest request : asyncTopic.poll(poolSize)) {
-                    Inet4Address address = (Inet4Address) Sockets.getLocalAddress();
-                    int idleId = nextIdleId(BrowserType.CHROME);
-                    log.info("Async publish {}:{}", address, idleId);
-                    asyncTopic.publish(new BrowserAsyncResponse(request, new InetSocketAddress(address, idleId)));
-                }
-            }, 2000);
-        }
     }
 
     @Override
@@ -236,12 +213,6 @@ public final class BrowserPool extends Disposable implements BrowserPoolListener
             }
             TraceHandler.INSTANCE.saveExceptionTrace(Thread.currentThread(), "release", e);
         }
-    }
-
-    @Override
-    public int nextIdleId(BrowserType type) {
-        Browser browser = take(type);
-        return cache.get(browser).id;
     }
 
     int activeCount() {

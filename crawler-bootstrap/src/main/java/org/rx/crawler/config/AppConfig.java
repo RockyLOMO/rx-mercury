@@ -38,7 +38,6 @@ public class AppConfig {
         private long maintenancePeriod;
         private int maxActiveMinutes;
         private long dumpPeriod;
-        private float asyncThreshold;
         private int takeTimeoutSeconds = 6;
         private String remotingPortRange = "1220-1320";
         private IdGenerator portGenerator;
@@ -88,6 +87,8 @@ public class AppConfig {
     public static class CustomTaskConfig {
         private boolean remotingEnabled = true;
         private int remotingListenPort = 1211;
+        private int queueMaxConcurrency = 1;
+        private int queueTimeoutSeconds = 600;
         private ChromeProfileConfig chrome = new ChromeProfileConfig();
         private JdUnionConfig jdUnion = new JdUnionConfig();
     }

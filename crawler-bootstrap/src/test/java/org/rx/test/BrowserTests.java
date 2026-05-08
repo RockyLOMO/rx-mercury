@@ -4,18 +4,11 @@ import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import org.rx.core.Cache;
 import org.rx.core.Linq;
-import org.rx.core.Tasks;
 import org.rx.crawler.Application;
-import org.rx.crawler.BrowserAsyncTopic;
-import org.rx.crawler.BrowserPoolListener;
-import org.rx.crawler.BrowserType;
 import org.rx.crawler.config.AppConfig;
-import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.io.Files;
 import org.rx.net.http.HttpClient;
-import org.rx.net.rpc.Remoting;
-import org.rx.net.rpc.RpcClientConfig;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import javax.annotation.Resource;
@@ -31,25 +24,6 @@ import static org.rx.core.Sys.toJsonObject;
 public class BrowserTests {
     @Resource
     AppConfig appConfig;
-    @Resource
-    BrowserAsyncTopic asyncTopic;
-//    @Resource
-//    BrowserService browserService;
-
-    @SneakyThrows
-    @Test
-    public void poolListener() {
-        assumeTrue(Boolean.parseBoolean(System.getProperty("browser.dev.integration", "false")));
-        Remoting.register(new BrowserPool(appConfig.getBrowser(), asyncTopic), 1210, false);
-
-        Tasks.schedulePeriod(() -> {
-            BrowserPoolListener listener = Remoting.createFacade(BrowserPoolListener.class, RpcClientConfig.statefulMode("127.0.0.1:1210", 0));
-            System.out.println(listener.nextIdleId(BrowserType.CHROME));
-            tryClose(listener);
-        }, 1000);
-
-        System.in.read();
-    }
 
     @Test
     public void innerScript() {
