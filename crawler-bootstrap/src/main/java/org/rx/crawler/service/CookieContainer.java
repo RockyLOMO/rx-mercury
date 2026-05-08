@@ -4,8 +4,6 @@ import lombok.NonNull;
 import okhttp3.HttpUrl;
 import org.rx.bean.FlagsEnum;
 import org.rx.core.Strings;
-import org.rx.crawler.Browser;
-import org.rx.crawler.RegionFlags;
 import org.rx.net.http.HttpClient;
 
 import javax.servlet.http.HttpServletRequest;

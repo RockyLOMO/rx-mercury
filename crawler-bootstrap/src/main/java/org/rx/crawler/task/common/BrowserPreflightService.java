@@ -3,7 +3,7 @@ package org.rx.crawler.task.common;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Extends;
 import org.rx.core.Strings;
-import org.rx.crawler.Browser;
+import org.rx.crawler.service.Browser;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;

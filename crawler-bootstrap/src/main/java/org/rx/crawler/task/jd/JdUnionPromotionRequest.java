@@ -23,4 +23,6 @@ public class JdUnionPromotionRequest implements Serializable {
     private Boolean forcePreflight;
     private Boolean keepBrowserOpenOnLoginRequired;
     private String outputPath;
+    private Boolean debugEnabled;
+    private String debugOutputDir;
 }

@@ -1,4 +1,4 @@
-package org.rx.crawler;
+package org.rx.crawler.service;
 
 import org.rx.core.FluentWait;
 import org.rx.core.Linq;

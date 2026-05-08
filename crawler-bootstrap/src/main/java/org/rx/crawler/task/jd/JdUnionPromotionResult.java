@@ -19,6 +19,7 @@ public class JdUnionPromotionResult implements Serializable {
     private String mediaType;
     private String mediaName;
     private String profileName;
+    private JdUnionProductInfoDto productInfo;
     private String promotionUrl;
     private String currentUrl;
     private boolean loginRequired;

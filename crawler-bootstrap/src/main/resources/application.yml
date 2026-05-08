@@ -90,3 +90,5 @@ app:
       keepBrowserOpenSecondsOnLoginRequired: 180
       loginWaitSeconds: 180
       defaultOutputPath: D:/app-crawler/data/jd-union/output.jsonl
+      debugEnabled: false
+      debugOutputDir: D:/app-crawler/data/jd-union/debug

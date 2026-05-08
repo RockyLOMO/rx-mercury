@@ -27,7 +27,7 @@ import org.rx.core.Extends;
 import org.rx.core.Linq;
 import org.rx.core.Strings;
 import org.rx.core.cache.MemoryCache;
-import org.rx.crawler.Browser;
+import org.rx.crawler.service.Browser;
 import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.ConfigureScriptExecutor;
 import org.rx.crawler.service.CookieContainer;
@@ -83,8 +83,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     private double mouseX = 160, mouseY = 120;
 
     @Override
-    public org.rx.crawler.BrowserType getType() {
-        return org.rx.crawler.BrowserType.CHROME;
+    public org.rx.crawler.service.BrowserType getType() {
+        return org.rx.crawler.service.BrowserType.CHROME;
     }
 
     public String getCurrentUrl() {
@@ -121,8 +121,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     }
 
     @SneakyThrows
-    public WebBrowser(@NonNull WebBrowserConfig config, @NonNull org.rx.crawler.BrowserType type) {
-        if (type != org.rx.crawler.BrowserType.CHROME) {
+    public WebBrowser(@NonNull WebBrowserConfig config, @NonNull org.rx.crawler.service.BrowserType type) {
+        if (type != org.rx.crawler.service.BrowserType.CHROME) {
             throw new InvalidException("Only CHROME is supported by Playwright implementation, type={}", type);
         }
         this.config = config;

@@ -3,7 +3,7 @@ package org.rx.test;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
-import org.rx.crawler.BrowserType;
+import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.WebBrowser;

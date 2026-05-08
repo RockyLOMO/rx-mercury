@@ -3,7 +3,7 @@ package org.rx.test;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import org.rx.core.Extends;
-import org.rx.crawler.BrowserType;
+import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.impl.ApiConfigureScriptExecutor;

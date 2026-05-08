@@ -1,7 +1,5 @@
 package org.rx.crawler.service;
 
-import org.rx.crawler.Browser;
-
 public interface ConfigureScriptExecutor {
     Browser getOwner();
 

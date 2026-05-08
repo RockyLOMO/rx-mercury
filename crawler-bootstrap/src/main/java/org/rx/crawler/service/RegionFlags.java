@@ -1,4 +1,4 @@
-package org.rx.crawler;
+package org.rx.crawler.service;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

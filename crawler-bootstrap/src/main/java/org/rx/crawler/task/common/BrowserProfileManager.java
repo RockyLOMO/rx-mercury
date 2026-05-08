@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Strings;
-import org.rx.crawler.BrowserType;
+import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;

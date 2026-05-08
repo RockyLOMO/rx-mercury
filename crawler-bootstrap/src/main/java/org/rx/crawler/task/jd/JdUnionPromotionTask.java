@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Extends;
 import org.rx.core.Reflects;
 import org.rx.core.Strings;
-import org.rx.crawler.Browser;
+import org.rx.crawler.service.Browser;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.ApiConfigureScriptExecutor;
 import org.rx.crawler.service.impl.MemoryCookieContainer;
@@ -30,7 +30,15 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,6 +54,7 @@ import static org.rx.core.Extends.tryClose;
 public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionRequest, JdUnionPromotionResult>, JdUnionCrawlContract {
     private static final String TASK_TYPE = "getPromotionUrl";
     private static final Pattern SEARCH_RESULT_COUNT_PATTERN = Pattern.compile("所有结果\\s*共\\s*(\\d+)\\s*件商品");
+    private static final DateTimeFormatter DEBUG_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS");
 
     private final AppConfig appConfig;
     private final BrowserProfileManager profileManager;
@@ -119,6 +128,11 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
         JdUnionPromotionRequest request = normalizeRequest(rawRequest, jdConfig);
         JdUnionPromotionResult result = createResult(request);
+        DebugRecorder debug = new DebugRecorder(request, jdConfig, objectMapper);
+        if (debug.enabled()) {
+            result.getDiagnostics().put("debugEnabled", true);
+            result.getDiagnostics().put("debugOutputDir", debug.getTaskDir().toString());
+        }
         BrowserProfileManager.ProfileLease lease = null;
         try {
             lease = profileManager.acquire(request.getProfileName(), createBrowserConfig(request, jdConfig));
@@ -126,6 +140,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
 
             CrawlEntryResult entry = entryService.enter(browser, lease, createEntryOptions(request, jdConfig));
             applyEntryResult(result, entry);
+            debug.snapshot(browser, "01-entry");
             if (!entry.isPassed()) {
                 return result;
             }
@@ -134,7 +149,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 result.setMessage("JD Union login state is valid");
                 return result;
             }
-            runPromotionFlow(browser, request, jdConfig, result);
+            runPromotionFlow(browser, request, jdConfig, result, debug);
             return result;
         } catch (TimeoutException e) {
             fail(result, CustomCrawlStatus.TIMEOUT, e.getMessage());
@@ -184,31 +199,38 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     private void runPromotionFlow(Browser browser, JdUnionPromotionRequest request, JdUnionConfig config,
-            JdUnionPromotionResult result) throws TimeoutException {
-        if (!enterPromotionWorkbench(browser, config, result)) {
+            JdUnionPromotionResult result, DebugRecorder debug) throws TimeoutException {
+        if (!enterPromotionWorkbench(browser, config, result, debug)) {
             return;
         }
         result.setCurrentUrl(browser.getCurrentUrl());
+        debug.snapshot(browser, "02-workbench-ready");
 
         if (!nativeSetSearchValue(browser, request.getSkuId())) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union search input not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "03-search-input-missing");
             return;
         }
+        debug.snapshot(browser, "03-search-input-ready");
         if (!nativeClickSearchButton(browser)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union search button not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "04-search-button-missing");
             return;
         }
         Extends.sleep(config.getStepDelayMillis() * 2L);
+        debug.snapshot(browser, "04-search-clicked");
 
         String searchBody = bodySnippet(browser);
         if (containsAny(searchBody, "抱歉，没有找到相关商品", "没有找到相关商品", "暂无相关商品")) {
             fail(result, CustomCrawlStatus.NOT_FOUND, "JD Union product not found");
             result.getDiagnostics().put("body", searchBody);
+            debug.snapshot(browser, "05-search-no-result");
             return;
         }
         scrollToProductPromotionArea(browser, config);
+        debug.snapshot(browser, "05-scroll-product-area");
 
         int searchResultCount = readSearchResultCount(searchBody);
         result.getDiagnostics().put("searchResultCount", searchResultCount);
@@ -217,54 +239,76 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                     ? CustomCrawlStatus.NOT_FOUND : CustomCrawlStatus.PAGE_CHANGED;
             fail(result, status, "JD Union promotion entry not found");
             result.getDiagnostics().put("body", searchBody);
+            debug.snapshot(browser, "06-search-result-count-zero");
             return;
         }
         if (searchResultCount > 1) {
             fail(result, CustomCrawlStatus.MULTIPLE_MATCHED, "JD Union search result is not unique");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "06-search-result-not-unique");
             return;
         }
+        JdUnionProductInfoDto productInfo = readProductInfo(browser);
+        if (productInfo != null) {
+            result.setProductInfo(productInfo);
+        } else {
+            result.getDiagnostics().put("productInfoMissing", true);
+        }
+        debug.snapshot(browser, "06-product-info-collected");
         if (!nativeClickPrimaryPromoteButton(browser)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union primary promotion entry not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "07-primary-promote-missing");
             return;
         }
+        debug.snapshot(browser, "07-primary-promote-clicked");
         waitAndClickText(browser, "已获取权益，继续推广", true, config, 8);
         waitAndClickText(browser, "继续推广", false, config, 3);
+        debug.snapshot(browser, "08-rights-confirmed");
         waitTextVisible(browser, request.getMediaType(), config);
 
         if (!clickByText(browser, request.getMediaType(), true)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union media type option not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "09-media-type-missing");
             return;
         }
         Extends.sleep(config.getStepDelayMillis());
+        debug.snapshot(browser, "09-media-type-selected");
         if (!selectGuideMedia(browser, request.getMediaName(), config)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union guide media option not found");
             result.getDiagnostics().put("promotionDialog", collectPromotionDialogDiagnostics(browser));
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "10-guide-media-missing");
             return;
         }
         Extends.sleep(config.getStepDelayMillis());
+        debug.snapshot(browser, "10-guide-media-selected");
         if (!clickByText(browser, "选择推广位", true)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promote slot selector not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "11-slot-selector-missing");
             return;
         }
         Extends.sleep(config.getStepDelayMillis());
+        debug.snapshot(browser, "11-slot-selector-opened");
         if (!selectPromotionSlotName(browser, request.getAdSiteName(), config)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promotion slot name input not found");
             result.getDiagnostics().put("promotionDialog", collectPromotionDialogDiagnostics(browser));
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "12-slot-name-missing");
             return;
         }
         Extends.sleep(config.getStepDelayMillis());
+        debug.snapshot(browser, "12-slot-name-selected");
         if (!nativeClickDialogButton(browser, "获取推广链接")) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union get promotion link button not found");
             result.getDiagnostics().put("promotionDialog", collectPromotionDialogDiagnostics(browser));
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "13-generate-link-missing");
             return;
         }
+        debug.snapshot(browser, "13-generate-link-clicked");
 
         String promotionUrl = "";
         for (int i = 0; i < 10; i++) {
@@ -279,61 +323,76 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promotion link not found");
             result.getDiagnostics().put("promotionDialog", collectPromotionDialogDiagnostics(browser));
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "14-promotion-link-missing");
             return;
         }
 
         result.setPromotionUrl(promotionUrl);
         result.setStatus(CustomCrawlStatus.SUCCESS);
         result.setMessage("");
+        debug.snapshot(browser, "14-promotion-link-ready");
     }
 
-    private boolean enterPromotionWorkbench(Browser browser, JdUnionConfig config, JdUnionPromotionResult result)
+    private boolean enterPromotionWorkbench(Browser browser, JdUnionConfig config, JdUnionPromotionResult result,
+            DebugRecorder debug)
             throws TimeoutException {
         browser.navigateUrl(config.getOverviewUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
         Extends.sleep(config.getStepDelayMillis());
         result.setCurrentUrl(browser.getCurrentUrl());
+        debug.snapshot(browser, "00-overview-loaded");
         if (isLoginRequired(result.getCurrentUrl(), config)) {
             fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
                     "JD Union login expired before entering overview page. Finish login in the opened Chrome profile, then retry.");
+            debug.snapshot(browser, "00-overview-login-required");
             return false;
         }
 
         if (!nativeClickByText(browser, "我要推广", true) && !clickByText(browser, "我要推广", false)) {
             result.getDiagnostics().put("leftMenuMissing", true);
             result.getDiagnostics().put("overviewBody", bodySnippet(browser));
+            debug.snapshot(browser, "00-left-menu-missing");
             browser.navigateUrl(config.getWorkbenchUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
             Extends.sleep(config.getStepDelayMillis());
             result.setCurrentUrl(browser.getCurrentUrl());
+            debug.snapshot(browser, "00-workbench-loaded");
             if (isLoginRequired(result.getCurrentUrl(), config)) {
                 fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
                         "JD Union login expired before entering promotion workbench. Finish login in the opened Chrome profile, then retry.");
+                debug.snapshot(browser, "00-workbench-login-required");
                 return false;
             }
             if (waitPromotionWorkbenchReady(browser, config, result)) {
+                debug.snapshot(browser, "00-workbench-ready");
                 return true;
             }
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promotion workbench not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "00-workbench-not-found");
             return false;
         }
         Extends.sleep(config.getStepDelayMillis());
+        debug.snapshot(browser, "00-left-menu-opened");
 
         if (!nativeClickByText(browser, "商品推广", true) && !clickByText(browser, "商品推广", false)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union menu 商品推广 not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "00-product-menu-missing");
             return false;
         }
+        debug.snapshot(browser, "00-product-menu-clicked");
 
         for (int i = 0; i < 10; i++) {
             Extends.sleep(config.getStepDelayMillis());
             result.setCurrentUrl(browser.getCurrentUrl());
             if (isPromotionWorkbenchReady(browser)) {
+                debug.snapshot(browser, "00-product-page-ready");
                 return true;
             }
         }
 
         fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union 商品推广 page not reached");
         result.getDiagnostics().put("body", bodySnippet(browser));
+        debug.snapshot(browser, "00-product-page-not-reached");
         return false;
     }
 
@@ -988,6 +1047,54 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "return coupon[0]||'';");
     }
 
+    private JdUnionProductInfoDto readProductInfo(Browser browser) {
+        Map<String, Object> raw = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
+                "function cardScore(el){var r=el.getBoundingClientRect(),t=text(el);" +
+                "if(r.width<180||r.width>420||r.height<260||r.height>900){return 999999;}" +
+                "if(t.indexOf('佣金比例')<0||t.indexOf('到手价')<0||t.indexOf('一键领链')<0){return 999999;}" +
+                "var imgs=el.querySelectorAll('img').length,as=el.querySelectorAll('a[href]').length;" +
+                "return r.width*r.height - imgs*8000 - as*800;}" +
+                "function bestLink(card){var as=Array.prototype.slice.call(card.querySelectorAll('a[href]'));" +
+                "var best='';var bestScore=-1;" +
+                "for(var i=0;i<as.length;i++){var a=as[i];if(!visible(a)){continue;}var t=text(a);var href=a.href||a.getAttribute('href')||'';" +
+                "if(!t||/我要推广|一键领链|查看全部|更多|清空/.test(t)){continue;}" +
+                "var score=t.length;if(/item\\.jd\\.com|union\\.jd\\.com\\/product|\\.jd\\.com/.test(href)&&!/proManager/.test(href)){score+=80;}" +
+                "if(score>bestScore){best=href;bestScore=score;}}" +
+                "return best;}" +
+                "function bestImage(card){var imgs=Array.prototype.slice.call(card.querySelectorAll('img'));" +
+                "for(var i=0;i<imgs.length;i++){var img=imgs[i];if(!visible(img)){continue;}return img.currentSrc||img.src||img.getAttribute('data-src')||img.getAttribute('src')||'';}" +
+                "return '';}" +
+                "function extract(card, re){var m=text(card).match(re);return m?m[1]||m[0]:'';}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,span,div'));var card=null,bestCardScore=999999;" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||text(e)!=='我要推广'){continue;}" +
+                "var p=e;for(var d=0;p&&d<10;d++,p=p.parentElement){var sc=cardScore(p);if(sc<bestCardScore){card=p;bestCardScore=sc;}}}" +
+                "if(!card){return null;}" +
+                "var anchors=Array.prototype.slice.call(card.querySelectorAll('a[href]'));var name='';var nameScore=-1;var link='';" +
+                "for(var n=0;n<anchors.length;n++){var a=anchors[n],t=text(a),href=a.href||a.getAttribute('href')||'';" +
+                "if(!visible(a)||!t||/我要推广|一键领链|查看全部|更多|清空/.test(t)){continue;}" +
+                "if(/旗舰店|专卖店|店铺|自营|京配|促销|券/.test(t)&&t.length<=40){continue;}" +
+                "var score=t.length;if(/item\\.jd\\.com|\\.jd\\.com/.test(href)&&!/proManager/.test(href)){score+=80;}" +
+                "if(score>nameScore){name=t;nameScore=score;link=href;}}" +
+                "var store='';var storeNodes=Array.prototype.slice.call(card.querySelectorAll('a,span,div'));for(var s=0;s<storeNodes.length;s++){var se=storeNodes[s],st=text(se);" +
+                "if(!visible(se)||!st||st==='我要推广'||st==='一键领链'){continue;}" +
+                "if(/旗舰店|专卖店|店$|店铺|官方/.test(st)&&st.length<=40){store=st;}}" +
+                "return {" +
+                "imageUrl: bestImage(card)," +
+                "productName: name || extract(card,/([\\u4e00-\\u9fa5A-Za-z0-9【】\\(\\)\\[\\]\\-_.+·\\s]{6,120})/)," +
+                "productLink: link || bestLink(card)," +
+                "commissionRate: extract(card,/佣金比例[:：]?\\s*([0-9.]+%)/)," +
+                "finalPrice: extract(card,/到手价[￥¥]?\\s*([0-9.]+(?:\\.[0-9]+)?(?:[万千]?)?)/)," +
+                "storeName: store" +
+                "};");
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        return objectMapper.convertValue(raw, JdUnionProductInfoDto.class);
+    }
+
     private Map<String, Object> collectPromotionDialogDiagnostics(Browser browser) {
         return browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
                 "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
@@ -1018,5 +1125,71 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             }
         }
         return false;
+    }
+
+    private boolean isDebugEnabled(JdUnionPromotionRequest request, JdUnionConfig config) {
+        return request != null && Boolean.TRUE.equals(request.getDebugEnabled())
+                || config != null && config.isDebugEnabled();
+    }
+
+    private String resolveDebugOutputDir(JdUnionPromotionRequest request, JdUnionConfig config) {
+        if (request != null && !Strings.isEmpty(request.getDebugOutputDir())) {
+            return request.getDebugOutputDir();
+        }
+        return config == null ? null : config.getDebugOutputDir();
+    }
+
+    private final class DebugRecorder {
+        private final boolean enabled;
+        private final Path taskDir;
+        private int stepIndex;
+
+        private DebugRecorder(JdUnionPromotionRequest request, JdUnionConfig config, ObjectMapper objectMapper) {
+            this.enabled = isDebugEnabled(request, config);
+            if (!enabled) {
+                this.taskDir = null;
+                return;
+            }
+            String baseDir = resolveDebugOutputDir(request, config);
+            String profileName = Strings.isEmpty(request.getProfileName()) ? "default" : request.getProfileName();
+            String skuId = Strings.isEmpty(request.getSkuId()) ? "unknown" : request.getSkuId();
+            String time = LocalDateTime.now().format(DEBUG_TIME_FORMATTER);
+            this.taskDir = Paths.get(baseDir, profileName, skuId + "-" + time);
+            try {
+                Files.createDirectories(this.taskDir);
+                Files.writeString(this.taskDir.resolve("_task.txt"),
+                        "taskType=" + TASK_TYPE + System.lineSeparator()
+                                + "profileName=" + profileName + System.lineSeparator()
+                                + "skuId=" + skuId + System.lineSeparator(),
+                        StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE);
+            } catch (Exception e) {
+                log.warn("JD union debug directory init fail, path={}, error={}", this.taskDir, e.getMessage(), e);
+            }
+        }
+
+        private boolean enabled() {
+            return enabled;
+        }
+
+        private Path getTaskDir() {
+            return taskDir;
+        }
+
+        private void snapshot(Browser browser, String step) {
+            if (!enabled || browser == null || taskDir == null) {
+                return;
+            }
+            String safeStep = step == null ? "step" : step.replaceAll("[^a-zA-Z0-9._-]+", "_");
+            int index = ++stepIndex;
+            try {
+                String html = browser.executeScript("return document.documentElement ? document.documentElement.outerHTML : '';");
+                Path file = taskDir.resolve(String.format("%02d_%s.html", index, safeStep));
+                Files.writeString(file, html == null ? "" : html, StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            } catch (Exception e) {
+                log.warn("JD union debug snapshot fail, step={}, error={}", step, e.getMessage(), e);
+            }
+        }
     }
 }

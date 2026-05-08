@@ -41,6 +41,7 @@
 | `taskType` | 固定为 `getPromotionUrl` |
 | `skuId` | 商品 ID |
 | `adSiteName` | 推广位名称 |
+| `productInfo` | 商品信息 DTO |
 | `promotionUrl` | 成功时返回推广链接 |
 | `loginRequired` | 是否需要人工登录 |
 | `fingerprintPassed` | Sannysoft 是否通过 |
@@ -55,6 +56,14 @@
   "taskType": "getPromotionUrl",
   "skuId": "100341910908",
   "adSiteName": "5",
+  "productInfo": {
+    "imageUrl": "https://...",
+    "productName": "小白熊摇奶器保温二合一温奶...",
+    "productLink": "https://item.jd.com/...",
+    "commissionRate": "4.8%",
+    "finalPrice": "480.95",
+    "storeName": "小白熊京东自营旗舰店"
+  },
   "mediaType": "导购媒体推广",
   "mediaName": "微信",
   "profileName": "common",
@@ -87,23 +96,36 @@
    - 点击 `搜索全部商品`。
    - 等待结果加载。
 7. 搜索后页面下滚，避免目标商品的 `我要推广` 按钮被遮挡。
-8. 判断搜索结果：
+8. 从唯一商品卡片提取商品信息并写入 `productInfo`：
+   - 商品图片 URL
+   - 商品名
+   - 商品链接
+   - 佣金比例
+   - 到手价
+   - 店铺名
+9. 判断搜索结果：
    - `所有结果 共0件商品` 或无结果文案：返回 `NOT_FOUND`。
    - 搜索结果数量大于 1：返回 `MULTIPLE_MATCHED`。
    - 唯一结果：继续。
-9. 点击目标商品区域内的 `我要推广`。
-10. 如果出现权益确认，点击 `已获取权益，继续推广` 或 `继续推广`。
-11. 在 `生成推广链接` 弹窗内：
+10. 点击目标商品区域内的 `我要推广`。
+11. 如果出现权益确认，点击 `已获取权益，继续推广` 或 `继续推广`。
+12. 在 `生成推广链接` 弹窗内：
     - 推广类型选择 `导购媒体推广`。
     - 点击 `所属导购媒体` 非原生下拉框。
     - 在下拉选项中点击 `微信`。
     - 投放推广位选择 `选择推广位`。
     - 点击 `推广位名称` 非原生下拉框。
     - 在下拉选项中点击入参 `adSiteName`，例如 `5`。
-12. 点击 `获取推广链接`。
-13. 等待推广链接生成。
-14. 点击 `复制`。
-15. 从弹窗输入框、文本区域或页面文本读取 `https://...` 链接，优先取 `优惠券链接`，再取普通 `推广链接`，写入 `promotionUrl`。
+13. 点击 `获取推广链接`。
+14. 等待推广链接生成。
+15. 点击 `复制`。
+16. 从弹窗输入框、文本区域或页面文本读取 `https://...` 链接，优先取 `优惠券链接`，再取普通 `推广链接`，写入 `promotionUrl`。
+
+## Debug 模式
+
+- `debugEnabled=true` 时，任务会在 `debugOutputDir/profileName/skuId-时间戳/` 下保存每个关键步骤的 `html` 快照。
+- 每个快照文件名包含步骤序号，便于按执行顺序排查。
+- 默认关闭，不影响正常抓取流程。
 
 ## 当前项目 Server 交互
 
@@ -200,6 +222,14 @@ Content-Type: application/json
     "taskType": "getPromotionUrl",
     "skuId": "100341910908",
     "adSiteName": "5",
+    "productInfo": {
+      "imageUrl": "https://...",
+      "productName": "...",
+      "productLink": "https://...",
+      "commissionRate": "4.8%",
+      "finalPrice": "480.95",
+      "storeName": "..."
+    },
     "promotionUrl": "https://u.jd.com/f6FcZZw",
     "fingerprintPassed": true,
     "loginRequired": false
