@@ -716,7 +716,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     private void navigate(String url) {
         page.navigate(url, new Page.NavigateOptions()
                 .setTimeout(config.getPageLoadTimeoutSeconds() * 1000D)
-                .setWaitUntil(WaitUntilState.LOAD));
+                .setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
         activeFrame = null;
     }
 

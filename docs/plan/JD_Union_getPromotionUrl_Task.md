@@ -7,6 +7,92 @@
 - 运行前置：每次抓取前先通过 `https://bot.sannysoft.com/` 指纹检测。
 - 浏览器：仅使用本机 Chrome + Playwright，持久化 profile，优先模拟真实人工操作，不追求并发效率。
 
+## 订单任务：getPromotionOrders
+
+- 任务名：`getPromotionOrders`
+- 初始页：`https://union.jd.com/entire`
+- 登录页前缀：`https://union.jd.com/index?returnUrl=`
+- 业务页面：`https://union.jd.com/order`
+- 前置流程：复用公共 Sannysoft 检测与人工登录接管，默认等待配置仍来自 `app.custom.jdUnion`。
+
+### 入参
+
+请求对象：`JdUnionPromotionOrdersRequest`
+
+| 字段 | 必填 | 说明 | 示例 |
+| --- | --- | --- | --- |
+| `startTime` | 是 | 开始时间，格式 `yyyy-MM-dd`，要求 `startTime <= endTime` | `2026-04-15` |
+| `endTime` | 是 | 结束时间，格式 `yyyy-MM-dd` | `2026-05-08` |
+| `profileName` | 否 | Chrome profile 名称，默认 `common` | `common` |
+| `forcePreflight` | 否 | 是否强制每次先跑 Sannysoft，默认使用配置 | `true` |
+| `keepBrowserOpenOnLoginRequired` | 否 | 未登录时是否保留浏览器给人工接管 | `true` |
+| `outputPath` | 否 | 结果 JSONL 写出路径 | `D:/app-crawler/data/jd-union/output.jsonl` |
+| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照 | `true` |
+| `debugOutputDir` | 否 | debug 输出目录 | `D:/app-crawler/data/jd-union/debug` |
+
+最小入参：
+
+```json
+{
+  "startTime": "2026-04-15",
+  "endTime": "2026-05-08"
+}
+```
+
+### 出参
+
+返回对象：`JdUnionPromotionOrdersResult`
+
+| 字段 | 说明 |
+| --- | --- |
+| `status` | `SUCCESS` 表示成功，其它值表示失败原因 |
+| `taskType` | 固定为 `getPromotionOrders` |
+| `startTime` / `endTime` | 查询时间范围 |
+| `orders` | 订单数组，无订单时为空数组 |
+| `loginRequired` | 是否需要人工登录 |
+| `fingerprintPassed` | Sannysoft 是否通过 |
+| `diagnostics` | 页码、数量、debug 目录等诊断信息 |
+
+`orders` 每项字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `orderStatus` | 订单状态 |
+| `time` | 时间 |
+| `estimatedBillingAmount` | 预估计佣金额 |
+| `estimatedCommission` | 预估佣金 |
+| `commissionRate` | 佣金比例 |
+| `shareRate` | 分成比例 |
+| `actualBillingAmount` | 实际计佣金额 |
+| `actualCommission` | 实际佣金 |
+| `quantity` | 数量 |
+| `promotionInfo` | 推广信息 |
+| `orderType` | 订单类型 |
+
+### 页面流程
+
+1. 进入 `https://union.jd.com/entire`，必要时等待人工登录。
+2. 点击左侧菜单 `订单明细`，再点击 `推客推广订单明细`；如果页面结构变化导致菜单不可用，兜底进入 `https://union.jd.com/order`。
+3. 点击 `时间范围` 后面的非原生日期范围组件。
+4. 按入参月份调整弹框月份：左侧月份对齐 `startTime`，点击左侧日期；如果 `endTime` 与左侧同月则继续点左侧日期，否则调整右侧月份后点击右侧日期。
+5. 点击 `查找订单`。
+6. 抓取当前页订单表格；如果 `下一页` 可点击则翻页继续抓取，直到下一页不可点击。
+
+### HTTP 调用
+
+```http
+POST /custom/jd-union/getPromotionOrders
+Content-Type: application/json
+```
+
+```json
+{
+  "startTime": "2026-04-15",
+  "endTime": "2026-05-08",
+  "debugEnabled": true
+}
+```
+
 ## 入参
 
 请求对象：`JdUnionPromotionRequest`

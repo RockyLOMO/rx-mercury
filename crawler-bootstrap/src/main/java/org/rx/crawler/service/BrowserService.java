@@ -7,7 +7,7 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.net.rpc.Remoting;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 
 import static org.rx.core.Extends.quietly;
 

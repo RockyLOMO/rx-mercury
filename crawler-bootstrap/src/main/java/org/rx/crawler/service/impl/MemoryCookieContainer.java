@@ -5,7 +5,6 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.HttpUrl;
 import org.rx.bean.FlagsEnum;
 import org.rx.core.Arrays;
 import org.rx.core.Linq;
@@ -17,8 +16,8 @@ import org.rx.crawler.service.CookieContainer;
 import org.rx.net.http.HttpClient;
 import org.springframework.service.SpringContext;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.net.*;
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,8 +46,8 @@ public class MemoryCookieContainer implements CookieContainer {
 //                reqUrl = request.getRequestURL().toString();
 //        response.addHeader("P3P", "CP='CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR'");
         String rawCookie;
-        HttpUrl reqHttpUrl = HttpUrl.get(regionUrl);
-        List<javax.servlet.http.Cookie> servletCookies = Arrays.toList(ifNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
+        String cookieDomain = CookieContainer.getCookieDomain(regionUrl);
+        List<jakarta.servlet.http.Cookie> servletCookies = Arrays.toList(ifNull(request.getCookies(), new jakarta.servlet.http.Cookie[0]));
         switch (action) {
             case "loadTo":
                 rawCookie = get(regionUrl);
@@ -57,16 +56,16 @@ public class MemoryCookieContainer implements CookieContainer {
                     log.info("load cookie from url={}[{}]\n{}", regionUrl, flags.name(), rawCookie);
                     for (HttpCookie cookie : HttpCookie.parse("set-cookie2:" + rawCookie)) {
                         quietly(() -> {
-                            javax.servlet.http.Cookie reqCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.getName()));
+                            jakarta.servlet.http.Cookie reqCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.getName()));
                             if (reqCookie == null) {
-                                reqCookie = new javax.servlet.http.Cookie(cookie.getName(), cookie.getValue());
+                                reqCookie = new jakarta.servlet.http.Cookie(cookie.getName(), cookie.getValue());
                             } else {
                                 servletCookies.remove(reqCookie);
                             }
                             copy(cookie, reqCookie);
                             reqCookie.setPath("/");
                             if (flags.has(RegionFlags.DOMAIN_TOP)) {
-                                reqCookie.setDomain(reqHttpUrl.topPrivateDomain());
+                                reqCookie.setDomain(cookieDomain);
                                 log.debug("set cookie {} with domain={}", reqCookie.getName(), reqCookie.getDomain());
                             }
                             if (flags.has(RegionFlags.HTTP_ONLY)) {
@@ -76,18 +75,18 @@ public class MemoryCookieContainer implements CookieContainer {
                         });
                     }
                 }
-                for (javax.servlet.http.Cookie c : servletCookies) {
-                    delCookie(response, c, reqHttpUrl.topPrivateDomain());
+                for (jakarta.servlet.http.Cookie c : servletCookies) {
+                    delCookie(response, c, cookieDomain);
                 }
                 break;
             case "syncFrom":
                 rawCookie = request.getHeader(HttpHeaders.COOKIE);
-                log.debug("save cookie url={}\n{}\n", reqHttpUrl, rawCookie);
-                save(reqHttpUrl.toString(), rawCookie);
+                log.debug("save cookie url={}\n{}\n", regionUrl, rawCookie);
+                save(regionUrl, rawCookie);
                 break;
             case "clearCookie":
-                for (javax.servlet.http.Cookie servletCookie : servletCookies) {
-                    delCookie(response, servletCookie, reqHttpUrl.topPrivateDomain());
+                for (jakarta.servlet.http.Cookie servletCookie : servletCookies) {
+                    delCookie(response, servletCookie, cookieDomain);
                 }
                 break;
         }
@@ -99,13 +98,13 @@ public class MemoryCookieContainer implements CookieContainer {
         return String.format("redirect:%s", HttpClient.buildUrl(request.getRequestURL().toString(), params));
     }
 
-    private void delCookie(HttpServletResponse response, javax.servlet.http.Cookie c, String domain) {
+    private void delCookie(HttpServletResponse response, jakarta.servlet.http.Cookie c, String domain) {
         c.setValue("");
         c.setPath("/");
         c.setMaxAge(0);
         response.addCookie(c);
 
-        javax.servlet.http.Cookie dc = new javax.servlet.http.Cookie(c.getName(), "");
+        jakarta.servlet.http.Cookie dc = new jakarta.servlet.http.Cookie(c.getName(), "");
         dc.setDomain(domain);
         dc.setPath("/");
         dc.setMaxAge(0);
@@ -179,7 +178,7 @@ public class MemoryCookieContainer implements CookieContainer {
         return String.join("; ", cookies);
     }
 
-    void copy(HttpCookie a, javax.servlet.http.Cookie b) {
+    void copy(HttpCookie a, jakarta.servlet.http.Cookie b) {
         String domain = a.getDomain();
         if (domain != null) {
             b.setDomain(Strings.removeStart(domain, "."));

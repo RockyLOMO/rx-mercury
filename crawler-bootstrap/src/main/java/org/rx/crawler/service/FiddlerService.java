@@ -13,7 +13,7 @@ import org.rx.io.Files;
 import org.rx.net.rpc.Remoting;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.io.File;
 
 @RequiredArgsConstructor

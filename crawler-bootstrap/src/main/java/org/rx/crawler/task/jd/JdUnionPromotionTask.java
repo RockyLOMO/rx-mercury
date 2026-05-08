@@ -27,17 +27,20 @@ import org.rx.net.transport.TcpServer;
 import org.rx.util.BeanMapper;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -53,8 +56,10 @@ import static org.rx.core.Extends.tryClose;
 @RequiredArgsConstructor
 public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionRequest, JdUnionPromotionResult>, JdUnionCrawlContract {
     private static final String TASK_TYPE = "getPromotionUrl";
+    private static final String ORDERS_TASK_TYPE = "getPromotionOrders";
     private static final Pattern SEARCH_RESULT_COUNT_PATTERN = Pattern.compile("所有结果\\s*共\\s*(\\d+)\\s*件商品");
     private static final DateTimeFormatter DEBUG_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final AppConfig appConfig;
     private final BrowserProfileManager profileManager;
@@ -99,6 +104,16 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return result;
     }
 
+    @Override
+    public JdUnionPromotionOrdersResult getPromotionOrders(JdUnionPromotionOrdersRequest request) {
+        JdUnionPromotionOrdersResult result = executeOrdersInternal(request);
+        try {
+            publishEvent(EVENT_PROMOTION_ORDERS_RESULT, RemotingEventArgs.direct(result));
+        } catch (Exception e) {
+            log.debug("Ignore direct event publish outside remoting context: {}", e.getMessage());
+        }
+        return result;
+    }
 
     @Override
     public JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request) {
@@ -124,6 +139,47 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return results;
     }
 
+    private JdUnionPromotionOrdersResult executeOrdersInternal(JdUnionPromotionOrdersRequest rawRequest) {
+        JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
+        JdUnionPromotionOrdersRequest request = normalizeOrdersRequest(rawRequest, jdConfig);
+        JdUnionPromotionOrdersResult result = createOrdersResult(request);
+        JdUnionPromotionRequest debugRequest = toDebugRequest(request);
+        DebugRecorder debug = new DebugRecorder(debugRequest, jdConfig, objectMapper, ORDERS_TASK_TYPE);
+        if (debug.enabled()) {
+            result.getDiagnostics().put("debugEnabled", true);
+            result.getDiagnostics().put("debugOutputDir", debug.getTaskDir().toString());
+        }
+        BrowserProfileManager.ProfileLease lease = null;
+        try {
+            lease = profileManager.acquire(request.getProfileName(), createBrowserConfig(debugRequest, jdConfig));
+            Browser browser = lease.getBrowser();
+            maximizeBrowser(browser);
+
+            CrawlEntryResult entry = entryService.enter(browser, lease, createEntryOptions(debugRequest, jdConfig, jdConfig.getEntireUrl()));
+            applyEntryResult(result, entry);
+            debug.snapshot(browser, "01-entry");
+            if (!entry.isPassed()) {
+                debug.snapshotText("01-entry-failed", result.getMessage());
+                return result;
+            }
+            runOrdersFlow(browser, request, jdConfig, result, debug);
+            return result;
+        } catch (TimeoutException e) {
+            fail(result, CustomCrawlStatus.TIMEOUT, e.getMessage());
+            debug.snapshotText("99-timeout", result.getMessage());
+            return result;
+        } catch (Exception e) {
+            log.warn("JD union promotion orders fail, startTime={}, endTime={}, profile={}, error={}",
+                    request.getStartTime(), request.getEndTime(), request.getProfileName(), e.getMessage(), e);
+            fail(result, CustomCrawlStatus.FAILED, e.getMessage());
+            debug.snapshotText("99-failed", result.getMessage());
+            return result;
+        } finally {
+            resultWriter.appendJsonLine(request.getOutputPath(), result);
+            tryClose(lease);
+        }
+    }
+
     private JdUnionPromotionResult executeInternal(JdUnionPromotionRequest rawRequest, boolean doPromotion) {
         JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
         JdUnionPromotionRequest request = normalizeRequest(rawRequest, jdConfig);
@@ -137,11 +193,13 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         try {
             lease = profileManager.acquire(request.getProfileName(), createBrowserConfig(request, jdConfig));
             Browser browser = lease.getBrowser();
+            maximizeBrowser(browser);
 
             CrawlEntryResult entry = entryService.enter(browser, lease, createEntryOptions(request, jdConfig));
             applyEntryResult(result, entry);
             debug.snapshot(browser, "01-entry");
             if (!entry.isPassed()) {
+                debug.snapshotText("01-entry-failed", result.getMessage());
                 return result;
             }
             if (!doPromotion) {
@@ -153,11 +211,13 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             return result;
         } catch (TimeoutException e) {
             fail(result, CustomCrawlStatus.TIMEOUT, e.getMessage());
+            debug.snapshotText("99-timeout", result.getMessage());
             return result;
         } catch (Exception e) {
             log.warn("JD union promotion fail, skuId={}, profile={}, error={}",
                     request.getSkuId(), request.getProfileName(), e.getMessage(), e);
             fail(result, CustomCrawlStatus.FAILED, e.getMessage());
+            debug.snapshotText("99-failed", result.getMessage());
             return result;
         } finally {
             resultWriter.appendJsonLine(request.getOutputPath(), result);
@@ -166,6 +226,10 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config) {
+        return createEntryOptions(request, config, config.getOverviewUrl());
+    }
+
+    private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config, String initialUrl) {
         CrawlEntryOptions options = new CrawlEntryOptions();
         options.setProfileName(request.getProfileName());
         options.setPreflightEnabled(config.isPreflightEnabled());
@@ -173,7 +237,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         options.setPreflightStrict(config.isPreflightStrict());
         options.setPreflightCacheMinutes(config.getPreflightCacheMinutes());
         options.setForcePreflight(request.getForcePreflight() == null ? config.isForcePreflight() : request.getForcePreflight());
-        options.setInitialUrl(config.getOverviewUrl());
+        options.setInitialUrl(Strings.isEmpty(initialUrl) ? config.getOverviewUrl() : initialUrl);
         options.setLoginUrlPrefix(config.getLoginUrlPrefix());
         options.setInitialPageTimeoutSeconds(config.getInitialPageTimeoutSeconds());
         options.setLoginWaitSeconds(config.getLoginWaitSeconds());
@@ -184,11 +248,21 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         options.setLoginRequiredUrlMatcher(url -> isLoginRequired(url, config));
         options.setLoggedInUrlMatcher(url -> isLoggedInUrl(url) || isOverviewUrl(url, config));
         options.setLoggedInBodyMatcher(body -> !containsAny(body, "登录", "扫码", "验证码")
-                && containsAny(body, "京东联盟", "我要推广", "推广管理", "商品"));
+                && containsAny(body, "京东联盟", "我要推广", "推广管理", "商品", "订单"));
         return options;
     }
 
     private void applyEntryResult(JdUnionPromotionResult result, CrawlEntryResult entry) {
+        result.setFingerprintPassed(entry.isFingerprintPassed());
+        result.setCurrentUrl(entry.getCurrentUrl());
+        result.setLoginRequired(entry.isLoginRequired());
+        result.getDiagnostics().putAll(entry.getDiagnostics());
+        if (!entry.isPassed()) {
+            fail(result, entry.getStatus(), entry.getMessage());
+        }
+    }
+
+    private void applyEntryResult(JdUnionPromotionOrdersResult result, CrawlEntryResult entry) {
         result.setFingerprintPassed(entry.isFingerprintPassed());
         result.setCurrentUrl(entry.getCurrentUrl());
         result.setLoginRequired(entry.isLoginRequired());
@@ -333,6 +407,395 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         debug.snapshot(browser, "14-promotion-link-ready");
     }
 
+    private void runOrdersFlow(Browser browser, JdUnionPromotionOrdersRequest request, JdUnionConfig config,
+            JdUnionPromotionOrdersResult result, DebugRecorder debug) throws TimeoutException {
+        maximizeBrowser(browser);
+        if (!enterOrderPage(browser, config, result, debug)) {
+            return;
+        }
+        collapseMessageNotice(browser, config);
+        debug.snapshot(browser, "02-order-page-ready");
+
+        LocalDate startDate = LocalDate.parse(request.getStartTime(), DATE_FORMATTER);
+        LocalDate endDate = LocalDate.parse(request.getEndTime(), DATE_FORMATTER);
+        if (!selectOrderDateRange(browser, startDate, endDate, config)) {
+            fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union order date range picker not found");
+            result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "03-date-range-missing");
+            return;
+        }
+        collapseMessageNotice(browser, config);
+        debug.snapshot(browser, "03-date-range-selected");
+
+        if (!nativeClickOrderSearchButton(browser)) {
+            fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union order search button not found");
+            result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "04-search-button-missing");
+            return;
+        }
+        Extends.sleep(config.getStepDelayMillis() * 2L);
+        scrollOrderPageBottom(browser, config);
+        debug.snapshot(browser, "04-search-clicked");
+
+        List<JdUnionPromotionOrderItem> orders = new ArrayList<JdUnionPromotionOrderItem>();
+        for (int pageNo = 1; pageNo <= 200; pageNo++) {
+            scrollOrderPageBottom(browser, config);
+            List<JdUnionPromotionOrderItem> pageOrders = readOrderRows(browser);
+            orders.addAll(pageOrders);
+            result.getDiagnostics().put("lastPageNo", pageNo);
+            result.getDiagnostics().put("lastPageSize", pageOrders.size());
+            debug.snapshot(browser, String.format("05-page-%03d-collected", pageNo));
+            scrollOrderPageBottom(browser, config);
+            if (!hasNextOrderPage(browser)) {
+                break;
+            }
+            if (!nativeClickNextOrderPage(browser)) {
+                break;
+            }
+            Extends.sleep(config.getStepDelayMillis() * 2L);
+        }
+
+        result.setOrders(orders);
+        result.setStatus(CustomCrawlStatus.SUCCESS);
+        result.setMessage("");
+        result.getDiagnostics().put("orderCount", orders.size());
+    }
+
+    private void maximizeBrowser(Browser browser) {
+        try {
+            browser.maximize();
+            browser.focus();
+        } catch (Exception e) {
+            log.debug("Maximize browser window ignored, error={}", e.getMessage());
+        }
+    }
+
+    private void scrollOrderPageBottom(Browser browser, JdUnionConfig config) {
+        for (int i = 0; i < 3; i++) {
+            browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                    "function canScroll(e){return e&&e.scrollHeight&&e.clientHeight&&e.scrollHeight>e.clientHeight+8;}" +
+                    "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                    "var roots=[document.scrollingElement,document.documentElement,document.body];" +
+                    "Array.prototype.slice.call(document.querySelectorAll('*')).forEach(function(e){if(canScroll(e)){roots.push(e);}});" +
+                    "roots.forEach(function(e){try{e.scrollTop=e.scrollHeight;}catch(ex){}});" +
+                    "window.scrollTo(0,Math.max(document.body.scrollHeight,document.documentElement.scrollHeight));" +
+                    "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,li,span,div'));" +
+                    "var target=null;for(var j=nodes.length-1;j>=0;j--){var e=nodes[j],t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title);" +
+                    "if(visible(e)&&(t==='下一页'||t.indexOf('下一页')>=0)){target=e.closest('button,a,li,.pagination-wrap')||e;break;}}" +
+                    "if(target){var p=target.parentElement;while(p){try{if(canScroll(p)){p.scrollTop=p.scrollHeight;}}catch(ex){}p=p.parentElement;}" +
+                    "target.scrollIntoView({block:'center',inline:'center'});}");
+            Extends.sleep(Math.max(300, config.getStepDelayMillis()));
+        }
+    }
+
+    private boolean enterOrderPage(Browser browser, JdUnionConfig config, JdUnionPromotionOrdersResult result,
+            DebugRecorder debug) throws TimeoutException {
+        browser.navigateUrl(config.getEntireUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
+        Extends.sleep(config.getStepDelayMillis());
+        result.setCurrentUrl(browser.getCurrentUrl());
+        debug.snapshot(browser, "00-entire-loaded");
+        if (isLoginRequired(result.getCurrentUrl(), config)) {
+            fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
+                    "JD Union login expired before entering entire page. Finish login in the opened Chrome profile, then retry.");
+            debug.snapshot(browser, "00-entire-login-required");
+            return false;
+        }
+
+        if (nativeClickByText(browser, "订单明细", true) || clickByText(browser, "订单明细", false)) {
+            Extends.sleep(config.getStepDelayMillis());
+            debug.snapshot(browser, "00-order-menu-opened");
+            if (nativeClickByText(browser, "推客推广订单明细", true) || clickByText(browser, "推客推广订单明细", false)) {
+                Extends.sleep(config.getStepDelayMillis() * 2L);
+            }
+        }
+        if (!waitOrderPageReady(browser, config)) {
+            browser.navigateUrl(config.getOrderUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
+            Extends.sleep(config.getStepDelayMillis() * 2L);
+        }
+        result.setCurrentUrl(browser.getCurrentUrl());
+        if (isLoginRequired(result.getCurrentUrl(), config)) {
+            fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
+                    "JD Union login expired before entering order page. Finish login in the opened Chrome profile, then retry.");
+            debug.snapshot(browser, "00-order-login-required");
+            return false;
+        }
+        if (waitOrderPageReady(browser, config)) {
+            return true;
+        }
+        fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promotion order page not found");
+        result.getDiagnostics().put("body", bodySnippet(browser));
+        debug.snapshot(browser, "00-order-page-not-found");
+        return false;
+    }
+
+    private boolean waitOrderPageReady(Browser browser, JdUnionConfig config) {
+        long deadline = System.currentTimeMillis() + Math.max(1, config.getInitialPageTimeoutSeconds()) * 1000L;
+        while (System.currentTimeMillis() < deadline) {
+            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            String body = bodySnippet(browser);
+            if (containsAny(body, "时间范围", "查找订单", "订单状态", "预估佣金", "推客推广订单明细")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean selectOrderDateRange(Browser browser, LocalDate startDate, LocalDate endDate, JdUnionConfig config) {
+        if (!nativeClickOrderDateRange(browser)) {
+            return false;
+        }
+        Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+        YearMonth startMonth = YearMonth.from(startDate);
+        YearMonth endMonth = YearMonth.from(endDate);
+        boolean startMonthReady = false;
+        for (int i = 0; i < 36; i++) {
+            List<String> months = readDatePickerMonths(browser);
+            if (months.isEmpty()) {
+                return false;
+            }
+            if (startMonth.equals(parseYearMonthText(months.get(0)))) {
+                startMonthReady = true;
+                break;
+            }
+            YearMonth left = parseYearMonthText(months.get(0));
+            boolean clicked;
+            if (left != null && left.isAfter(startMonth)) {
+                clicked = nativeClickDatePickerNav(browser, false);
+            } else {
+                clicked = nativeClickDatePickerNav(browser, true);
+            }
+            if (!clicked) {
+                return false;
+            }
+            Extends.sleep(config.getStepDelayMillis());
+        }
+        if (!startMonthReady) {
+            return false;
+        }
+        if (!nativeClickDateInPicker(browser, startDate, true)) {
+            return false;
+        }
+        Extends.sleep(config.getStepDelayMillis());
+        List<String> months = readDatePickerMonths(browser);
+        YearMonth left = months.isEmpty() ? null : parseYearMonthText(months.get(0));
+        if (endMonth.equals(left)) {
+            return nativeClickDateInPicker(browser, endDate, true);
+        }
+        boolean endMonthReady = false;
+        for (int i = 0; i < 36; i++) {
+            months = readDatePickerMonths(browser);
+            if (months.isEmpty()) {
+                return false;
+            }
+            YearMonth right = months.size() > 1 ? parseYearMonthText(months.get(1)) : null;
+            if (endMonth.equals(right)) {
+                endMonthReady = true;
+                break;
+            }
+            boolean clicked;
+            if (right != null && right.isAfter(endMonth)) {
+                clicked = nativeClickDatePickerNav(browser, false);
+            } else {
+                clicked = nativeClickDatePickerNav(browser, true);
+            }
+            if (!clicked) {
+                return false;
+            }
+            Extends.sleep(config.getStepDelayMillis());
+        }
+        if (!endMonthReady) {
+            return false;
+        }
+        return nativeClickDateInPicker(browser, endDate, false);
+    }
+
+    private void collapseMessageNotice(Browser browser, JdUnionConfig config) {
+        Boolean clicked = browser.executeScript("function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "var pops=Array.prototype.slice.call(document.querySelectorAll('.popover-msg-pop,.el-popover'));" +
+                "for(var i=0;i<pops.length;i++){var pop=pops[i];if(!visible(pop)||norm(pop.innerText).indexOf('消息公告')<0){continue;}" +
+                "var nodes=Array.prototype.slice.call(pop.querySelectorAll('button,a,span,div'));" +
+                "for(var j=0;j<nodes.length;j++){var e=nodes[j];if(visible(e)&&norm(e.innerText||e.textContent)==='收起'){e.click();return true;}}" +
+                "}" +
+                "return false;");
+        if (Boolean.TRUE.equals(clicked)) {
+            Extends.sleep(Math.max(300, config.getStepDelayMillis()));
+        }
+    }
+
+    private boolean nativeClickOrderDateRange(Browser browser) {
+        String selector = "[data-rx-jd-order-date-range='1']";
+        Boolean marked = browser.executeScript("var attr='data-rx-jd-order-date-range';" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}" +
+                "function rect(el){return el.getBoundingClientRect();}" +
+                "var labels=Array.prototype.slice.call(document.querySelectorAll('label,span,div,p'));" +
+                "var label=null;for(var i=0;i<labels.length;i++){var t=norm(labels[i].innerText||labels[i].textContent);" +
+                "if(visible(labels[i])&&t.indexOf('时间范围')>=0&&t.length<=10){label=labels[i];break;}}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('input,.el-date-editor,.ant-picker,.date-picker,[role=\"combobox\"]'));" +
+                "var best=null,bestScore=999999;" +
+                "for(var j=0;j<nodes.length;j++){var e=nodes[j];if(!visible(e)){continue;}var meta=norm(e.innerText||e.value||e.getAttribute('placeholder')||e.className||'');" +
+                "var er=rect(e),score=999999;if(label){var lr=rect(label),dy=Math.abs((er.top+er.bottom)/2-(lr.top+lr.bottom)/2),dx=er.left-lr.right;if(dx>=-30&&dy<60){score=dy*20+Math.max(0,dx)+er.width/10;}}" +
+                "if(score===999999&&(/日期|时间|开始|结束|date|range/i).test(meta)){score=er.top+er.left/10;}" +
+                "if(score<bestScore){best=e;bestScore=score;}}" +
+                "if(!best){return false;}var target=best.closest('.el-date-editor,.ant-picker,[role=\"combobox\"]')||best;" +
+                "target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;");
+        if (!Boolean.TRUE.equals(marked)) {
+            return false;
+        }
+        try {
+            browser.elementClick(selector, false);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private List<String> readDatePickerMonths(Browser browser) {
+        List<String> months = browser.executeScript("function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "var picker=Array.prototype.slice.call(document.querySelectorAll('.el-date-range-picker,.ant-picker-dropdown')).filter(visible)[0];" +
+                "if(!picker){return [];}" +
+                "var nodes=Array.prototype.slice.call(picker.querySelectorAll('.el-date-range-picker__header div,.ant-picker-header-view'));" +
+                "var items=[];for(var i=0;i<nodes.length;i++){var e=nodes[i],t=norm(e.innerText||e.textContent);" +
+                "if(visible(e)&&/^\\d{4}年\\d{1,2}月$/.test(t)){var r=e.getBoundingClientRect();items.push({text:t,top:r.top,left:r.left});}}" +
+                "items.sort(function(a,b){return Math.abs(a.top-b.top)>20?a.top-b.top:a.left-b.left;});" +
+                "var out=[];for(var j=0;j<items.length;j++){if(out.indexOf(items[j].text)<0){out.push(items[j].text);}}" +
+                "return out;");
+        return months == null ? Collections.emptyList() : months;
+    }
+
+    private YearMonth parseYearMonthText(String text) {
+        if (Strings.isEmpty(text)) {
+            return null;
+        }
+        Matcher matcher = Pattern.compile("(\\d{4})年(\\d{1,2})月").matcher(text);
+        if (!matcher.find()) {
+            return null;
+        }
+        return YearMonth.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+    }
+
+    private boolean nativeClickDatePickerNav(Browser browser, boolean next) {
+        String selector = "[data-rx-jd-picker-nav='1']";
+        Boolean marked = browser.executeScript("var next=arguments[0],attr='data-rx-jd-picker-nav';" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
+                "var picker=Array.prototype.slice.call(document.querySelectorAll('.el-date-range-picker,.ant-picker-dropdown')).filter(visible)[0];" +
+                "if(!picker){return false;}" +
+                "var nodes=next?picker.querySelectorAll('.el-icon-arrow-right,.ant-picker-header-next-btn'):picker.querySelectorAll('.el-icon-arrow-left,.ant-picker-header-prev-btn');" +
+                "var best=null,bestScore=999999;" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var r=e.getBoundingClientRect();" +
+                "var score=next?(window.innerWidth-r.left):r.left;if(score<bestScore){best=e;bestScore=score;}}" +
+                "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});return true;", next);
+        if (!Boolean.TRUE.equals(marked)) {
+            return false;
+        }
+        try {
+            browser.elementClick(selector, false);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean nativeClickDateInPicker(Browser browser, LocalDate date, boolean leftPanel) {
+        String selector = "[data-rx-jd-picker-day='1']";
+        Boolean marked = browser.executeScript("var day=String(arguments[0]),leftPanel=arguments[1],attr='data-rx-jd-picker-day';" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
+                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "function badClass(el){var c=((el.className||'')+'').toLowerCase();return /disabled|prev-month|next-month|off/.test(c);}" +
+                "var picker=Array.prototype.slice.call(document.querySelectorAll('.el-date-range-picker,.ant-picker-dropdown')).filter(visible)[0];" +
+                "if(!picker){return false;}" +
+                "var panel=picker.querySelector(leftPanel?'.el-date-range-picker__content.is-left':'.el-date-range-picker__content.is-right')||picker;" +
+                "var cells=Array.prototype.slice.call(panel.querySelectorAll('td,button,span,div'));" +
+                "var candidates=[];for(var i=0;i<cells.length;i++){var e=cells[i];if(!visible(e)||badClass(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label'));" +
+                "if(t!==day){continue;}var r=e.getBoundingClientRect();if(r.width>80||r.height>80||r.top<80){continue;}candidates.push({el:e,left:r.left,top:r.top,area:r.width*r.height});}" +
+                "if(candidates.length===0){return false;}candidates.sort(function(a,b){return leftPanel?(a.left-b.left):(b.left-a.left);});" +
+                "var target=candidates[0].el.closest('td,button')||candidates[0].el;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;", date.getDayOfMonth(), leftPanel);
+        if (!Boolean.TRUE.equals(marked)) {
+            return false;
+        }
+        try {
+            browser.elementClick(selector, false);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean nativeClickOrderSearchButton(Browser browser) {
+        return nativeClickByText(browser, "查找订单", true) || clickByText(browser, "查询", true) || clickByText(browser, "搜索", true);
+    }
+
+    private List<JdUnionPromotionOrderItem> readOrderRows(Browser browser) {
+        List<Map<String, Object>> rows = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function cellText(el){return norm(el.innerText||el.textContent||el.value||'');}" +
+                "var tables=Array.prototype.slice.call(document.querySelectorAll('table'));" +
+                "var best=null,bestScore=-1;for(var i=0;i<tables.length;i++){var t=tables[i];if(!visible(t)){continue;}var tx=cellText(t),score=0;" +
+                "['订单状态','预估计佣金额','预估佣金','佣金比例','分成比例','实际计佣金额','实际佣金','推广信息','订单类型'].forEach(function(k){if(tx.indexOf(k)>=0){score++;}});" +
+                "if(score>bestScore){best=t;bestScore=score;}}" +
+                "if(!best||bestScore<=0){return [];}" +
+                "var headers=Array.prototype.slice.call(best.querySelectorAll('thead th')).map(cellText);" +
+                "var trs=Array.prototype.slice.call(best.querySelectorAll('tbody tr')).filter(visible);" +
+                "function get(cells,names){for(var n=0;n<names.length;n++){for(var h=0;h<headers.length;h++){if(headers[h].indexOf(names[n])>=0&&cells[h]){return cellText(cells[h]);}}}return '';}" +
+                "var out=[];for(var r=0;r<trs.length;r++){var cells=Array.prototype.slice.call(trs[r].querySelectorAll('td')).filter(visible);if(cells.length===0){continue;}" +
+                "var all=cellText(trs[r]);if(!all||all.indexOf('暂无')>=0||all.indexOf('没有')>=0){continue;}" +
+                "out.push({orderStatus:get(cells,['订单状态','状态']),time:get(cells,['时间','下单时间','订单时间']),estimatedBillingAmount:get(cells,['预估计佣金额'])," +
+                "estimatedCommission:get(cells,['预估佣金']),commissionRate:get(cells,['佣金比例']),shareRate:get(cells,['分成比例']),actualBillingAmount:get(cells,['实际计佣金额'])," +
+                "actualCommission:get(cells,['实际佣金']),quantity:get(cells,['数量']),promotionInfo:get(cells,['推广信息']),orderType:get(cells,['订单类型'])});}" +
+                "return out;");
+        if (rows == null || rows.isEmpty()) {
+            return new ArrayList<JdUnionPromotionOrderItem>();
+        }
+        List<JdUnionPromotionOrderItem> items = new ArrayList<JdUnionPromotionOrderItem>();
+        for (Map<String, Object> row : rows) {
+            items.add(objectMapper.convertValue(row, JdUnionPromotionOrderItem.class));
+        }
+        return items;
+    }
+
+    private boolean hasNextOrderPage(Browser browser) {
+        Boolean ok = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|stop-prev-next|is-disabled/.test(c);}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,li,span,div'));" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title);" +
+                "var c=((e.className||'')+'').toLowerCase();if(t==='下一页'||/next/.test(c)||/下一页/.test(t)){var target=e.closest('button,a,li')||e;if(!disabled(target)&&!disabled(e)){return true;}}}" +
+                "return false;");
+        return Boolean.TRUE.equals(ok);
+    }
+
+    private boolean nativeClickNextOrderPage(Browser browser) {
+        String selector = "[data-rx-jd-next-page='1']";
+        Boolean marked = browser.executeScript("var attr='data-rx-jd-next-page';" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|stop-prev-next|is-disabled/.test(c);}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,li,span,div'));" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title);" +
+                "var c=((e.className||'')+'').toLowerCase();if(t==='下一页'||/next/.test(c)||/下一页/.test(t)){var target=e.closest('button,a,li')||e;if(!disabled(target)&&!disabled(e)){target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}}" +
+                "return false;");
+        if (!Boolean.TRUE.equals(marked)) {
+            return false;
+        }
+        try {
+            browser.elementClick(selector, false);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private boolean enterPromotionWorkbench(Browser browser, JdUnionConfig config, JdUnionPromotionResult result,
             DebugRecorder debug)
             throws TimeoutException {
@@ -435,6 +898,38 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return request;
     }
 
+    private JdUnionPromotionOrdersRequest normalizeOrdersRequest(JdUnionPromotionOrdersRequest request, JdUnionConfig config) {
+        if (request == null) {
+            request = new JdUnionPromotionOrdersRequest();
+        }
+        if (Strings.isEmpty(request.getProfileName())) {
+            request.setProfileName(Strings.isEmpty(config.getProfileName()) ? profileManager.defaultProfileName() : config.getProfileName());
+        }
+        request.setProfileName(profileManager.normalizeProfileName(request.getProfileName()));
+        if (Strings.isEmpty(request.getOutputPath())) {
+            request.setOutputPath(config.getDefaultOutputPath());
+        }
+        LocalDate startDate = LocalDate.parse(request.getStartTime(), DATE_FORMATTER);
+        LocalDate endDate = LocalDate.parse(request.getEndTime(), DATE_FORMATTER);
+        if (startDate.isAfter(endDate)) {
+            throw new InvalidException("startTime must be less than or equal to endTime");
+        }
+        return request;
+    }
+
+    private JdUnionPromotionRequest toDebugRequest(JdUnionPromotionOrdersRequest request) {
+        JdUnionPromotionRequest debugRequest = new JdUnionPromotionRequest();
+        debugRequest.setSkuId("orders-" + request.getStartTime() + "-" + request.getEndTime());
+        debugRequest.setAdSiteName("0");
+        debugRequest.setProfileName(request.getProfileName());
+        debugRequest.setForcePreflight(request.getForcePreflight());
+        debugRequest.setKeepBrowserOpenOnLoginRequired(request.getKeepBrowserOpenOnLoginRequired());
+        debugRequest.setOutputPath(request.getOutputPath());
+        debugRequest.setDebugEnabled(request.getDebugEnabled());
+        debugRequest.setDebugOutputDir(request.getDebugOutputDir());
+        return debugRequest;
+    }
+
     private JdUnionPromotionResult createResult(JdUnionPromotionRequest request) {
         JdUnionPromotionResult result = new JdUnionPromotionResult();
         result.setTaskType(TASK_TYPE);
@@ -443,6 +938,16 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         result.setAdSiteName(request.getAdSiteName());
         result.setMediaType(request.getMediaType());
         result.setMediaName(request.getMediaName());
+        result.setProfileName(request.getProfileName());
+        return result;
+    }
+
+    private JdUnionPromotionOrdersResult createOrdersResult(JdUnionPromotionOrdersRequest request) {
+        JdUnionPromotionOrdersResult result = new JdUnionPromotionOrdersResult();
+        result.setTaskType(ORDERS_TASK_TYPE);
+        result.setStatus(CustomCrawlStatus.FAILED);
+        result.setStartTime(request.getStartTime());
+        result.setEndTime(request.getEndTime());
         result.setProfileName(request.getProfileName());
         return result;
     }
@@ -463,6 +968,8 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
         String lower = currentUrl.toLowerCase(Locale.ROOT);
         return lower.contains("union.jd.com/overview")
+                || lower.contains("union.jd.com/entire")
+                || lower.contains("union.jd.com/order")
                 || lower.contains("union.jd.com/promanager")
                 || lower.contains("union.jd.com/manager");
     }
@@ -502,6 +1009,11 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     private void fail(JdUnionPromotionResult result, CustomCrawlStatus status, String message) {
+        result.setStatus(status);
+        result.setMessage(message == null ? "" : message);
+    }
+
+    private void fail(JdUnionPromotionOrdersResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
     }
@@ -1108,7 +1620,22 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     private String bodySnippet(Browser browser) {
-        String body = browser.executeScript("return document.body ? document.body.innerText : '';");
+        String body = "";
+        for (int i = 0; i < 3; i++) {
+            try {
+                body = browser.executeScript("return document.body ? document.body.innerText : '';");
+                break;
+            } catch (Exception e) {
+                String message = e.getMessage();
+                if (message != null && (message.contains("Execution context was destroyed") || message.contains("because of a navigation"))) {
+                    log.debug("Read JD union body while navigating, retry={}", i + 1);
+                    Extends.sleep(500L * (i + 1));
+                    continue;
+                }
+                log.warn("Read JD union body fail, currentUrl={}, error={}", browser.getCurrentUrl(), message);
+                return "";
+            }
+        }
         if (Strings.isEmpty(body) || body.length() <= 2000) {
             return body;
         }
@@ -1145,6 +1672,10 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         private int stepIndex;
 
         private DebugRecorder(JdUnionPromotionRequest request, JdUnionConfig config, ObjectMapper objectMapper) {
+            this(request, config, objectMapper, TASK_TYPE);
+        }
+
+        private DebugRecorder(JdUnionPromotionRequest request, JdUnionConfig config, ObjectMapper objectMapper, String taskType) {
             this.enabled = isDebugEnabled(request, config);
             if (!enabled) {
                 this.taskDir = null;
@@ -1158,7 +1689,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             try {
                 Files.createDirectories(this.taskDir);
                 Files.writeString(this.taskDir.resolve("_task.txt"),
-                        "taskType=" + TASK_TYPE + System.lineSeparator()
+                        "taskType=" + taskType + System.lineSeparator()
                                 + "profileName=" + profileName + System.lineSeparator()
                                 + "skuId=" + skuId + System.lineSeparator(),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
@@ -1190,6 +1721,27 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             } catch (Exception e) {
                 log.warn("JD union debug snapshot fail, step={}, error={}", step, e.getMessage(), e);
             }
+        }
+
+        private void snapshotText(String step, String text) {
+            if (!enabled || taskDir == null) {
+                return;
+            }
+            String safeStep = step == null ? "step" : step.replaceAll("[^a-zA-Z0-9._-]+", "_");
+            int index = ++stepIndex;
+            String body = text == null ? "" : text;
+            try {
+                Path file = taskDir.resolve(String.format("%02d_%s.html", index, safeStep));
+                Files.writeString(file, "<html><body><pre>" + escapeHtml(body) + "</pre></body></html>",
+                        StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE);
+            } catch (Exception e) {
+                log.warn("JD union debug text snapshot fail, step={}, error={}", step, e.getMessage(), e);
+            }
+        }
+
+        private String escapeHtml(String value) {
+            return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         }
     }
 }

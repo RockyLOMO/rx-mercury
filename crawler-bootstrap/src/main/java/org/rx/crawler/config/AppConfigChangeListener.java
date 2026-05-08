@@ -10,7 +10,7 @@ import org.springframework.service.RWebConfig;
 import org.springframework.service.SpringContext;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 
 import static org.rx.core.Sys.toJsonString;
 

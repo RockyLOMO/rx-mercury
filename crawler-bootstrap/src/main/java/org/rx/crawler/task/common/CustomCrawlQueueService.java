@@ -8,14 +8,16 @@ import org.rx.core.Strings;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionRequest;
+import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
+import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -74,6 +76,11 @@ public class CustomCrawlQueueService {
         return waitResult(taskId, resultType);
     }
 
+    public JdUnionPromotionOrdersResult submitAndWaitOrders(String action, JdUnionPromotionOrdersRequest request) {
+        long taskId = enqueue(action, request, 0);
+        return waitResult(taskId, JdUnionPromotionOrdersResult.class);
+    }
+
     public List<JdUnionPromotionResult> batch(JdUnionBatchRequest request) {
         List<JdUnionPromotionRequest> items = loadBatchItems(request);
         List<JdUnionPromotionResult> results = new ArrayList<JdUnionPromotionResult>();
@@ -90,7 +97,7 @@ public class CustomCrawlQueueService {
         return jdUnionPromotionTask.closeProfile(profileName);
     }
 
-    private long enqueue(String action, JdUnionPromotionRequest request, int priority) {
+    private long enqueue(String action, Object request, int priority) {
         try {
             String requestJson = objectMapper.writeValueAsString(request);
             Timestamp now = new Timestamp(System.currentTimeMillis());
@@ -108,17 +115,13 @@ public class CustomCrawlQueueService {
         }
     }
 
-    private JdUnionPromotionResult waitResult(long taskId, Class<JdUnionPromotionResult> resultType) {
+    private <T> T waitResult(long taskId, Class<T> resultType) {
         long deadline = System.currentTimeMillis() + java.util.concurrent.TimeUnit.SECONDS.toMillis(appConfig.getCustom().getQueueTimeoutSeconds());
         while (System.currentTimeMillis() <= deadline) {
             TaskSnapshot snapshot = loadSnapshot(taskId);
             if (snapshot != null && snapshot.isFinished()) {
                 if (snapshot.status == CustomTaskQueueStatus.FAILED) {
-                    JdUnionPromotionResult result = new JdUnionPromotionResult();
-                    result.setTaskType(snapshot.action);
-                    result.setStatus(CustomCrawlStatus.FAILED);
-                    result.setMessage(snapshot.errorMessage);
-                    return result;
+                    return failedResult(snapshot, resultType);
                 }
                 try {
                     return objectMapper.readValue(snapshot.resultJson, resultType);
@@ -130,6 +133,21 @@ public class CustomCrawlQueueService {
             dispatch();
         }
         throw new IllegalStateException("Queued custom crawl task timeout, taskId=" + taskId);
+    }
+
+    private <T> T failedResult(TaskSnapshot snapshot, Class<T> resultType) {
+        if (JdUnionPromotionOrdersResult.class.equals(resultType)) {
+            JdUnionPromotionOrdersResult result = new JdUnionPromotionOrdersResult();
+            result.setTaskType(snapshot.action);
+            result.setStatus(CustomCrawlStatus.FAILED);
+            result.setMessage(snapshot.errorMessage);
+            return resultType.cast(result);
+        }
+        JdUnionPromotionResult result = new JdUnionPromotionResult();
+        result.setTaskType(snapshot.action);
+        result.setStatus(CustomCrawlStatus.FAILED);
+        result.setMessage(snapshot.errorMessage);
+        return resultType.cast(result);
     }
 
     private void dispatch() {
@@ -187,11 +205,15 @@ public class CustomCrawlQueueService {
 
     private void execute(TaskSnapshot snapshot) {
         try {
-            JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
-            JdUnionPromotionResult result;
+            Object result;
             if ("loginCheck".equals(snapshot.action)) {
+                JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
                 result = jdUnionPromotionTask.loginCheck(request);
+            } else if ("getPromotionOrders".equals(snapshot.action)) {
+                JdUnionPromotionOrdersRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionOrdersRequest.class);
+                result = jdUnionPromotionTask.getPromotionOrders(request);
             } else {
+                JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
                 result = jdUnionPromotionTask.getPromotionUrl(request);
             }
             jdbcTemplate.update("update " + TABLE_NAME + " set status=?, result_json=?, error_message=null, finished_at=current_timestamp, updated_at=current_timestamp where id=?",

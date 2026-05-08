@@ -1,17 +1,16 @@
 package org.rx.crawler.service;
 
 import lombok.NonNull;
-import okhttp3.HttpUrl;
+import com.google.common.net.InternetDomainName;
 import org.rx.bean.FlagsEnum;
 import org.rx.core.Strings;
 import org.rx.net.http.HttpClient;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
-
-import static org.rx.core.Extends.ifNull;
 
 public interface CookieContainer {
     String Selector = "#cookie", Region = "_Region";
@@ -34,8 +33,16 @@ public interface CookieContainer {
     }
 
     static String getCookieDomain(@NonNull String url) {
-        HttpUrl httpUrl = HttpUrl.get(url);
-        return ifNull(httpUrl.topPrivateDomain(), httpUrl.host());
+        String host = URI.create(url).getHost();
+        if (Strings.isEmpty(host)) {
+            return Strings.EMPTY;
+        }
+        try {
+            InternetDomainName domainName = InternetDomainName.from(host);
+            return domainName.isUnderPublicSuffix() ? domainName.topPrivateDomain().toString() : host;
+        } catch (Exception e) {
+            return host;
+        }
     }
 
     String handleWriteRequest(HttpServletRequest request, HttpServletResponse response);

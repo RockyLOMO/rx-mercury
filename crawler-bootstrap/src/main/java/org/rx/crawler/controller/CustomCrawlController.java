@@ -7,6 +7,8 @@ import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlQueueService;
 import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionRequest;
+import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
+import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import java.util.List;
 
 @Validated
@@ -31,6 +33,11 @@ public class CustomCrawlController {
         return wrap(result);
     }
 
+    @PostMapping("/jd-union/getPromotionOrders")
+    public Result<JdUnionPromotionOrdersResult> getPromotionOrders(@Valid @RequestBody JdUnionPromotionOrdersRequest request) {
+        JdUnionPromotionOrdersResult result = taskQueueService.submitAndWaitOrders("getPromotionOrders", request);
+        return wrap(result);
+    }
 
     @PostMapping("/jd-union/login/check")
     public Result<JdUnionPromotionResult> loginCheck(@RequestBody(required = false) JdUnionPromotionRequest request) {
@@ -51,6 +58,13 @@ public class CustomCrawlController {
     }
 
     private Result<JdUnionPromotionResult> wrap(JdUnionPromotionResult result) {
+        if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
+            return Result.success(result);
+        }
+        return Result.fail(result.getStatus().name(), result.getMessage(), result);
+    }
+
+    private Result<JdUnionPromotionOrdersResult> wrap(JdUnionPromotionOrdersResult result) {
         if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
             return Result.success(result);
         }

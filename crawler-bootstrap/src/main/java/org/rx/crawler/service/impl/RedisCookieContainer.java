@@ -4,8 +4,6 @@ import com.google.common.net.HttpHeaders;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Cookie;
-import okhttp3.HttpUrl;
 import org.rx.bean.FlagsEnum;
 import org.rx.core.Arrays;
 import org.rx.core.Linq;
@@ -18,8 +16,9 @@ import org.rx.net.http.HttpClient;
 import org.rx.redis.RedisCache;
 import org.springframework.service.SpringContext;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.HttpCookie;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,32 +42,32 @@ public class RedisCookieContainer implements CookieContainer {
 //                reqUrl = request.getRequestURL().toString();
 //        response.addHeader("P3P", "CP='CURa ADMa DEVa PSAo PSDo OUR BUS UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR'");
         String rawCookie;
-        HttpUrl reqHttpUrl = HttpUrl.get(regionUrl);
-        List<javax.servlet.http.Cookie> servletCookies = Arrays.toList(ifNull(request.getCookies(), new javax.servlet.http.Cookie[0]));
+        String cookieDomain = CookieContainer.getCookieDomain(regionUrl);
+        List<jakarta.servlet.http.Cookie> servletCookies = Arrays.toList(ifNull(request.getCookies(), new jakarta.servlet.http.Cookie[0]));
         switch (action) {
             case "loadTo":
                 rawCookie = get(regionUrl);
                 if (rawCookie != null) {
                     FlagsEnum<RegionFlags> flags = CookieContainer.getRegionFlags(regionUrl);
                     log.debug("load cookie from url={}[{}]\n{}", regionUrl, flags.name(), rawCookie);
-                    for (Cookie cookie : decodeCookies(reqHttpUrl, rawCookie)) {
+                    for (HttpCookie cookie : decodeCookies(cookieDomain, rawCookie)) {
                         quietly(() -> {
-                            javax.servlet.http.Cookie reqCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.name()));
+                            jakarta.servlet.http.Cookie reqCookie = Linq.from(servletCookies).firstOrDefault(p -> eq(p.getName(), cookie.getName()));
                             boolean isChange;
                             if (reqCookie == null) {
-                                reqCookie = new javax.servlet.http.Cookie(cookie.name(), cookie.value());
+                                reqCookie = new jakarta.servlet.http.Cookie(cookie.getName(), cookie.getValue());
                                 reqCookie.setPath("/");
                                 isChange = true;
                             } else {
-                                if (isChange = !Strings.equals(reqCookie.getValue(), cookie.value())) {
-                                    reqCookie.setValue(cookie.value());
+                                if (isChange = !Strings.equals(reqCookie.getValue(), cookie.getValue())) {
+                                    reqCookie.setValue(cookie.getValue());
                                 }
                                 servletCookies.remove(reqCookie);
                             }
                             if (isChange) {
-                                //request cookie 只有name和value
+                                // request cookie 只有 name 和 value，写回时按 region 补齐域名和 HttpOnly。
                                 if (flags.has(RegionFlags.DOMAIN_TOP)) {
-                                    reqCookie.setDomain(cookie.domain());
+                                    reqCookie.setDomain(cookie.getDomain());
                                     log.debug("set cookie {} with domain={}", reqCookie.getName(), reqCookie.getDomain());
                                 }
                                 if (flags.has(RegionFlags.HTTP_ONLY)) {
@@ -79,18 +78,18 @@ public class RedisCookieContainer implements CookieContainer {
                         });
                     }
                 }
-                for (javax.servlet.http.Cookie servletCookie : servletCookies) {
-                    delCookie(response, servletCookie, reqHttpUrl.topPrivateDomain());
+                for (jakarta.servlet.http.Cookie servletCookie : servletCookies) {
+                    delCookie(response, servletCookie, cookieDomain);
                 }
                 break;
             case "syncFrom":
                 rawCookie = request.getHeader(HttpHeaders.COOKIE);
-                log.debug("save cookie url={}\n{}\n", reqHttpUrl, rawCookie);
-                save(reqHttpUrl.toString(), rawCookie);
+                log.debug("save cookie url={}\n{}\n", regionUrl, rawCookie);
+                save(regionUrl, rawCookie);
                 break;
             case "clearCookie":
-                for (javax.servlet.http.Cookie servletCookie : servletCookies) {
-                    delCookie(response, servletCookie, reqHttpUrl.topPrivateDomain());
+                for (jakarta.servlet.http.Cookie servletCookie : servletCookies) {
+                    delCookie(response, servletCookie, cookieDomain);
                 }
                 break;
         }
@@ -102,20 +101,20 @@ public class RedisCookieContainer implements CookieContainer {
         return String.format("redirect:%s", HttpClient.buildUrl(request.getRequestURL().toString(), params));
     }
 
-    private void delCookie(HttpServletResponse response, javax.servlet.http.Cookie c, String domain) {
+    private void delCookie(HttpServletResponse response, jakarta.servlet.http.Cookie c, String domain) {
         c.setValue("");
         c.setPath("/");
         c.setMaxAge(0);
         response.addCookie(c);
 
-        javax.servlet.http.Cookie dc = new javax.servlet.http.Cookie(c.getName(), "");
+        jakarta.servlet.http.Cookie dc = new jakarta.servlet.http.Cookie(c.getName(), "");
         dc.setDomain(domain);
         dc.setPath("/");
         dc.setMaxAge(0);
         response.addCookie(dc);
     }
 
-    private List<Cookie> decodeCookies(HttpUrl url, String rawCookie) {
+    private List<HttpCookie> decodeCookies(String domain, String rawCookie) {
         if (Strings.isEmpty(rawCookie)) {
             return java.util.Collections.emptyList();
         }
@@ -125,12 +124,10 @@ public class RedisCookieContainer implements CookieContainer {
                     if (i <= 0) {
                         return null;
                     }
-                    return new Cookie.Builder()
-                            .name(p.substring(0, i).trim())
-                            .value(p.substring(i + 1).trim())
-                            .domain(url.host())
-                            .path("/")
-                            .build();
+                    HttpCookie cookie = new HttpCookie(p.substring(0, i).trim(), p.substring(i + 1).trim());
+                    cookie.setDomain(domain);
+                    cookie.setPath("/");
+                    return cookie;
                 })
                 .where(p -> p != null)
                 .toList();

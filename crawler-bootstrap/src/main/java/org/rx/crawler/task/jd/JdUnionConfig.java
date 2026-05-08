@@ -15,6 +15,8 @@ public class JdUnionConfig {
     private boolean forcePreflight = true;
 
     private String overviewUrl = "https://union.jd.com/overview";
+    private String entireUrl = "https://union.jd.com/entire";
+    private String orderUrl = "https://union.jd.com/order";
     private String loginCheckUrl = "https://union.jd.com/overview";
     private String workbenchUrl = "https://union.jd.com/proManager/index?pageNo=1";
     private String loginUrlPrefix = "https://union.jd.com/index?returnUrl=";

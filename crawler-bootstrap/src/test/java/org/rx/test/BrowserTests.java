@@ -11,7 +11,7 @@ import org.rx.io.Files;
 import org.rx.net.http.HttpClient;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;

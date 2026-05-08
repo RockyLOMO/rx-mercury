@@ -9,13 +9,19 @@ import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.crawler.task.jd.JdUnionPromotionRequest;
+import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -58,6 +64,8 @@ public class JdUnionPromotionTaskTests {
         AppConfig config = new AppConfig();
 
         assertEquals("https://union.jd.com/overview", config.getCustom().getJdUnion().getOverviewUrl());
+        assertEquals("https://union.jd.com/entire", config.getCustom().getJdUnion().getEntireUrl());
+        assertEquals("https://union.jd.com/order", config.getCustom().getJdUnion().getOrderUrl());
         assertEquals("https://union.jd.com/overview", config.getCustom().getJdUnion().getLoginCheckUrl());
     }
 
@@ -85,6 +93,18 @@ public class JdUnionPromotionTaskTests {
         assertTrue((Boolean) isLoggedInUrl.invoke(task, "https://union.jd.com/overview"));
         assertTrue((Boolean) isLoggedInUrl.invoke(task, "https://union.jd.com/proManager/index?pageNo=1"));
         assertFalse((Boolean) isLoggedInUrl.invoke(task, "https://union.jd.com/index?returnUrl=abc"));
+    }
+
+    @Test
+    public void promotionOrdersTimeRangeShouldRequireStartBeforeEnd() {
+        JdUnionPromotionOrdersRequest request = new JdUnionPromotionOrdersRequest();
+        request.setStartTime("2026-04-15");
+        request.setEndTime("2026-05-08");
+        assertTrue(request.isTimeRangeValid());
+
+        request.setStartTime("2026-05-09");
+        request.setEndTime("2026-05-08");
+        assertFalse(request.isTimeRangeValid());
     }
 
     @Test
@@ -123,5 +143,43 @@ public class JdUnionPromotionTaskTests {
             return;
         }
         task.closeProfile(result.getProfileName());
+    }
+
+    @Test
+    public void jdUnionPromotionOrdersIntegrationShouldSaveReadableDebugSnapshot() throws Exception {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("jd.union.orders.integration", "false")));
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig config = new AppConfig();
+        config.getCustom().setRemotingEnabled(false);
+        config.getCustom().getChrome().setProfileBasePath(
+                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+        Path debugDir = Paths.get("target", "jd-union-debug").toAbsolutePath();
+        config.getCustom().getJdUnion().setDebugEnabled(true);
+        config.getCustom().getJdUnion().setDebugOutputDir(debugDir.toString());
+        config.getCustom().getJdUnion().setDefaultOutputPath(tempDir.resolve("jd-orders-output.jsonl").toString());
+        config.getCustom().getJdUnion().setForcePreflight(
+                Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.forcePreflight", "true")));
+        config.getCustom().getJdUnion().setPreflightEnabled(
+                Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.preflightEnabled", "true")));
+
+        JdUnionPromotionTask task = new JdUnionPromotionTask(config, new BrowserProfileManager(config),
+                new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
+        JdUnionPromotionOrdersRequest request = new JdUnionPromotionOrdersRequest();
+        request.setStartTime(System.getProperty("jd.union.orders.startTime", LocalDate.now().minusMonths(1).toString()));
+        request.setEndTime(System.getProperty("jd.union.orders.endTime", LocalDate.now().toString()));
+        request.setDebugEnabled(true);
+
+        Object result = task.getPromotionOrders(request);
+        System.out.println("JD_UNION_ORDERS_RESULT=" + objectMapper.writeValueAsString(result));
+
+        Optional<Path> snapshot = Files.walk(debugDir)
+                .filter(path -> path.getFileName().toString().endsWith(".html"))
+                .sorted(Comparator.comparing(Path::toString))
+                .findFirst();
+        assertTrue(snapshot.isPresent());
+        String html = new String(Files.readAllBytes(snapshot.get()), StandardCharsets.UTF_8);
+        assertTrue(html.contains("<html") || html.contains("<body") || html.contains("京东联盟"));
+        task.closeProfile(request.getProfileName());
     }
 }

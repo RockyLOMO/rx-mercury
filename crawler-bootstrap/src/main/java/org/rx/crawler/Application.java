@@ -11,7 +11,7 @@ import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactor
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.context.annotation.Bean;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 
 @SpringBootApplication(scanBasePackages = "org.rx")
 @EnableScheduling

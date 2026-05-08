@@ -78,6 +78,8 @@ app:
       preflightCacheMinutes: 30
       forcePreflight: true
       overviewUrl: https://union.jd.com/overview
+      entireUrl: https://union.jd.com/entire
+      orderUrl: https://union.jd.com/order
       loginCheckUrl: https://union.jd.com/overview
       workbenchUrl: https://union.jd.com/proManager/index?pageNo=1
       loginUrlPrefix: https://union.jd.com/index?returnUrl=

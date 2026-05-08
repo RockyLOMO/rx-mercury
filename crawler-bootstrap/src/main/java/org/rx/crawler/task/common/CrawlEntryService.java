@@ -107,7 +107,20 @@ public class CrawlEntryService {
     }
 
     private String bodySnippet(Browser browser) {
-        String body = browser.executeScript("return document.body ? document.body.innerText : '';");
+        String body = "";
+        for (int i = 0; i < 3; i++) {
+            try {
+                body = browser.executeScript("return document.body ? document.body.innerText : '';");
+                break;
+            } catch (Exception e) {
+                String message = e.getMessage();
+                if (message != null && (message.contains("Execution context was destroyed") || message.contains("because of a navigation"))) {
+                    Extends.sleep(500L * (i + 1));
+                    continue;
+                }
+                return "";
+            }
+        }
         if (Strings.isEmpty(body) || body.length() <= 2000) {
             return body;
         }
