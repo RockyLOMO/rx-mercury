@@ -15,7 +15,7 @@ spring:
   application:
     name: svc-mercury
   datasource:
-    url: jdbc:h2:file:${user.dir}/browser-task-db;MODE=MySQL;DATABASE_TO_UPPER=false;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:file:./browser-task-db;MODE=MySQL;DATABASE_TO_UPPER=false;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -30,7 +30,7 @@ app:
     ntp:
       enableFlags: 3
   storage:
-    h2DbPath: ${user.dir}/browser-cookie-db
+    h2DbPath: ./browser-cookie-db
   browser:
     windowRectangle: MAX
     fingerprintEnabled: false
