@@ -14,6 +14,8 @@
 - 登录页前缀：`https://union.jd.com/index?returnUrl=`
 - 业务页面：`https://union.jd.com/order`
 - 前置流程：复用公共 Sannysoft 检测与人工登录接管，默认等待配置仍来自 `app.custom.jdUnion`。
+- 调试开关：`debugEnabled` 已提升到全局 `app.custom.debugEnabled`，测试默认建议开启，便于读取 HTML 快照排查问题。
+- 任务超时：`app.custom.maxTaskMinutes` 默认 4 分钟，超时后返回 `TIMEOUT`。
 
 ### 入参
 
@@ -27,7 +29,7 @@
 | `forcePreflight` | 否 | 是否强制每次先跑 Sannysoft，默认使用配置 | `true` |
 | `keepBrowserOpenOnLoginRequired` | 否 | 未登录时是否保留浏览器给人工接管 | `true` |
 | `outputPath` | 否 | 结果 JSONL 写出路径 | `D:/app-crawler/data/jd-union/output.jsonl` |
-| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照 | `true` |
+| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照，未传时默认取 `app.custom.debugEnabled` | `true` |
 | `debugOutputDir` | 否 | debug 输出目录 | `D:/app-crawler/data/jd-union/debug` |
 
 最小入参：
@@ -76,7 +78,7 @@
 3. 点击 `时间范围` 后面的非原生日期范围组件。
 4. 按入参月份调整弹框月份：左侧月份对齐 `startTime`，点击左侧日期；如果 `endTime` 与左侧同月则继续点左侧日期，否则调整右侧月份后点击右侧日期。
 5. 点击 `查找订单`。
-6. 抓取当前页订单表格；如果 `下一页` 可点击则翻页继续抓取，直到下一页不可点击。
+6. 抓取当前页订单表格，优先读取 `outerHTML` 并解析；如果 `下一页` 可点击则翻页继续抓取，直到下一页不可点击。
 
 ### HTTP 调用
 
@@ -210,6 +212,7 @@ Content-Type: application/json
 ## Debug 模式
 
 - `debugEnabled=true` 时，任务会在 `debugOutputDir/profileName/skuId-时间戳/` 下保存每个关键步骤的 `html` 快照。
+- 全局默认开关来自 `app.custom.debugEnabled`，请求里的 `debugEnabled` 只作为显式覆盖。
 - 每个快照文件名包含步骤序号，便于按执行顺序排查。
 - 默认关闭，不影响正常抓取流程。
 

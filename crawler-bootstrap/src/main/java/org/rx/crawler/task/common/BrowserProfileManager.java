@@ -76,10 +76,20 @@ public class BrowserProfileManager {
                 browser = new WebBrowser(config, BrowserType.CHROME);
                 log.info("Open chrome profile {} at {}", normalized, config.getProfileDataPath());
             }
+            maximize(browser);
             return new ProfileLease(normalized, lock, browser, fromSession);
         } catch (RuntimeException e) {
             lock.unlock();
             throw e;
+        }
+    }
+
+    private void maximize(WebBrowser browser) {
+        try {
+            browser.maximize();
+            browser.focus();
+        } catch (Exception e) {
+            log.debug("Maximize chrome profile ignored, error={}", e.getMessage());
         }
     }
 

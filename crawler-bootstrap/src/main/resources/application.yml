@@ -30,17 +30,7 @@ app:
     ntp:
       enableFlags: 3
   browser:
-    listenPort: 1210
-    maintenancePeriod: 10000
-    maxActiveMinutes: 4
-    dumpPeriod: 6000
-    takeTimeoutSeconds: 6
-    remotingPortRange: 1220-1320
-    poolSize: 1
-    windowAutoBlank: true
-
-    #    diskDataPath: /app-crawler/data/chrome%s/
-    windowRectangle: "600,500,800,600"
+    windowRectangle: MAX
     cookieContainerType: org.rx.crawler.service.impl.MemoryCookieContainer
     fingerprintEnabled: false
     fingerprintScriptPath: /bot/chrome-fingerprint.js
@@ -65,6 +55,8 @@ app:
     remotingListenPort: 1211
     queueMaxConcurrency: 1
     queueTimeoutSeconds: 600
+    debugEnabled: false
+    maxTaskMinutes: 4
     chrome:
       profileBasePath: D:/app-crawler/data/chrome
       defaultProfileName: common
@@ -92,5 +84,4 @@ app:
       keepBrowserOpenSecondsOnLoginRequired: 180
       loginWaitSeconds: 180
       defaultOutputPath: D:/app-crawler/data/jd-union/output.jsonl
-      debugEnabled: false
       debugOutputDir: D:/app-crawler/data/jd-union/debug

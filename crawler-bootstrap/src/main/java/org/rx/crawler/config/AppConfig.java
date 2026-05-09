@@ -48,7 +48,6 @@ public class AppConfig {
         private int pageLoadTimeoutSeconds = 30;
         private int findElementTimeoutSeconds = 6;
         private boolean headless = true;
-        private String diskDataPath;
         private String profileDataPath;
         private String downloadPath = "/app-crawler/temp/";
         private BrowserWindowRect windowRectangle;
@@ -89,6 +88,8 @@ public class AppConfig {
         private int remotingListenPort = 1211;
         private int queueMaxConcurrency = 1;
         private int queueTimeoutSeconds = 600;
+        private boolean debugEnabled = true;
+        private int maxTaskMinutes = 4;
         private ChromeProfileConfig chrome = new ChromeProfileConfig();
         private JdUnionConfig jdUnion = new JdUnionConfig();
     }
@@ -111,6 +112,9 @@ public class AppConfig {
         public BrowserWindowRect convert(String windowRectangle) {
             if (Strings.isEmpty(windowRectangle)) {
                 return null;
+            }
+            if ("MAX".equalsIgnoreCase(windowRectangle.trim()) || "MAXIMIZED".equalsIgnoreCase(windowRectangle.trim())) {
+                return new BrowserWindowRect(0, 0, -1, -1);
             }
             List<Integer> list = Linq.from(windowRectangle.split(",")).select(p -> Integer.valueOf(p)).toList();
             return new BrowserWindowRect(list.get(0), list.get(1), list.get(2), list.get(3));

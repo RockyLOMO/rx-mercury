@@ -10,7 +10,6 @@ public class WebBrowserConfig {
     private int pageLoadTimeoutSeconds = 30;
     private int findElementTimeoutSeconds = 6;
     private boolean headless = true;
-    private String diskDataPath;
     private String profileDataPath;
     private String downloadPath;
     private BrowserWindowRect windowRectangle;

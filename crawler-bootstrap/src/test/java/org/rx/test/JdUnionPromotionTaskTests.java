@@ -155,7 +155,7 @@ public class JdUnionPromotionTaskTests {
         config.getCustom().getChrome().setProfileBasePath(
                 System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
         Path debugDir = Paths.get("target", "jd-union-debug").toAbsolutePath();
-        config.getCustom().getJdUnion().setDebugEnabled(true);
+        config.getCustom().setDebugEnabled(true);
         config.getCustom().getJdUnion().setDebugOutputDir(debugDir.toString());
         config.getCustom().getJdUnion().setDefaultOutputPath(tempDir.resolve("jd-orders-output.jsonl").toString());
         config.getCustom().getJdUnion().setForcePreflight(
@@ -168,7 +168,6 @@ public class JdUnionPromotionTaskTests {
         JdUnionPromotionOrdersRequest request = new JdUnionPromotionOrdersRequest();
         request.setStartTime(System.getProperty("jd.union.orders.startTime", LocalDate.now().minusMonths(1).toString()));
         request.setEndTime(System.getProperty("jd.union.orders.endTime", LocalDate.now().toString()));
-        request.setDebugEnabled(true);
 
         Object result = task.getPromotionOrders(request);
         System.out.println("JD_UNION_ORDERS_RESULT=" + objectMapper.writeValueAsString(result));

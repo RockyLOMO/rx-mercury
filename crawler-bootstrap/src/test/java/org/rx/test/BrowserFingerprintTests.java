@@ -45,7 +45,7 @@ public class BrowserFingerprintTests {
         config.setCookieContainer(new MemoryCookieContainer());
         config.setConfigureScriptExecutorType(ApiConfigureScriptExecutor.class.getName());
         config.setDownloadPath(System.getProperty("app.browser.downloadPath", "D:/app-crawler/temp/"));
-        config.setDiskDataPath(System.getProperty("app.browser.diskDataPath", "D:/app-crawler/data/chrome%s/"));
+        config.setProfileDataPath(System.getProperty("app.browser.profileDataPath", "D:/app-crawler/data/chrome/profile"));
         config.setWindowRectangle(new BrowserWindowRect(0, 0, 900, 1365));
 
         WebBrowser browser = new WebBrowser(config, BrowserType.CHROME);

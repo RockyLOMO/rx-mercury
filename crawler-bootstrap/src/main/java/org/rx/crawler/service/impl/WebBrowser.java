@@ -1,5 +1,9 @@
 package org.rx.crawler.service.impl;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.microsoft.playwright.CDPSession;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.ElementHandle;
@@ -111,6 +115,10 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     public void setWindowRectangle(@NonNull BrowserWindowRect rectangle) {
         checkNotClosed();
 
+        if (isMaximized(rectangle)) {
+            maximize();
+            return;
+        }
         page.setViewportSize(rectangle.getWidth(), rectangle.getHeight());
         Map<String, Object> rect = new LinkedHashMap<String, Object>();
         rect.put("x", rectangle.getX());
@@ -138,6 +146,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         playwright = Playwright.create(new Playwright.CreateOptions().setEnv(env));
 
+        BrowserWindowRect rect = config.getWindowRectangle();
+        boolean maximized = isMaximized(rect);
         BrowserType.LaunchPersistentContextOptions options = new BrowserType.LaunchPersistentContextOptions()
                 .setHeadless(isHeadless())
                 .setAcceptDownloads(true)
@@ -145,8 +155,9 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 .setLocale(ifNull(config.getLocale(), "zh-CN"))
                 .setTimezoneId(ifNull(config.getTimezoneId(), "Asia/Shanghai"))
                 .setArgs(buildChromeArgs());
-        BrowserWindowRect rect = config.getWindowRectangle();
-        if (rect != null) {
+        if (maximized) {
+            options.setViewportSize((ViewportSize) null);
+        } else if (rect != null) {
             options.setViewportSize(rect.getWidth(), rect.getHeight());
             options.setScreenSize(rect.getWidth(), rect.getHeight());
         }
@@ -183,6 +194,9 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         } else {
             setCurrentPage(pages.get(0));
         }
+        if (maximized) {
+            maximize();
+        }
         log.info("Playwright chrome started, profile={}, channel={}, headless={}, humanInput={}",
                 userDataPath, config.getPlaywrightChannel(), isHeadless(), config.isHumanInputEnabled());
     }
@@ -195,10 +209,17 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         args.add("--disable-infobars");
         args.add("--disable-features=Translate,OptimizationHints");
         args.add("--autoplay-policy=document-user-activation-required");
+        if (isMaximized(config.getWindowRectangle())) {
+            args.add("--start-maximized");
+        }
         if (!Strings.isEmpty(config.getLocale())) {
             args.add("--lang=" + config.getLocale());
         }
         return args;
+    }
+
+    private boolean isMaximized(BrowserWindowRect rect) {
+        return rect != null && rect.getWidth() <= 0 && rect.getHeight() <= 0;
     }
 
     private void registerFingerprintScripts() {
@@ -240,14 +261,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             return profileDataPath;
         }
 
-        String diskDataPath = config.getDiskDataPath();
-        String dataDir;
         int id = chromeIdCounter.getAndIncrement();
-        if (!Strings.isEmpty(diskDataPath)) {
-            dataDir = diskDataPath.contains("%s") ? String.format(diskDataPath, id) : diskDataPath;
-        } else {
-            dataDir = Paths.get(System.getProperty("java.io.tmpdir"), "rx-mercury-playwright", String.valueOf(id)).toString();
-        }
+        String dataDir = Paths.get(System.getProperty("java.io.tmpdir"), "rx-mercury-playwright", String.valueOf(id)).toString();
         Files.createDirectory(dataDir);
         return dataDir;
     }
@@ -640,10 +655,114 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     public synchronized void maximize() {
         checkNotClosed();
 
-        Map<String, Object> size = executeScript("return {width: window.screen.availWidth || 1365, height: window.screen.availHeight || 768};");
+        Map<String, Object> size = executeScript("return {" +
+                "width: Math.max(window.screen && window.screen.availWidth || 0, window.outerWidth || 0, window.innerWidth || 0, 1365)," +
+                "height: Math.max(window.screen && window.screen.availHeight || 0, window.innerHeight || 0, 768)" +
+                "};");
         int width = toInt(size.get("width"), 1365);
         int height = toInt(size.get("height"), 768);
-        page.setViewportSize(width, height);
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        if (maximizeByCdp(width, height)) {
+            return;
+        }
+        try {
+            Map<String, Object> rect = new LinkedHashMap<String, Object>();
+            rect.put("width", width);
+            rect.put("height", height);
+            page.evaluate("size => { try { window.moveTo(0, 0); window.resizeTo(size.width, size.height); } catch (e) {} }", rect);
+        } catch (Exception e) {
+            log.debug("Playwright browser maximize fallback ignored, error={}", e.getMessage());
+        }
+    }
+
+    private boolean maximizeByCdp(int width, int height) {
+        if (context == null || context.browser() == null || !context.browser().isConnected() || page == null) {
+            return false;
+        }
+
+        CDPSession session = null;
+        try {
+            session = context.browser().newBrowserCDPSession();
+            String targetId = resolveCurrentTargetId(session);
+            if (Strings.isEmpty(targetId)) {
+                return false;
+            }
+
+            JsonObject windowArgs = new JsonObject();
+            windowArgs.addProperty("targetId", targetId);
+            JsonObject window = session.send("Browser.getWindowForTarget", windowArgs);
+            if (window == null || !window.has("windowId")) {
+                return false;
+            }
+
+            JsonObject bounds = new JsonObject();
+            bounds.addProperty("windowState", "normal");
+            bounds.addProperty("left", 0);
+            bounds.addProperty("top", 0);
+            bounds.addProperty("width", width);
+            bounds.addProperty("height", height);
+            JsonObject normalArgs = new JsonObject();
+            normalArgs.addProperty("windowId", window.get("windowId").getAsInt());
+            normalArgs.add("bounds", bounds);
+            session.send("Browser.setWindowBounds", normalArgs);
+
+            bounds = new JsonObject();
+            bounds.addProperty("windowState", "maximized");
+            JsonObject args = new JsonObject();
+            args.addProperty("windowId", window.get("windowId").getAsInt());
+            args.add("bounds", bounds);
+            session.send("Browser.setWindowBounds", args);
+            return true;
+        } catch (Exception e) {
+            log.debug("Browser CDP maximize ignored, error={}", e.getMessage());
+            return false;
+        } finally {
+            if (session != null) {
+                try {
+                    session.detach();
+                } catch (Exception e) {
+                    log.debug("Ignore browser CDP session detach fail: {}", e.getMessage());
+                }
+            }
+        }
+    }
+
+    private String resolveCurrentTargetId(CDPSession session) {
+        try {
+            JsonObject targets = session.send("Target.getTargets");
+            if (targets == null || !targets.has("targetInfos")) {
+                return null;
+            }
+
+            String currentUrl = page == null ? "" : page.url();
+            String firstPageTargetId = null;
+            JsonArray targetInfos = targets.getAsJsonArray("targetInfos");
+            for (JsonElement element : targetInfos) {
+                JsonObject info = element.getAsJsonObject();
+                if (!info.has("type") || !"page".equals(info.get("type").getAsString()) || !info.has("targetId")) {
+                    continue;
+                }
+
+                String targetId = info.get("targetId").getAsString();
+                if (Strings.isEmpty(firstPageTargetId)) {
+                    firstPageTargetId = targetId;
+                }
+
+                String url = info.has("url") ? info.get("url").getAsString() : "";
+                if (Strings.isEmpty(currentUrl) || Strings.isEmpty(url)) {
+                    continue;
+                }
+                if (currentUrl.equals(url) || currentUrl.startsWith(url) || url.startsWith(currentUrl)) {
+                    return targetId;
+                }
+            }
+            return firstPageTargetId;
+        } catch (Exception e) {
+            log.debug("Resolve browser target id fail, error={}", e.getMessage());
+            return null;
+        }
     }
 
     public synchronized void normalize() {

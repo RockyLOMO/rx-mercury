@@ -30,6 +30,5 @@ public class JdUnionConfig {
     private int keepBrowserOpenSecondsOnLoginRequired = 180;
     private int loginWaitSeconds = 180;
     private String defaultOutputPath = "D:/app-crawler/data/jd-union/output.jsonl";
-    private boolean debugEnabled = false;
     private String debugOutputDir = "D:/app-crawler/data/jd-union/debug";
 }
