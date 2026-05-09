@@ -46,8 +46,6 @@ jobs:
       - name: Copy JAR to context root
         run: |
           cp -f ${{ env.APP_JAR_PATH }} ./app.jar.publish
-          cp jmx_prometheus_javaagent.jar ./
-          cp jmx_prometheus_config.yaml ./
           cp deploy/${{ env.REMOTE_DIR }}/start.bat ./
           cp deploy/${{ env.REMOTE_DIR }}/rollback.bat ./
 
