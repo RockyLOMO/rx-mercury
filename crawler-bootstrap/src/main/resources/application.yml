@@ -30,7 +30,7 @@ app:
     ntp:
       enableFlags: 3
   storage:
-    h2DbPath: ./browser-cookie-db
+    h2DbPath: ./browser-task-db
   browser:
     windowRectangle: MAX
     fingerprintEnabled: false
