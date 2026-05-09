@@ -21,6 +21,6 @@ public class BrowserService {
 
     @PostConstruct
     public void init() {
-        quietly(() -> Remoting.register(pool = new BrowserPool(config.getBrowser()), pool.conf.getListenPort(), false));
+        pool = new BrowserPool(config.getBrowser());
     }
 }

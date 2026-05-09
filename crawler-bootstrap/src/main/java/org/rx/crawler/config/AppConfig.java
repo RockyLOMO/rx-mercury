@@ -34,7 +34,6 @@ public class AppConfig {
 
     @Data
     public static class BrowserPoolConfig {
-        private int listenPort;
         private long maintenancePeriod;
         private int maxActiveMinutes;
         private long dumpPeriod;
