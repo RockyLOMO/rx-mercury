@@ -256,7 +256,26 @@ Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
 
 ## Remoting Client 调用
 
-客户端复用当前工程的 RPC 依赖和契约类：
+客户端复用独立的 JD Union API jar 和 RPC 依赖：
+
+`crawler-api` 模块提供：
+
+- `org.rx.crawler.task.jd.JdUnionCrawlContract`
+- `org.rx.crawler.task.jd.JdUnionPromotionRequest`
+- `org.rx.crawler.task.jd.JdUnionPromotionResult`
+- `org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest`
+- `org.rx.crawler.task.jd.JdUnionPromotionOrdersResult`
+- `org.rx.crawler.task.jd.JdUnionBatchRequest`
+
+外部项目可直接依赖：
+
+```xml
+<dependency>
+    <groupId>org.rx</groupId>
+    <artifactId>crawler-api</artifactId>
+    <version>1.0</version>
+</dependency>
+```
 
 ```java
 import org.rx.crawler.task.jd.JdUnionCrawlContract;
