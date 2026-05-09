@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Cache;
 import org.rx.core.Strings;
 import org.rx.crawler.config.AppConfig;
-import org.rx.crawler.service.BrowserService;
+import org.rx.net.http.HttpClientCookieJar;
 import org.rx.net.http.HttpClient;
 import org.rx.redis.RedisCache;
 import org.springframework.stereotype.Controller;
@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.net.URI;
 import java.util.Map;
 
 import static org.rx.core.Extends.ifNull;
@@ -26,7 +26,7 @@ import static org.rx.core.Sys.cacheKey;
 @Controller
 public class HomeController {
     private final RedisCache<String, String> cache;
-    final BrowserService browserService;
+    private final HttpClientCookieJar cookieJar;
 
     @RequestMapping("/pddName")
     @ResponseBody
@@ -44,29 +44,44 @@ public class HomeController {
     }
 
     @RequestMapping("/cookies.html")
-    public String cookies(String regionUrl, String action, String writeBack, Model model, HttpServletRequest request, HttpServletResponse response) {
-        boolean isWriteBack = !Strings.isEmpty(writeBack);
-        model.addAttribute("title", String.format("BrowserCallback%s", isWriteBack ? "-WriteBack" : ""));
+    public String cookies(String regionUrl, String action, String writeBack, Model model, HttpServletRequest request) {
+        model.addAttribute("title", "BrowserCallback");
         model.addAttribute("name", "王湵范");
 
-//        String reqUrl = request.getRequestURL().toString();
         String reqRawCookie = ifNull(request.getHeader(HttpHeaders.COOKIE), Strings.EMPTY);
+        String url = Strings.isEmpty(regionUrl) ? request.getRequestURL().toString() : regionUrl;
+        String jarRawCookie = Strings.EMPTY;
+        if (!Strings.isEmpty(url)) {
+            try {
+                jarRawCookie = ifNull(cookieJar.loadForRequest(URI.create(url)), Strings.EMPTY);
+            } catch (Exception e) {
+                log.warn("load jar cookie fail, url={}, error={}", url, e.getMessage());
+            }
+        }
         if (Strings.isEmpty(reqRawCookie)) {
-            log.info("{} doesn't have any cookies..", regionUrl);
+            log.info("{} doesn't have any cookies..", url);
         }
-        String k = cacheKey(regionUrl);
-        model.addAttribute("regionUrl", regionUrl);
+        String k = cacheKey(url);
+        model.addAttribute("regionUrl", url);
         model.addAttribute("action", action);
-        Cache<String, String> cache = Cache.getInstance();
-        if (isWriteBack) {
-            model.addAttribute("requestCookie", cache.get(k));
-            model.addAttribute("rawCookie", ifNull(browserService.getPool().getCookieContainer().get(regionUrl), Strings.EMPTY));
-        } else {
-            model.addAttribute("requestCookie", reqRawCookie);
-            cache.put(k, reqRawCookie);
-            return browserService.getPool().getCookieContainer().handleWriteRequest(request, response);
-        }
+        model.addAttribute("requestCookie", reqRawCookie);
+        model.addAttribute("rawCookie", jarRawCookie);
+        Cache.getInstance().put(k, reqRawCookie);
         return "cookies";
+    }
+
+    @RequestMapping("/cookies/raw")
+    @ResponseBody
+    public String cookiesRaw(String url) {
+        if (Strings.isEmpty(url)) {
+            return Strings.EMPTY;
+        }
+        try {
+            return ifNull(cookieJar.loadForRequest(URI.create(url)), Strings.EMPTY);
+        } catch (Exception e) {
+            log.warn("load raw cookie fail, url={}, error={}", url, e.getMessage());
+            return Strings.EMPTY;
+        }
     }
 
     @RequestMapping("/health")

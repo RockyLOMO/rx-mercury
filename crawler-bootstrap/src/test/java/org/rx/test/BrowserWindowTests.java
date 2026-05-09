@@ -7,9 +7,9 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.service.impl.ApiConfigureScriptExecutor;
-import org.rx.crawler.service.impl.MemoryCookieContainer;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
+import org.rx.net.http.HttpClientCookieJar;
 import org.rx.util.BeanMapper;
 
 import java.util.Map;
@@ -28,7 +28,7 @@ public class BrowserWindowTests {
         WebBrowserConfig config = BeanMapper.DEFAULT.map(appConfig.getBrowser(), WebBrowserConfig.class);
         config.setHeadless(false);
         config.setFingerprintEnabled(false);
-        config.setCookieContainer(new MemoryCookieContainer());
+        config.setCookieJar(HttpClientCookieJar.memory());
         config.setConfigureScriptExecutorType(ApiConfigureScriptExecutor.class.getName());
         config.setProfileDataPath(System.getProperty("browser.window.profileDataPath", "D:/app-crawler/data/chrome/window"));
         config.setDownloadPath(System.getProperty("browser.window.downloadPath", "D:/app-crawler/temp/"));

@@ -8,6 +8,7 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
+import org.rx.net.http.HttpClientCookieJar;
 import org.rx.util.BeanMapper;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -22,7 +23,7 @@ public class DevTest {
         WebBrowserConfig conf = BeanMapper.DEFAULT.map(config.getBrowser(), WebBrowserConfig.class);
         conf.setProfileDataPath(System.getProperty("browser.dev.profileDataPath", "D:/app-crawler/data/chrome/dev"));
         conf.setDownloadPath(conf.getDownloadPath());
-//        conf.setCookieContainer(new RedisCookieContainer());
+        conf.setCookieJar(HttpClientCookieJar.memory());
         conf.setConfigureScriptExecutorType(conf.getConfigureScriptExecutorType());
         log.info("loadConf {}", conf);
         return new WebBrowser(conf, type);

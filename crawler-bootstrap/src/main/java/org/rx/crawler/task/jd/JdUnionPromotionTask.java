@@ -10,12 +10,10 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.rx.core.Extends;
-import org.rx.core.Reflects;
 import org.rx.core.Strings;
 import org.rx.crawler.service.Browser;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.ApiConfigureScriptExecutor;
-import org.rx.crawler.service.impl.MemoryCookieContainer;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryOptions;
@@ -415,6 +413,11 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         result.setPromotionUrl(promotionUrl);
         result.setStatus(CustomCrawlStatus.SUCCESS);
         result.setMessage("");
+        try {
+            browser.saveCookies(false);
+        } catch (Exception e) {
+            log.warn("save promotion cookies fail, error={}", e.getMessage());
+        }
         debug.snapshot(browser, "14-promotion-link-ready");
     }
 
@@ -486,6 +489,11 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         result.setStatus(CustomCrawlStatus.SUCCESS);
         result.setMessage("");
         result.getDiagnostics().put("orderCount", orders.size());
+        try {
+            browser.saveCookies(false);
+        } catch (Exception e) {
+            log.warn("save promotion orders cookies fail, error={}", e.getMessage());
+        }
     }
 
     private List<JdUnionPromotionOrderItem> readOrderRowsByScrolling(Browser browser, JdUnionConfig config) throws TimeoutException {
@@ -1098,12 +1106,6 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         config.setFingerprintHeadless(jdConfig.isHeadless());
         if (Strings.isEmpty(config.getConfigureScriptExecutorType())) {
             config.setConfigureScriptExecutorType(ApiConfigureScriptExecutor.class.getName());
-        }
-        String cookieContainerType = appConfig.getBrowser().getCookieContainerType();
-        if (Strings.isEmpty(cookieContainerType)) {
-            config.setCookieContainer(new MemoryCookieContainer());
-        } else {
-            config.setCookieContainer(Reflects.newInstance(Class.forName(cookieContainerType)));
         }
         return config;
     }

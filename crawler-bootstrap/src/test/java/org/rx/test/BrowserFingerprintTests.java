@@ -7,9 +7,9 @@ import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.impl.ApiConfigureScriptExecutor;
-import org.rx.crawler.service.impl.MemoryCookieContainer;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
+import org.rx.net.http.HttpClientCookieJar;
 import org.rx.util.BeanMapper;
 
 import java.io.InputStream;
@@ -42,7 +42,7 @@ public class BrowserFingerprintTests {
         config.setFingerprintEnabled(true);
         config.setFingerprintDiagnostics(true);
         config.setFingerprintHeadless(Boolean.parseBoolean(System.getProperty("app.browser.fingerprintHeadless", "false")));
-        config.setCookieContainer(new MemoryCookieContainer());
+        config.setCookieJar(HttpClientCookieJar.memory());
         config.setConfigureScriptExecutorType(ApiConfigureScriptExecutor.class.getName());
         config.setDownloadPath(System.getProperty("app.browser.downloadPath", "D:/app-crawler/temp/"));
         config.setProfileDataPath(System.getProperty("app.browser.profileDataPath", "D:/app-crawler/data/chrome/profile"));

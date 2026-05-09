@@ -2,7 +2,7 @@ package org.rx.crawler.service.impl;
 
 import lombok.Data;
 import org.rx.crawler.dto.BrowserWindowRect;
-import org.rx.crawler.service.CookieContainer;
+import org.rx.net.http.HttpClientCookieJar;
 
 @Data
 public class WebBrowserConfig {
@@ -13,7 +13,6 @@ public class WebBrowserConfig {
     private String profileDataPath;
     private String downloadPath;
     private BrowserWindowRect windowRectangle;
-    private CookieContainer cookieContainer;
     private String configureScriptExecutorType;
     private boolean fingerprintEnabled = false;
     private String fingerprintScriptPath = "/bot/chrome-fingerprint.js";
@@ -34,4 +33,5 @@ public class WebBrowserConfig {
     private int mouseMoveMaxSteps = 56;
     private int typingMinDelayMillis = 90;
     private int typingMaxDelayMillis = 260;
+    private HttpClientCookieJar cookieJar;
 }

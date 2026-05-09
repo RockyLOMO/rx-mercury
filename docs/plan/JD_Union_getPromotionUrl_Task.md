@@ -228,6 +228,12 @@ Content-Type: application/json
 15. 点击 `复制`。
 16. 从弹窗输入框、文本区域或页面文本读取 `https://...` 链接，优先取 `优惠券链接`，再取普通 `推广链接`，写入 `promotionUrl`。
 
+### Cookie 记录
+
+- `cookies.html` 现在作为对比页使用，会同时展示当前 `HttpServletRequest` 的 `Cookie` 头和 `HttpClientCookieJar` 里同一 URL 对应的 cookie。
+- `getPromotionUrl` 成功结束时，会把当前 Playwright 页面上下文中的 cookie 一次性保存进 `HttpClientCookieJar`，包括 `HttpOnly` cookie。
+- 本地持久化改为 `HttpClientCookieJar + H2CookieStorage`，不再依赖 Redis cookie 容器。
+
 ## Debug 模式
 
 - `debugEnabled=true` 时，任务会在 `debugOutputDir/profileName/skuId-时间戳/` 下保存每个关键步骤的 `html` 快照。

@@ -14,6 +14,8 @@ import com.microsoft.playwright.Mouse;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.options.Cookie;
+import com.microsoft.playwright.options.SameSiteAttribute;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.platform.win32.WinUser;
@@ -37,10 +39,11 @@ import org.rx.core.cache.MemoryCache;
 import org.rx.crawler.service.Browser;
 import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.ConfigureScriptExecutor;
-import org.rx.crawler.service.CookieContainer;
 import org.rx.exception.InvalidException;
 import org.rx.exception.TraceHandler;
 import org.rx.io.Files;
+import org.rx.net.http.HttpClient;
+import org.rx.net.http.HttpClientCookieJar;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -71,7 +74,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
 
     public final Delegate<WebBrowser, EventArgs> onNavigating = Delegate.create(), onNavigated = Delegate.create();
     final WebBrowserConfig config;
-    final CookieContainer cookieContainer;
+    final HttpClientCookieJar cookieJar;
     final ConfigureScriptExecutor configureScriptExecutor;
     final Set<String> injectedScript = ConcurrentHashMap.newKeySet();
     final Map<String, Page> tabs = new LinkedHashMap<String, Page>();
@@ -138,7 +141,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         }
         this.config = config;
         this.waitMillis = config.getWaitMillis();
-        this.cookieContainer = config.getCookieContainer();
+        this.cookieJar = ifNull(config.getCookieJar(), HttpClientCookieJar.memory());
         this.configureScriptExecutor = org.rx.core.Reflects.newInstance(Class.forName(config.getConfigureScriptExecutorType()), this);
         createChromeContext();
     }
@@ -348,9 +351,6 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         injectedScript.clear();
         activeFrame = null;
         try {
-            if (cookieRegion != null) {
-                cookieContainer.loadTo(this, CookieContainer.buildRegionUrl(url, cookieRegion));
-            }
             publishEvent(onNavigating, EventArgs.EMPTY);
 
             navigate(url);
@@ -361,13 +361,6 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 waitElementLocated(locatorSelector, timeoutSeconds, checkComplete);
             }
             publishEvent(onNavigated, EventArgs.EMPTY);
-            if (cookieRegion != null) {
-                try {
-                    saveCookies(true);
-                } catch (TimeoutException e) {
-                    log.warn("ignore cookieDomain reset {}", e.getMessage());
-                }
-            }
         } catch (TimeoutException e) {
             TraceHandler.INSTANCE.saveExceptionTrace(Thread.currentThread(),
                     String.format("waitElementLocated fail, url=%s selector=%s|%s", url, locatorSelector, timeoutSeconds), e);
@@ -382,7 +375,8 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     @Override
     public synchronized String saveCookies(boolean reset) throws TimeoutException {
         String u = currentCookieUrl();
-        String rawCookie = cookieContainer.syncFrom(this, u);
+        saveCookiesToJar(u);
+        String rawCookie = cookieJar.loadForRequest(java.net.URI.create(u));
         if (reset) {
             navigate(u);
             if (Strings.startsWith(u, navigatedUrl) && navigatedSelector != null) {
@@ -400,27 +394,27 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             return;
         }
         if (onlyBrowser) {
-            cookieContainer.clearCookie(this, u);
+            context.clearCookies();
             return;
         }
 
-        cookieContainer.clear(u);
-        cookieContainer.loadTo(this, u);
+        context.clearCookies();
+        cookieJar.clear();
     }
 
     @Override
     public void setRawCookie(String rawCookie) {
-        cookieContainer.save(currentCookieUrl(), rawCookie);
+        cookieJar.saveRawCookie(java.net.URI.create(currentCookieUrl()), rawCookie);
     }
 
     @Override
     public String getRawCookie() {
-        return cookieContainer.get(currentCookieUrl());
+        return cookieJar.loadForRequest(java.net.URI.create(currentCookieUrl()));
     }
 
     private String currentCookieUrl() {
         String u = getCurrentUrl();
-        return cookieRegion != null ? CookieContainer.buildRegionUrl(u, cookieRegion) : u;
+        return cookieRegion != null ? HttpClient.buildUrl(u, java.util.Collections.singletonMap("_Region", cookieRegion)) : u;
     }
 
     @Override
@@ -973,5 +967,61 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         page.bringToFront();
         page.setDefaultTimeout(config.getFindElementTimeoutSeconds() * 1000D);
         page.setDefaultNavigationTimeout(config.getPageLoadTimeoutSeconds() * 1000D);
+    }
+
+    private void saveCookiesToJar(String url) {
+        if (cookieJar == null || Strings.isEmpty(url) || !Strings.startsWithIgnoreCase(url, "http")) {
+            return;
+        }
+
+        java.util.List<Cookie> cookies = context.cookies(url);
+        if (cookies.isEmpty()) {
+            return;
+        }
+        long nowSeconds = System.currentTimeMillis() / 1000L;
+        java.util.List<String> setCookies = new java.util.ArrayList<String>(cookies.size());
+        for (Cookie cookie : cookies) {
+            java.lang.StringBuilder sb = new java.lang.StringBuilder();
+            sb.append(cookie.name).append("=").append(cookie.value);
+            if (!Strings.isEmpty(cookie.domain)) {
+                String host = java.net.URI.create(url).getHost();
+                if (!Strings.equals(cookie.domain, host) || Strings.startsWith(cookie.domain, ".")) {
+                    sb.append("; Domain=").append(cookie.domain);
+                }
+            }
+            if (!Strings.isEmpty(cookie.path)) {
+                sb.append("; Path=").append(cookie.path);
+            }
+            if (cookie.expires != null && cookie.expires > 0D) {
+                long maxAge = Math.max(1L, (long) Math.ceil(cookie.expires - nowSeconds));
+                sb.append("; Max-Age=").append(maxAge);
+            }
+            if (Boolean.TRUE.equals(cookie.secure)) {
+                sb.append("; Secure");
+            }
+            if (Boolean.TRUE.equals(cookie.httpOnly)) {
+                sb.append("; HttpOnly");
+            }
+            if (cookie.sameSite != null) {
+                sb.append("; SameSite=").append(toSameSite(cookie.sameSite));
+            }
+            setCookies.add(sb.toString());
+        }
+        java.net.URI uri = java.net.URI.create(url);
+        cookieJar.clear(uri);
+        cookieJar.saveFromResponse(uri, setCookies);
+    }
+
+    private String toSameSite(SameSiteAttribute sameSite) {
+        switch (sameSite) {
+            case STRICT:
+                return "Strict";
+            case LAX:
+                return "Lax";
+            case NONE:
+                return "None";
+            default:
+                return null;
+        }
     }
 }

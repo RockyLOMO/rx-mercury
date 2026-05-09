@@ -29,9 +29,10 @@ app:
     connectTimeoutMillis: 40000
     ntp:
       enableFlags: 3
+  storage:
+    h2DbPath: ${user.dir}/browser-cookie-db
   browser:
     windowRectangle: MAX
-    cookieContainerType: org.rx.crawler.service.impl.MemoryCookieContainer
     fingerprintEnabled: false
     fingerprintScriptPath: /bot/chrome-fingerprint.js
     fingerprintStealthScriptPath: /static/js/stealth.min.js

@@ -10,6 +10,7 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.exception.TraceHandler;
+import org.rx.net.http.HttpClientCookieJar;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RpcServerConfig;
 import org.rx.net.transport.TcpClient;
@@ -147,15 +148,11 @@ public final class BrowserPool extends Disposable {
     final Map<Browser, PooledBrowser> cache = Collections.synchronizedMap(new IdentityHashMap<>());
     volatile int activeCount;
 
-    public CookieContainer getCookieContainer() {
-        return browserConf.getCookieContainer();
-    }
-
     @SneakyThrows
-    public BrowserPool(@NonNull AppConfig.BrowserPoolConfig config) {
+    public BrowserPool(@NonNull AppConfig.BrowserPoolConfig config, @NonNull HttpClientCookieJar cookieJar) {
         conf = config;
         browserConf = BeanMapper.DEFAULT.map(conf, WebBrowserConfig.class);
-        browserConf.setCookieContainer(Reflects.newInstance(Class.forName(conf.getCookieContainerType())));
+        browserConf.setCookieJar(cookieJar);
         int poolSize = conf.getPoolSize();
         factory = new ObjectFactory();
         pool = new ObjectPool<>(poolSize, poolSize, factory::create, factory::validate, null, factory::passivate);
