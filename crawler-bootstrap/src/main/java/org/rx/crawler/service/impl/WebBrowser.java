@@ -14,6 +14,9 @@ import com.microsoft.playwright.Mouse;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
+import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinDef.HWND;
+import com.sun.jna.platform.win32.WinUser;
 import com.microsoft.playwright.options.BoundingBox;
 import com.microsoft.playwright.options.ViewportSize;
 import com.microsoft.playwright.options.WaitUntilState;
@@ -194,6 +197,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         } else {
             setCurrentPage(pages.get(0));
         }
+        focus();
         if (maximized) {
             maximize();
         }
@@ -211,6 +215,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         args.add("--autoplay-policy=document-user-activation-required");
         if (isMaximized(config.getWindowRectangle())) {
             args.add("--start-maximized");
+            args.add("--window-position=0,0");
         }
         if (!Strings.isEmpty(config.getLocale())) {
             args.add("--lang=" + config.getLocale());
@@ -655,29 +660,17 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     public synchronized void maximize() {
         checkNotClosed();
 
-        Map<String, Object> size = executeScript("return {" +
-                "width: Math.max(window.screen && window.screen.availWidth || 0, window.outerWidth || 0, window.innerWidth || 0, 1365)," +
-                "height: Math.max(window.screen && window.screen.availHeight || 0, window.innerHeight || 0, 768)" +
-                "};");
-        int width = toInt(size.get("width"), 1365);
-        int height = toInt(size.get("height"), 768);
-        if (width <= 0 || height <= 0) {
-            return;
-        }
-        if (maximizeByCdp(width, height)) {
+        if (maximizeByCdp()) {
             return;
         }
         try {
-            Map<String, Object> rect = new LinkedHashMap<String, Object>();
-            rect.put("width", width);
-            rect.put("height", height);
-            page.evaluate("size => { try { window.moveTo(0, 0); window.resizeTo(size.width, size.height); } catch (e) {} }", rect);
+            maximizeByWindowsApi();
         } catch (Exception e) {
             log.debug("Playwright browser maximize fallback ignored, error={}", e.getMessage());
         }
     }
 
-    private boolean maximizeByCdp(int width, int height) {
+    private boolean maximizeByCdp() {
         if (context == null || context.browser() == null || !context.browser().isConnected() || page == null) {
             return false;
         }
@@ -698,17 +691,6 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             }
 
             JsonObject bounds = new JsonObject();
-            bounds.addProperty("windowState", "normal");
-            bounds.addProperty("left", 0);
-            bounds.addProperty("top", 0);
-            bounds.addProperty("width", width);
-            bounds.addProperty("height", height);
-            JsonObject normalArgs = new JsonObject();
-            normalArgs.addProperty("windowId", window.get("windowId").getAsInt());
-            normalArgs.add("bounds", bounds);
-            session.send("Browser.setWindowBounds", normalArgs);
-
-            bounds = new JsonObject();
             bounds.addProperty("windowState", "maximized");
             JsonObject args = new JsonObject();
             args.addProperty("windowId", window.get("windowId").getAsInt());
@@ -726,6 +708,34 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                     log.debug("Ignore browser CDP session detach fail: {}", e.getMessage());
                 }
             }
+        }
+    }
+
+    private void maximizeByWindowsApi() {
+        if (page == null) {
+            return;
+        }
+        page.bringToFront();
+        Extends.sleep(250);
+
+        if (!System.getProperty("os.name", "").toLowerCase().contains("win")) {
+            return;
+        }
+        try {
+            HWND hwnd = User32.INSTANCE.FindWindow("Chrome_WidgetWin_1", null);
+            if (hwnd == null) {
+                hwnd = User32.INSTANCE.GetForegroundWindow();
+            }
+            if (hwnd == null) {
+                return;
+            }
+            User32.INSTANCE.ShowWindow(hwnd, WinUser.SW_RESTORE);
+            User32.INSTANCE.ShowWindow(hwnd, WinUser.SW_MAXIMIZE);
+            User32.INSTANCE.SetForegroundWindow(hwnd);
+            Extends.sleep(300);
+            page.evaluate("() => { try { window.dispatchEvent(new Event('resize')); } catch (e) {} }");
+        } catch (Exception e) {
+            log.debug("Windows API maximize ignored, error={}", e.getMessage());
         }
     }
 

@@ -16,6 +16,8 @@
 - 前置流程：复用公共 Sannysoft 检测与人工登录接管，默认等待配置仍来自 `app.custom.jdUnion`。
 - 调试开关：`debugEnabled` 已提升到全局 `app.custom.debugEnabled`，测试默认建议开启，便于读取 HTML 快照排查问题。
 - 任务超时：`app.custom.maxTaskMinutes` 默认 4 分钟，超时后返回 `TIMEOUT`。
+- 页面遮挡处理：进入页面后如果右上角 `消息公告` 遮挡主体，先点 `收起`。
+- 窗口要求：任务开始时先最大化 Chrome，避免底部翻页和表格区域被裁切。
 
 ### 入参
 
@@ -59,26 +61,43 @@
 
 | 字段 | 说明 |
 | --- | --- |
+| `productName` | 商品名称 |
+| `productLink` | 商品超链接；页面 DOM 未提供时可为空 |
+| `productPrice` | 商品价格 |
+| `storeName` | 店铺名 |
+| `orderNo` | 订单号 |
+| `mainOrderNo` | 主单号 |
 | `orderStatus` | 订单状态 |
-| `time` | 时间 |
+| `time` | 时间原始文本 |
+| `orderTime` | 下单时间 |
+| `finishTime` | 完成时间 |
+| `settleTime` | 结算时间 |
 | `estimatedBillingAmount` | 预估计佣金额 |
 | `estimatedCommission` | 预估佣金 |
 | `commissionRate` | 佣金比例 |
 | `shareRate` | 分成比例 |
 | `actualBillingAmount` | 实际计佣金额 |
 | `actualCommission` | 实际佣金 |
-| `quantity` | 数量 |
-| `promotionInfo` | 推广信息 |
+| `quantity` | 数量原始文本 |
+| `productQuantity` | 商品数量 |
+| `afterSaleQuantity` | 售后数量 |
+| `returnQuantity` | 退货数量 |
+| `promotionInfo` | 推广信息原始文本 |
+| `promotionPosition` | 推广位 |
 | `orderType` | 订单类型 |
 
 ### 页面流程
 
 1. 进入 `https://union.jd.com/entire`，必要时等待人工登录。
 2. 点击左侧菜单 `订单明细`，再点击 `推客推广订单明细`；如果页面结构变化导致菜单不可用，兜底进入 `https://union.jd.com/order`。
-3. 点击 `时间范围` 后面的非原生日期范围组件。
-4. 按入参月份调整弹框月份：左侧月份对齐 `startTime`，点击左侧日期；如果 `endTime` 与左侧同月则继续点左侧日期，否则调整右侧月份后点击右侧日期。
-5. 点击 `查找订单`。
-6. 抓取当前页订单表格，优先读取 `outerHTML` 并解析；如果 `下一页` 可点击则翻页继续抓取，直到下一页不可点击。
+3. 如果页面右上角有 `消息公告` 遮挡主体，先点击 `收起`。
+4. 任务开始时先把浏览器窗口最大化。
+5. 点击 `时间范围` 后面的非原生日期范围组件。
+6. 按入参月份调整弹框月份：左侧月份对齐 `startTime`，点击左侧日期；如果 `endTime` 与左侧同月则继续点左侧日期，否则调整右侧月份后点击右侧日期。
+7. 点击 `查找订单`。
+8. 抓取当前页订单表格，优先读取 `outerHTML` 并解析；如果 `下一页` 可点击则翻页继续抓取，直到下一页不可点击。
+9. 如果表格区域需要额外滚动，先滚动到表格底部再继续读下一屏。
+10. 如果翻页后页面数据重复，视为已到末页，停止继续翻页。
 
 ### HTTP 调用
 

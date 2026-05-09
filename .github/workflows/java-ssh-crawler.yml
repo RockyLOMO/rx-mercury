@@ -13,18 +13,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: maven
 
+      - name: Resolve SSH host and port
+        run: |
+          SSH_TARGET='${{ secrets.SSH_HOST_PORT }}'
+          echo "SSH_HOST=${SSH_TARGET%:*}" >> $GITHUB_ENV
+          echo "SSH_PORT=${SSH_TARGET##*:}" >> $GITHUB_ENV
+
       - name: Set environment variables
         run: |
-          echo "APP_MODULE=mercury-bootstrap" >> $GITHUB_ENV
+          echo "APP_MODULE=crawler-bootstrap" >> $GITHUB_ENV
           echo "REMOTE_DIR=app-crawler" >> $GITHUB_ENV
-          echo "HEALTH_URL=https://bot.f-li.cn/health" >> $GITHUB_ENV
+          echo "HEALTH_URL=https://cloud.f-li.cn:6400/health/crawler" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
 
       - name: Build with Maven
@@ -48,10 +54,10 @@ jobs:
       - name: Copy JAR to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SSH_HOST }}
+          host: ${{ env.SSH_HOST }}
           username: ${{ secrets.SCP_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          port: ${{ secrets.SSH_PORT }}
+          port: ${{ env.SSH_PORT }}
           source: jmx_prometheus_javaagent.jar,jmx_prometheus_config.yaml,app.jar.publish,start.bat,rollback.bat
           target: /c/${{ env.REMOTE_DIR }}/
           overwrite: true
@@ -62,10 +68,10 @@ jobs:
       - name: Execute remote commands
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
+          host: ${{ env.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          port: ${{ secrets.SSH_PORT }}
+          port: ${{ env.SSH_PORT }}
           script: |
             schtasks /end /tn javabg2 & schtasks /run /tn javabg2
             echo "Deployment completed"
@@ -88,10 +94,10 @@ jobs:
         if: steps.health-check.outcome == 'failure'
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
+          host: ${{ env.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
-          port: ${{ secrets.SSH_PORT }}
+          port: ${{ env.SSH_PORT }}
           script: |
             echo "Health check failed. Rolling back to latest tag."
             schtasks /end /tn javabgrb2 & schtasks /run /tn javabgrb2

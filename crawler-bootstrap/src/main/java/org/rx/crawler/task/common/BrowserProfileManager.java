@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Strings;
+import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
@@ -68,6 +69,12 @@ public class BrowserProfileManager {
 
             WebBrowser browser;
             boolean fromSession = session != null;
+            if (fromSession && isMaximized(config.getWindowRectangle())) {
+                sessions.remove(normalized);
+                tryClose(session.getBrowser());
+                session = null;
+                fromSession = false;
+            }
             if (fromSession) {
                 browser = session.getBrowser();
                 log.info("Reuse chrome profile session {}", normalized);
@@ -76,7 +83,7 @@ public class BrowserProfileManager {
                 browser = new WebBrowser(config, BrowserType.CHROME);
                 log.info("Open chrome profile {} at {}", normalized, config.getProfileDataPath());
             }
-            maximize(browser);
+            focus(browser);
             return new ProfileLease(normalized, lock, browser, fromSession);
         } catch (RuntimeException e) {
             lock.unlock();
@@ -84,12 +91,15 @@ public class BrowserProfileManager {
         }
     }
 
-    private void maximize(WebBrowser browser) {
+    private boolean isMaximized(BrowserWindowRect rect) {
+        return rect != null && rect.getWidth() <= 0 && rect.getHeight() <= 0;
+    }
+
+    private void focus(WebBrowser browser) {
         try {
-            browser.maximize();
             browser.focus();
         } catch (Exception e) {
-            log.debug("Maximize chrome profile ignored, error={}", e.getMessage());
+            log.debug("Focus chrome profile ignored, error={}", e.getMessage());
         }
     }
 
