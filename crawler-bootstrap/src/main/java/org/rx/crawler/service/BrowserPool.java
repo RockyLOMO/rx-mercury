@@ -3,7 +3,6 @@ package org.rx.crawler.service;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.rx.bean.DateTime;
 import org.rx.core.StringBuilder;
 import org.rx.core.*;
 import org.rx.crawler.config.AppConfig;
@@ -11,18 +10,13 @@ import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.exception.TraceHandler;
 import org.rx.net.http.HttpClientCookieJar;
-import org.rx.net.rpc.Remoting;
-import org.rx.net.rpc.RpcServerConfig;
-import org.rx.net.transport.TcpClient;
-import org.rx.net.transport.TcpServer;
-import org.rx.net.transport.TcpServerConfig;
 import org.rx.util.BeanMapper;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.rx.core.Extends.quietly;
 import static org.rx.core.Extends.tryClose;
@@ -31,65 +25,26 @@ import static org.rx.core.Extends.tryClose;
 public final class BrowserPool extends Disposable {
     final class PooledBrowser implements AutoCloseable {
         final Browser browser;
-        final TcpServer server;
         final int id;
 
-        PooledBrowser(Browser browser, TcpServer server) {
+        PooledBrowser(Browser browser, int id) {
             this.browser = browser;
-            this.server = server;
-            id = server.getConfig().getListenPort();
+            this.id = id;
         }
 
         @Override
         public void close() {
             cache.remove(browser);
-            tryClose(server);
             tryClose(browser);
         }
     }
 
     private class ObjectFactory {
-        static final String CONNECT_TIME = "connectTime";
-
-        public ObjectFactory() {
-            Tasks.schedulePeriod(() -> {
-                for (PooledBrowser pooledBrowser : snapshot()) {
-                    TcpServer server = pooledBrowser.server;
-                    Integer id = pooledBrowser.id;
-
-                    Collection<TcpClient> clients = server.getClients().values();
-                    if (clients.size() == 0) {
-                        try {
-                            pool.recycle(pooledBrowser);
-                            log.warn("CORRECT browser[{}] idle status..", id);
-                        } catch (IllegalStateException e) {
-                            if (!Strings.startsWith(e.getMessage(), "Object has already been returned")) {
-                                log.warn("CORRECT not handle.. {}", e.getMessage());
-                            }
-                        } catch (Exception e) {
-                            if (!Strings.startsWith(e.getMessage(), "Object has already in this pool")) {
-                                log.warn("CORRECT not handle.. {}", e.getMessage());
-                            }
-                        }
-                        continue;
-                    }
-                    for (TcpClient client : clients) {
-                        DateTime connTime = client.attr(CONNECT_TIME);
-                        if (connTime == null || DateTime.now().subtract(connTime).toMinutes() <= conf.getMaxActiveMinutes()) {
-                            continue;
-                        }
-                        log.warn("CORRECT force close browser[{}]", id);
-                        client.close();
-                    }
-                }
-            }, conf.getMaintenancePeriod());
-        }
-
         public StringBuilder dump() {
             StringBuilder sb = new StringBuilder();
             int i = 1;
             for (PooledBrowser p : snapshot()) {
-                sb.appendFormat("\tBrowser[%s]: ClientSize=%s", p.id, p.server.getClients().size());
+                sb.appendFormat("\tBrowser[%s]", p.id);
                 if (i++ % 3 == 0) {
                     sb.appendLine();
                 }
@@ -99,20 +54,9 @@ public final class BrowserPool extends Disposable {
 
         public PooledBrowser create() {
             WebBrowser browser = new WebBrowser(browserConf, BrowserType.CHROME);
-            while (true) {
-                try {
-                    RpcServerConfig serverConfig = new RpcServerConfig(new TcpServerConfig(conf.getPortGenerator().increment()));
-                    serverConfig.getTcpConfig().setCapacity(1);
-                    TcpServer server = Remoting.register(browser, serverConfig);
-                    server.onDisconnected.add((s, e) -> quietly(() -> release(browser)));
-                    server.onConnected.add((s, e) -> e.getClient().attr(CONNECT_TIME, DateTime.now()));
-                    PooledBrowser pooledBrowser = new PooledBrowser(browser, server);
-                    cache.put(browser, pooledBrowser);
-                    return pooledBrowser;
-                } catch (Exception e) {
-                    log.warn("BrowserPool create error {}", e.getMessage());
-                }
-            }
+            PooledBrowser pooledBrowser = new PooledBrowser(browser, idGenerator.incrementAndGet());
+            cache.put(browser, pooledBrowser);
+            return pooledBrowser;
         }
 
         public boolean validate(PooledBrowser p) {
@@ -146,6 +90,7 @@ public final class BrowserPool extends Disposable {
     final ObjectFactory factory;
     final ObjectPool<PooledBrowser> pool;
     final Map<Browser, PooledBrowser> cache = Collections.synchronizedMap(new IdentityHashMap<>());
+    final AtomicInteger idGenerator = new AtomicInteger();
     volatile int activeCount;
 
     @SneakyThrows

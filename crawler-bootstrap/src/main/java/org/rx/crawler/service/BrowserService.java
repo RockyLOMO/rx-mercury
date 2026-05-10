@@ -5,12 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.crawler.config.AppConfig;
 import org.rx.net.http.HttpClientCookieJar;
-import org.rx.net.rpc.Remoting;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
-
-import static org.rx.core.Extends.quietly;
 
 @Slf4j
 @Service
