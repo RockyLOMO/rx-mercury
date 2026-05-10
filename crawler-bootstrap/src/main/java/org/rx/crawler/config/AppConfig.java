@@ -38,8 +38,6 @@ public class AppConfig {
         private int maxActiveMinutes;
         private long dumpPeriod;
         private int takeTimeoutSeconds = 6;
-        private String remotingPortRange = "1220-1320";
-        private IdGenerator portGenerator;
 
         private int poolSize = 2;
         private boolean windowAutoBlank = true;
@@ -70,14 +68,6 @@ public class AppConfig {
         private int mouseMoveMaxSteps = 56;
         private int typingMinDelayMillis = 90;
         private int typingMaxDelayMillis = 260;
-
-        public IdGenerator getPortGenerator() {
-            if (portGenerator == null) {
-                Linq<Integer> q = Linq.from(Strings.split(remotingPortRange, "-", 2)).select(p -> Integer.valueOf(p));
-                portGenerator = new IdGenerator(q.first(), q.last());
-            }
-            return portGenerator;
-        }
     }
 
     @Data
