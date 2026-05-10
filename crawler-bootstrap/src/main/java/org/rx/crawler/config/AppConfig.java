@@ -83,7 +83,7 @@ public class AppConfig {
     @Data
     public static class CustomTaskConfig {
         private boolean remotingEnabled = true;
-        private int remotingListenPort = 1211;
+        private int remotingListenPort = 1221;
         private int queueMaxConcurrency = 1;
         private int queueTimeoutSeconds = 600;
         private boolean debugEnabled = true;
