@@ -83,7 +83,7 @@ public class AppConfig {
     @Data
     public static class CustomTaskConfig {
         private boolean remotingEnabled = true;
-        private int remotingListenPort = 1221;
+        private int remotingListenPort;
         private int queueMaxConcurrency = 1;
         private int queueTimeoutSeconds = 600;
         private boolean debugEnabled = true;
@@ -111,7 +111,8 @@ public class AppConfig {
             if (Strings.isEmpty(windowRectangle)) {
                 return null;
             }
-            if ("MAX".equalsIgnoreCase(windowRectangle.trim()) || "MAXIMIZED".equalsIgnoreCase(windowRectangle.trim())) {
+            if ("MAX".equalsIgnoreCase(windowRectangle.trim())
+                    || "MAXIMIZED".equalsIgnoreCase(windowRectangle.trim())) {
                 return new BrowserWindowRect(0, 0, -1, -1);
             }
             List<Integer> list = Linq.from(windowRectangle.split(",")).select(p -> Integer.valueOf(p)).toList();

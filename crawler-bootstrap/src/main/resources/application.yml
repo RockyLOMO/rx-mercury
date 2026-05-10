@@ -48,7 +48,7 @@ app:
     typingMaxDelayMillis: 260
   custom:
     remotingEnabled: true
-    remotingListenPort: 1211
+    remotingListenPort: 1221
     queueMaxConcurrency: 1
     queueTimeoutSeconds: 600
     debugEnabled: false
