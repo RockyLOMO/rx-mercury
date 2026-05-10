@@ -8,7 +8,6 @@ import org.rx.core.Strings;
 import org.rx.crawler.config.AppConfig;
 import org.rx.net.http.HttpClientCookieJar;
 import org.rx.net.http.HttpClient;
-import org.rx.redis.RedisCache;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,7 +24,6 @@ import static org.rx.core.Sys.cacheKey;
 @RequiredArgsConstructor
 @Controller
 public class HomeController {
-    private final RedisCache<String, String> cache;
     private final HttpClientCookieJar cookieJar;
 
     @RequestMapping("/pddName")
@@ -39,7 +37,8 @@ public class HomeController {
         }
         String ck = cacheKey(AppConfig.CACHE_PDD_GOODS_MAP, goodsId);
         log.info("pddName {} ok, u={} n={}", ck, u, n);
-        cache.put(ck, n);
+        // 使用通用 Cache 缓存，避免强依赖 RedisCache
+        Cache.getInstance().put(ck, n);
         return true;
     }
 
