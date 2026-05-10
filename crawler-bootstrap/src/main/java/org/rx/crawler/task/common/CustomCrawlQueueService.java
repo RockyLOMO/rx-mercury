@@ -12,13 +12,15 @@ import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.rx.io.EntityDatabase;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class CustomCrawlQueueService {
     private static final String TABLE_NAME = "custom_crawl_task_queue";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final EntityDatabase entityDatabase;
     private final ObjectMapper objectMapper;
     private final AppConfig appConfig;
     private final JdUnionPromotionTask jdUnionPromotionTask;
@@ -41,7 +43,7 @@ public class CustomCrawlQueueService {
 
     @PostConstruct
     public void init() {
-        jdbcTemplate.execute("create table if not exists " + TABLE_NAME + " (" +
+        entityDatabase.executeUpdate("create table if not exists " + TABLE_NAME + " (" +
                 "id bigint auto_increment primary key," +
                 "task_action varchar(64) not null," +
                 "request_json clob not null," +
@@ -54,8 +56,8 @@ public class CustomCrawlQueueService {
                 "started_at timestamp," +
                 "finished_at timestamp" +
                 ")");
-        jdbcTemplate.execute("create index if not exists idx_" + TABLE_NAME + "_status_priority on " + TABLE_NAME + "(status, priority, id)");
-        jdbcTemplate.execute("update " + TABLE_NAME + " set status='PENDING', updated_at=current_timestamp where status='RUNNING'");
+        entityDatabase.executeUpdate("create index if not exists idx_" + TABLE_NAME + "_status_priority on " + TABLE_NAME + "(status, priority, id)");
+        entityDatabase.executeUpdate("update " + TABLE_NAME + " set status='PENDING', updated_at=current_timestamp where status='RUNNING'");
         executor = Executors.newFixedThreadPool(Math.max(1, appConfig.getCustom().getQueueMaxConcurrency()));
     }
 
@@ -101,13 +103,9 @@ public class CustomCrawlQueueService {
         try {
             String requestJson = objectMapper.writeValueAsString(request);
             Timestamp now = new Timestamp(System.currentTimeMillis());
-            jdbcTemplate.update("insert into " + TABLE_NAME +
+            long id = insertTask("insert into " + TABLE_NAME +
                             "(task_action, request_json, status, priority, created_at, updated_at) values (?, ?, ?, ?, ?, ?)",
                     action, requestJson, CustomTaskQueueStatus.PENDING.name(), priority, now, now);
-            Long id = jdbcTemplate.queryForObject("select max(id) from " + TABLE_NAME, Long.class);
-            if (id == null) {
-                throw new IllegalStateException("Insert task queue row failed");
-            }
             dispatch();
             return id;
         } catch (Exception e) {
@@ -171,35 +169,19 @@ public class CustomCrawlQueueService {
     }
 
     private synchronized TaskSnapshot claimNext() {
-        List<TaskSnapshot> items = jdbcTemplate.query("select id, task_action, request_json, status, priority, error_message, result_json from " + TABLE_NAME +
-                        " where status='PENDING' order by priority desc, id asc limit 1",
-                (ResultSet rs, int rowNum) -> new TaskSnapshot(
-                        rs.getLong("id"),
-                        rs.getString("task_action"),
-                        rs.getString("request_json"),
-                        CustomTaskQueueStatus.valueOf(rs.getString("status")),
-                        rs.getInt("priority"),
-                        rs.getString("error_message"),
-                        rs.getString("result_json")));
+        List<TaskSnapshot> items = querySnapshots("select id, task_action, request_json, status, priority, error_message, result_json from " + TABLE_NAME +
+                " where status='PENDING' order by priority desc, id asc limit 1");
         if (items.isEmpty()) {
             return null;
         }
         TaskSnapshot snapshot = items.get(0);
-        int updated = jdbcTemplate.update("update " + TABLE_NAME + " set status=?, started_at=current_timestamp, updated_at=current_timestamp where id=? and status='PENDING'",
+        int updated = update("update " + TABLE_NAME + " set status=?, started_at=current_timestamp, updated_at=current_timestamp where id=? and status='PENDING'",
                 CustomTaskQueueStatus.RUNNING.name(), snapshot.id);
         return updated > 0 ? snapshot : null;
     }
 
     private TaskSnapshot loadSnapshot(long taskId) {
-        List<TaskSnapshot> items = jdbcTemplate.query("select id, task_action, request_json, status, priority, error_message, result_json from " + TABLE_NAME + " where id=?",
-                (ResultSet rs, int rowNum) -> new TaskSnapshot(
-                        rs.getLong("id"),
-                        rs.getString("task_action"),
-                        rs.getString("request_json"),
-                        CustomTaskQueueStatus.valueOf(rs.getString("status")),
-                        rs.getInt("priority"),
-                        rs.getString("error_message"),
-                        rs.getString("result_json")), taskId);
+        List<TaskSnapshot> items = querySnapshots("select id, task_action, request_json, status, priority, error_message, result_json from " + TABLE_NAME + " where id=?", taskId);
         return items.isEmpty() ? null : items.get(0);
     }
 
@@ -216,11 +198,11 @@ public class CustomCrawlQueueService {
                 JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
                 result = jdUnionPromotionTask.getPromotionUrl(request);
             }
-            jdbcTemplate.update("update " + TABLE_NAME + " set status=?, result_json=?, error_message=null, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
+            update("update " + TABLE_NAME + " set status=?, result_json=?, error_message=null, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
                     CustomTaskQueueStatus.SUCCESS.name(), objectMapper.writeValueAsString(result), snapshot.id);
         } catch (Exception e) {
             log.warn("Execute queued custom crawl task failed, id={}, action={}, error={}", snapshot.id, snapshot.action, e.getMessage(), e);
-            jdbcTemplate.update("update " + TABLE_NAME + " set status=?, error_message=?, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
+            update("update " + TABLE_NAME + " set status=?, error_message=?, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
                     CustomTaskQueueStatus.FAILED.name(), truncate(e.getMessage(), 2000), snapshot.id);
         }
     }
@@ -259,5 +241,60 @@ public class CustomCrawlQueueService {
             return value;
         }
         return value.substring(0, maxLen);
+    }
+
+    private long insertTask(String sql, Object... args) {
+        return entityDatabase.withConnection(connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                bind(statement, args);
+                int updated = statement.executeUpdate();
+                if (updated <= 0) {
+                    throw new IllegalStateException("Insert task queue row failed");
+                }
+                try (ResultSet rs = statement.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        return rs.getLong(1);
+                    }
+                }
+                throw new IllegalStateException("Insert task queue row generated id missing");
+            }
+        });
+    }
+
+    private int update(String sql, Object... args) {
+        return entityDatabase.withConnection(connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                bind(statement, args);
+                return statement.executeUpdate();
+            }
+        });
+    }
+
+    private List<TaskSnapshot> querySnapshots(String sql, Object... args) {
+        return entityDatabase.withConnection(connection -> {
+            List<TaskSnapshot> items = new ArrayList<TaskSnapshot>();
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                bind(statement, args);
+                try (ResultSet rs = statement.executeQuery()) {
+                    while (rs.next()) {
+                        items.add(new TaskSnapshot(
+                                rs.getLong("id"),
+                                rs.getString("task_action"),
+                                rs.getString("request_json"),
+                                CustomTaskQueueStatus.valueOf(rs.getString("status")),
+                                rs.getInt("priority"),
+                                rs.getString("error_message"),
+                                rs.getString("result_json")));
+                    }
+                }
+            }
+            return items;
+        });
+    }
+
+    private void bind(PreparedStatement statement, Object... args) throws java.sql.SQLException {
+        for (int i = 0; i < args.length; i++) {
+            statement.setObject(i + 1, args[i]);
+        }
     }
 }
