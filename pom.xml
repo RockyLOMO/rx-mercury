@@ -21,7 +21,9 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.test.skip>true</maven.test.skip>
+        <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+        <skipTests>true</skipTests>
+        <maven.test.skip>${skipTests}</maven.test.skip>
         <java.version>21</java.version>
         <lombok.version>1.18.30</lombok.version>
         <rxlib.version>2.22.6-SNAPSHOT</rxlib.version>
