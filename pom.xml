@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.rx</groupId>
-    <artifactId>mercury</artifactId>
+    <artifactId>rx-mercury</artifactId>
     <version>1.0</version>
     <packaging>pom</packaging>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.12</version>
+        <version>3.5.14</version>
     </parent>
     <modules>
         <module>crawler-api</module>
@@ -29,8 +29,8 @@
         <netty.version>4.1.121.Final</netty.version>
         <playwright.version>1.59.0</playwright.version>
         <jsoup.version>1.15.3</jsoup.version>
-        <apollo-client.version>2.3.0</apollo-client.version>
-        <spring.cloud.version>2023.0.5</spring.cloud.version>
+        <apollo-client.version>2.5.0</apollo-client.version>
+        <spring.cloud.version>2025.0.2</spring.cloud.version>
     </properties>
 
     <dependencyManagement>
