@@ -38,4 +38,4 @@
 - 修改任务流程后，必须补充对应单测或验证记录。
 - 关键抓取流程变更后，至少跑一次本地集成验证。
 - 文档同步更新到 `docs/plan/JD_Union_getPromotionUrl_Task.md`。
-
+- 每次更新 `pom.xml` 或代码后，如果 `D:\projs_r\xiaofan` 项目存在，必须自动打包并更新 `D:\projs_r\xiaofan\xiaofan-bootstrap\lib` 下对应的本地文件依赖。
