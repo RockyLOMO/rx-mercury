@@ -841,7 +841,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 +
                 "if(r.width<160||r.height<60){continue;}if(st.position!=='absolute'&&st.position!=='fixed'&&c.indexOf('overlay')<0&&c.indexOf('dropdown')<0&&c.indexOf('popup')<0){continue;}"
                 +
-                "var t=norm(e.innerText||e.textContent);if(t.indexOf('选择时间')>=0||/\\d{4}年\\d{1,2}月/.test(t)||t.indexOf('开始')>=0||t.indexOf('结束')>=0){return true;}}"
+                "var t=norm(e.innerText||e.textContent);if(c.indexOf('mux-calendar-dropdown-overlay')>=0||t.indexOf('选择时间')>=0||t.indexOf('选择日期')>=0||t.indexOf('快捷日期')>=0||/\\d{4}年\\d{1,2}月/.test(t)||t.indexOf('开始')>=0||t.indexOf('结束')>=0){return true;}}"
                 +
                 "return false;");
         return Boolean.TRUE.equals(open);
@@ -913,7 +913,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 +
                 "var r=e.getBoundingClientRect();score+=r.top/100+r.left/1000;if(score<bestScore){best=e;bestScore=score;}}"
                 +
-                "if(!best){return false;}var target=best.closest('.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"]')||best;"
+                "if(!best){return false;}var target=best.closest('.mux-picker-input,.mux-picker,.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"]')||best;"
                 +
                 "target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;");
         if (!Boolean.TRUE.equals(marked)) {
@@ -1143,7 +1143,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                         +
                         "var raw=Array.prototype.slice.call(document.querySelectorAll('tbody tr,.next-table-row,[class*=\"table-row\"],[class*=\"TableRow\"]')).filter(visible);"
                         +
-                        "var out=[],seen={};for(var i=0;i<raw.length;i++){var rt=text(raw[i]);if(!rt||rt.indexOf('暂无')>=0||rt.indexOf('无数据')>=0){continue;}if((rt.indexOf('订单信息')>=0&&rt.indexOf('订单状态')>=0&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))||(rt.indexOf('订单状态')>=0&&(rt.indexOf('佣金比例')>=0||rt.indexOf('总提成率')>=0)&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))){continue;}if(rt.indexOf('订单')<0&&rt.indexOf('￥')<0&&rt.indexOf('¥')<0){continue;}var item=parse(raw[i]);if(!item||(!item.orderNo&&!item.mainOrderNo&&!item.productName)){continue;}var key=(item.orderNo||'')+'|'+(item.mainOrderNo||'')+'|'+(item.orderTime||'')+'|'+(item.estimatedCommission||'');if(seen[key]){continue;}seen[key]=true;out.push(item);}return out;");
+                        "var out=[],seen={};for(var i=0;i<raw.length;i++){var rt=text(raw[i]);if(!rt||rt.indexOf('暂无')>=0||rt.indexOf('无数据')>=0){continue;}if((rt.indexOf('订单信息')>=0&&rt.indexOf('订单状态')>=0&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))||(rt.indexOf('订单状态')>=0&&(rt.indexOf('佣金比例')>=0||rt.indexOf('总提成率')>=0)&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))){continue;}if(rt.indexOf('订单')<0&&rt.indexOf('￥')<0&&rt.indexOf('¥')<0){continue;}var item=parse(raw[i]);if(!item||(!item.orderNo&&!item.mainOrderNo)){continue;}var key=(item.orderNo||'')+'|'+(item.mainOrderNo||'')+'|'+(item.orderTime||'')+'|'+(item.estimatedCommission||'');if(seen[key]){continue;}seen[key]=true;out.push(item);}return out;");
         if (rows != null && !rows.isEmpty()) {
             List<TbPromotionOrderItem> items = new ArrayList<TbPromotionOrderItem>();
             for (Map<String, Object> row : rows) {
@@ -1191,8 +1191,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                     continue;
                 }
                 TbPromotionOrderItem item = parseOrderCells(cells);
-                if (Strings.isEmpty(item.getOrderNo()) && Strings.isEmpty(item.getMainOrderNo())
-                        && Strings.isEmpty(item.getProductName())) {
+                if (Strings.isEmpty(item.getOrderNo()) && Strings.isEmpty(item.getMainOrderNo())) {
                     continue;
                 }
                 items.add(item);
