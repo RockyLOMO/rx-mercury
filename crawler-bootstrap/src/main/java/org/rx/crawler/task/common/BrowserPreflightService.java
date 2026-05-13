@@ -32,7 +32,7 @@ public class BrowserPreflightService {
 
         try {
             browser.navigateUrl(config.getPreflightUrl(), Browser.BODY_SELECTOR, config.getInitialPageTimeoutSeconds());
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
 
             Map<String, Object> probe = browser.executeScript("return {" +
                     "webdriver: navigator.webdriver," +

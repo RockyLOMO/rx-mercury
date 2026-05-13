@@ -29,6 +29,8 @@ public class WebBrowserConfig {
     private boolean humanInputEnabled = true;
     private int humanActionMinDelayMillis = 180;
     private int humanActionMaxDelayMillis = 650;
+    private int operationRandomMinDelayMillis = 80;
+    private int operationRandomMaxDelayMillis = 320;
     private int mouseMoveMinSteps = 24;
     private int mouseMoveMaxSteps = 56;
     private int typingMinDelayMillis = 90;

@@ -1,0 +1,68 @@
+# 抓取任务
+
+## 任务名
+例如：getTbPromotionOrders
+
+## 目标网站
+- 初始页：https://pub.alimama.com/portal/v2/home/plus/index.htm
+- 登录页前缀：https://login.taobao.com/havanaone/login/login.htm
+- 业务页面：https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm
+
+## 入参
+| 字段 | 类型 | 必填 | 说明 | 示例 |
+| --- | --- | --- | --- | --- |
+startTime 开始时间 yyyy-MM-dd
+endTime 结束时间 yyyy-MM-dd
+
+校验 startTime <= endTime
+
+## 出参
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+订单状态
+时间
+预估计佣金额
+预估佣金
+佣金比例
+分成比例
+实际计佣金额
+实际佣金
+数量
+推广信息
+订单类型
+
+## 前置通用流程
+1. 是否需要先过 Sannysoft：是
+2. 是否需要人工登录接管：是
+3. 初始页最大等待时间：3分钟
+4. 登录页最大等待时间：3分钟
+
+## 页面操作流程
+1. 打开https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm
+2. 点击左侧菜单 订单明细 -> 推客推广订单明细 按钮
+3. 页面右侧 时间范围 后面有个 非原生的 时间选取组件，
+点击时间选取组件后，要选择 任务入参的  startTime 日期， 和  endTime 日期。
+
+假设 startTime =  2026-04-15，endTime = 2026-05-08
+时间选取组件弹出框 顶部 < 是减少月份 选择上月  > 是增加月份 选择下月
+
+startTime 选择逻辑：
+直到 弹出框左侧顶部月份 是 startTime 月份部分 显示文字 2026年4月，
+  然后 在弹出框左侧下部 点击一次 日期部分 数字15。
+
+endTime 选择逻辑：
+如果 弹出框左侧顶部月份 等于 endTime 月份部分， 那么直接在 弹出框左下侧 再点击一次 日期部分 数字。
+如果 弹出框左侧顶部月份 不等于 endTime 月份部分，那么 弹出框右侧顶部 增加月份 直到 出框右侧顶部 文字 等于 endTime的月份部分。
+然后在 弹出框右下侧 点击 日期部分数字。
+4. 点击查找订单按钮
+
+5. 如果没有订单 返回 空数组。
+如果有订单 按 任务出参部分 字段抓取成 数组。
+
+检查订单列表的 下一页 是否可点击，如果可以点击则点击，再抓取下一页的订单数据 直到 下一页不可点击。
+
+然后把每一页的数据数据汇总返回即可。
+
+## 验证用例
+- 示例入参：近一个月的 startTime 和 endTime
+- 期望结果：有多页订单数据返回

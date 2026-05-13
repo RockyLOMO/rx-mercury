@@ -211,6 +211,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         options.setInitialPageTimeoutSeconds(config.getInitialPageTimeoutSeconds());
         options.setLoginWaitSeconds(config.getLoginWaitSeconds());
         options.setStepDelayMillis(config.getStepDelayMillis());
+        options.setStepDelayRandomMillis(config.getStepDelayRandomMillis());
         options.setKeepBrowserOpenOnLoginRequired(request.getKeepBrowserOpenOnLoginRequired() == null
                 ? config.isKeepBrowserOpenOnLoginRequired() : request.getKeepBrowserOpenOnLoginRequired());
         options.setKeepBrowserOpenSecondsOnLoginRequired(config.getKeepBrowserOpenSecondsOnLoginRequired());
@@ -262,7 +263,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "04-search-button-missing");
             return;
         }
-        Extends.sleep(config.getStepDelayMillis() * 2L);
+        Extends.sleep(config.nextStepDelayMillis() * 2L);
         debug.snapshot(browser, "04-search-clicked");
 
         String searchBody = bodySnippet(browser);
@@ -316,7 +317,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "09-media-type-missing");
             return;
         }
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         debug.snapshot(browser, "09-media-type-selected");
         if (!selectGuideMedia(browser, request.getMediaName(), config)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union guide media option not found");
@@ -325,7 +326,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "10-guide-media-missing");
             return;
         }
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         debug.snapshot(browser, "10-guide-media-selected");
         if (!clickByText(browser, "选择推广位", true)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promote slot selector not found");
@@ -333,7 +334,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "11-slot-selector-missing");
             return;
         }
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         debug.snapshot(browser, "11-slot-selector-opened");
         if (!selectPromotionSlotName(browser, request.getAdSiteName(), config)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promotion slot name input not found");
@@ -342,7 +343,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "12-slot-name-missing");
             return;
         }
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         debug.snapshot(browser, "12-slot-name-selected");
         if (!nativeClickDialogButton(browser, "获取推广链接")) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union get promotion link button not found");
@@ -356,7 +357,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         String promotionUrl = "";
         for (int i = 0; i < 10; i++) {
             ensureTaskDeadline("getPromotionUrl.waitPromotionUrl");
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             promotionUrl = readPromotionUrl(browser);
             if (!Strings.isEmpty(promotionUrl)) {
                 break;
@@ -407,7 +408,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "04-search-button-missing");
             return;
         }
-        Extends.sleep(config.getStepDelayMillis() * 2L);
+        Extends.sleep(config.nextStepDelayMillis() * 2L);
         scrollOrderPageBottom(browser, config);
         debug.snapshot(browser, "04-search-clicked");
 
@@ -443,7 +444,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             if (!nativeClickNextOrderPage(browser)) {
                 break;
             }
-            Extends.sleep(config.getStepDelayMillis() * 2L);
+            Extends.sleep(config.nextStepDelayMillis() * 2L);
         }
 
         result.setOrders(new ArrayList<JdUnionPromotionOrderItem>(orders.values()));
@@ -460,7 +461,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     private List<JdUnionPromotionOrderItem> readOrderRowsByScrolling(Browser browser, JdUnionConfig config) throws TimeoutException {
         LinkedHashMap<String, JdUnionPromotionOrderItem> rows = new LinkedHashMap<String, JdUnionPromotionOrderItem>();
         scrollOrderTableTop(browser);
-        Extends.sleep(Math.max(300, config.getStepDelayMillis() / 2));
+        Extends.sleep(Math.max(300, config.nextStepDelayMillis() / 2));
         for (int i = 0; i < 80; i++) {
             ensureTaskDeadline("getPromotionOrders.readOrderRows");
             List<JdUnionPromotionOrderItem> visibleRows = readOrderRows(browser);
@@ -470,7 +471,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             if (!scrollOrderRowsDown(browser)) {
                 break;
             }
-            Extends.sleep(Math.max(250, config.getStepDelayMillis() / 3));
+            Extends.sleep(Math.max(250, config.nextStepDelayMillis() / 3));
         }
         scrollOrderPageBottom(browser, config);
         return new ArrayList<JdUnionPromotionOrderItem>(rows.values());
@@ -518,14 +519,14 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                     "if(visible(e)&&(t==='下一页'||t.indexOf('下一页')>=0)){target=e.closest('button,a,li,.pagination-wrap')||e;break;}}" +
                     "if(target){var p=target.parentElement;while(p){try{if(canScroll(p)){p.scrollTop=p.scrollHeight;}}catch(ex){}p=p.parentElement;}" +
                     "target.scrollIntoView({block:'center',inline:'center'});}");
-            Extends.sleep(Math.max(300, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(300, config.nextStepDelayMillis()));
         }
     }
 
     private boolean enterOrderPage(Browser browser, JdUnionConfig config, JdUnionPromotionOrdersResult result,
             DebugRecorder debug) throws TimeoutException {
         browser.navigateUrl(config.getEntireUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         result.setCurrentUrl(browser.getCurrentUrl());
         debug.snapshot(browser, "00-entire-loaded");
         if (isLoginRequired(result.getCurrentUrl(), config)) {
@@ -536,15 +537,15 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
 
         if (nativeClickByText(browser, "订单明细", true) || clickByText(browser, "订单明细", false)) {
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             debug.snapshot(browser, "00-order-menu-opened");
             if (nativeClickByText(browser, "推客推广订单明细", true) || clickByText(browser, "推客推广订单明细", false)) {
-                Extends.sleep(config.getStepDelayMillis() * 2L);
+                Extends.sleep(config.nextStepDelayMillis() * 2L);
             }
         }
         if (!waitOrderPageReady(browser, config)) {
             browser.navigateUrl(config.getOrderUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
-            Extends.sleep(config.getStepDelayMillis() * 2L);
+            Extends.sleep(config.nextStepDelayMillis() * 2L);
         }
         result.setCurrentUrl(browser.getCurrentUrl());
         if (isLoginRequired(result.getCurrentUrl(), config)) {
@@ -566,7 +567,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         long deadline = System.currentTimeMillis() + Math.max(1, config.getInitialPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getPromotionOrders.waitOrderPageReady");
-            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
             String body = bodySnippet(browser);
             if (containsAny(body, "时间范围", "查找订单", "订单状态", "预估佣金", "推客推广订单明细")) {
                 return true;
@@ -579,7 +580,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         if (!nativeClickOrderDateRange(browser)) {
             return false;
         }
-        Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+        Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
         YearMonth startMonth = YearMonth.from(startDate);
         YearMonth endMonth = YearMonth.from(endDate);
         boolean startMonthReady = false;
@@ -603,7 +604,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             if (!clicked) {
                 return false;
             }
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
         }
         if (!startMonthReady) {
             return false;
@@ -611,7 +612,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         if (!nativeClickDateInPicker(browser, startDate, true)) {
             return false;
         }
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         List<String> months = readDatePickerMonths(browser);
         YearMonth left = months.isEmpty() ? null : parseYearMonthText(months.get(0));
         if (endMonth.equals(left)) {
@@ -638,7 +639,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             if (!clicked) {
                 return false;
             }
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
         }
         if (!endMonthReady) {
             return false;
@@ -657,7 +658,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "}" +
                 "return false;");
         if (Boolean.TRUE.equals(clicked)) {
-            Extends.sleep(Math.max(300, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(300, config.nextStepDelayMillis()));
         }
     }
 
@@ -998,7 +999,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             DebugRecorder debug)
             throws TimeoutException {
         browser.navigateUrl(config.getOverviewUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         result.setCurrentUrl(browser.getCurrentUrl());
         debug.snapshot(browser, "00-overview-loaded");
         if (isLoginRequired(result.getCurrentUrl(), config)) {
@@ -1013,7 +1014,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             result.getDiagnostics().put("overviewBody", bodySnippet(browser));
             debug.snapshot(browser, "00-left-menu-missing");
             browser.navigateUrl(config.getWorkbenchUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             result.setCurrentUrl(browser.getCurrentUrl());
             debug.snapshot(browser, "00-workbench-loaded");
             if (isLoginRequired(result.getCurrentUrl(), config)) {
@@ -1031,7 +1032,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "00-workbench-not-found");
             return false;
         }
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         debug.snapshot(browser, "00-left-menu-opened");
 
         if (!nativeClickByText(browser, "商品推广", true) && !clickByText(browser, "商品推广", false)) {
@@ -1044,7 +1045,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
 
         for (int i = 0; i < 10; i++) {
             ensureTaskDeadline("getPromotionUrl.waitWorkbenchPage");
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             result.setCurrentUrl(browser.getCurrentUrl());
             if (isPromotionWorkbenchReady(browser)) {
                 debug.snapshot(browser, "00-product-page-ready");
@@ -1178,7 +1179,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         long deadline = System.currentTimeMillis() + Math.max(1, config.getInitialPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getPromotionUrl.waitWorkbenchReady");
-            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
             result.setCurrentUrl(browser.getCurrentUrl());
             if (isPromotionWorkbenchReady(browser)) {
                 return true;
@@ -1338,7 +1339,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "if(pt.indexOf('佣金比例')>=0&&pt.indexOf('预估收益')>=0&&pt.indexOf('到手价')>=0&&pt.indexOf('为您推荐以下相似商品')<0){marker=e;break;}}" +
                 "if(marker){break;}}}" +
                 "if(marker){marker.scrollIntoView({block:'center',inline:'center'});window.scrollBy(0,180);}else{window.scrollBy(0,Math.floor(window.innerHeight*0.7));}");
-        Extends.sleep(Math.max(800, config.getStepDelayMillis()));
+        Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
     }
 
     private boolean selectGuideMedia(Browser browser, String mediaName, JdUnionConfig config) {
@@ -1348,15 +1349,15 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         if (!nativeClickGuideMediaDropdown(browser)) {
             return false;
         }
-        Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+        Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
         if (nativeClickElementSelectOption(browser, mediaName) || nativeClickDropdownOption(browser, mediaName, "data-rx-jd-media-dropdown")) {
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             return true;
         }
         nativeOpenGuideMediaDropdownByEvent(browser);
-        Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+        Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
         if (nativeClickElementSelectOption(browser, mediaName) || nativeClickDropdownOption(browser, mediaName, "data-rx-jd-media-dropdown")) {
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             return true;
         }
         return selectedGuideMediaEquals(browser, mediaName);
@@ -1516,9 +1517,9 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             return false;
         }
         if (nativeClickPromotionSlotDropdown(browser)) {
-            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
             if (nativeClickElementSelectOption(browser, slotName) || nativeClickDropdownOption(browser, slotName, "data-rx-jd-slot-dropdown")) {
-                Extends.sleep(config.getStepDelayMillis());
+                Extends.sleep(config.nextStepDelayMillis());
                 return selectedPromotionSlotEquals(browser, slotName);
             }
         }
@@ -1695,7 +1696,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         long deadline = System.currentTimeMillis() + Math.max(1, config.getInitialPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getPromotionUrl.waitTextVisible");
-            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
             if (Boolean.TRUE.equals(browser.executeScript("return (document.body && document.body.innerText || '').indexOf(arguments[0]) >= 0;", text))) {
                 return true;
             }
@@ -1707,9 +1708,9 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         long deadline = System.currentTimeMillis() + Math.max(1, maxSeconds) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getPromotionUrl.waitAndClickText");
-            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
             if (clickByText(browser, text, exact)) {
-                Extends.sleep(config.getStepDelayMillis());
+                Extends.sleep(config.nextStepDelayMillis());
                 return true;
             }
         }
@@ -1720,9 +1721,9 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         long deadline = System.currentTimeMillis() + Math.max(1, maxSeconds) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getPromotionUrl.waitAndClickDialogButton");
-            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
             if (nativeClickDialogButton(browser, text)) {
-                Extends.sleep(config.getStepDelayMillis());
+                Extends.sleep(config.nextStepDelayMillis());
                 return true;
             }
         }

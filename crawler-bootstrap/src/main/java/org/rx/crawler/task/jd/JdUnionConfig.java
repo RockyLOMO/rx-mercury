@@ -1,9 +1,10 @@
 package org.rx.crawler.task.jd;
 
 import lombok.Data;
+import org.rx.crawler.task.common.StepDelayConfig;
 
 @Data
-public class JdUnionConfig {
+public class JdUnionConfig implements StepDelayConfig {
     private String profileName = "common";
     private boolean fingerprintEnabled = true;
     private boolean headless = false;
@@ -26,6 +27,7 @@ public class JdUnionConfig {
     private int pageTimeoutSeconds = 60;
     private int initialPageTimeoutSeconds = 60;
     private int stepDelayMillis = 1200;
+    private int stepDelayRandomMillis = 600;
     private boolean keepBrowserOpenOnLoginRequired = true;
     private int keepBrowserOpenSecondsOnLoginRequired = 180;
     private int loginWaitSeconds = 180;

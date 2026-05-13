@@ -1,9 +1,10 @@
 package org.rx.crawler.task.tb;
 
 import lombok.Data;
+import org.rx.crawler.task.common.StepDelayConfig;
 
 @Data
-public class TbPromotionConfig {
+public class TbPromotionConfig implements StepDelayConfig {
     private String profileName = "common";
     private boolean fingerprintEnabled = true;
     private boolean headless = false;
@@ -21,6 +22,7 @@ public class TbPromotionConfig {
     private int pageTimeoutSeconds = 60;
     private int initialPageTimeoutSeconds = 180;
     private int stepDelayMillis = 1200;
+    private int stepDelayRandomMillis = 600;
     private boolean keepBrowserOpenOnLoginRequired = true;
     private int keepBrowserOpenSecondsOnLoginRequired = 180;
     private int loginWaitSeconds = 180;

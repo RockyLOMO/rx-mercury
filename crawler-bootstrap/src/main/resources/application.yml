@@ -42,6 +42,8 @@ app:
     humanInputEnabled: true
     humanActionMinDelayMillis: 180
     humanActionMaxDelayMillis: 650
+    operationRandomMinDelayMillis: 80
+    operationRandomMaxDelayMillis: 320
     mouseMoveMinSteps: 24
     mouseMoveMaxSteps: 56
     typingMinDelayMillis: 90
@@ -76,6 +78,7 @@ app:
       pageTimeoutSeconds: 60
       initialPageTimeoutSeconds: 60
       stepDelayMillis: 1200
+      stepDelayRandomMillis: 600
       keepBrowserOpenOnLoginRequired: true
       keepBrowserOpenSecondsOnLoginRequired: 180
       loginWaitSeconds: 180
@@ -96,6 +99,7 @@ app:
       pageTimeoutSeconds: 60
       initialPageTimeoutSeconds: 180
       stepDelayMillis: 1200
+      stepDelayRandomMillis: 600
       keepBrowserOpenOnLoginRequired: true
       keepBrowserOpenSecondsOnLoginRequired: 180
       loginWaitSeconds: 180

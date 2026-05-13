@@ -347,6 +347,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
 
     private synchronized void navigateUrl(@NonNull String url, String locatorSelector, int timeoutSeconds, Predicate<Integer> checkComplete) throws TimeoutException {
         checkNotClosed();
+        humanOperationPause();
 
         injectedScript.clear();
         activeFrame = null;
@@ -488,6 +489,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     @Override
     public void elementClick(String selector, boolean waitElementLocated) {
         checkNotClosed();
+        humanOperationPause();
 
         Locator locator;
         if (waitElementLocated) {
@@ -523,6 +525,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     @Override
     public synchronized void elementPress(String selector, String keys, boolean waitElementLocated) {
         checkNotClosed();
+        humanOperationPause();
 
         Locator locator;
         if (waitElementLocated) {
@@ -1015,6 +1018,18 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
 
     private void humanPause() {
         humanPause(config.getHumanActionMinDelayMillis(), config.getHumanActionMaxDelayMillis());
+    }
+
+    private void humanOperationPause() {
+        if (!config.isHumanInputEnabled()) {
+            return;
+        }
+        int min = Math.max(0, config.getOperationRandomMinDelayMillis());
+        int max = Math.max(min, config.getOperationRandomMaxDelayMillis());
+        if (max == 0) {
+            return;
+        }
+        humanPause(min, max);
     }
 
     private void humanPause(int minMillis, int maxMillis) {

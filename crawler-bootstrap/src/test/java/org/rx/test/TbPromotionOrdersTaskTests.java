@@ -45,6 +45,11 @@ public class TbPromotionOrdersTaskTests {
                 config.getCustom().getTbPromotion().getOrderUrl());
         assertEquals(180, config.getCustom().getTbPromotion().getInitialPageTimeoutSeconds());
         assertEquals(180, config.getCustom().getTbPromotion().getLoginWaitSeconds());
+        assertEquals(600, config.getCustom().getTbPromotion().getStepDelayRandomMillis());
+        assertEquals(80, config.getBrowser().getOperationRandomMinDelayMillis());
+        assertEquals(320, config.getBrowser().getOperationRandomMaxDelayMillis());
+        int nextDelay = config.getCustom().getTbPromotion().nextStepDelayMillis();
+        assertTrue(nextDelay >= 1200 && nextDelay <= 1800);
     }
 
     @Test

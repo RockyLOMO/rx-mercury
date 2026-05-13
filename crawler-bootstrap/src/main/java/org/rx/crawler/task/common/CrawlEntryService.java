@@ -22,7 +22,7 @@ public class CrawlEntryService {
         }
 
         browser.navigateUrl(options.getInitialUrl(), Browser.BODY_SELECTOR, options.getInitialPageTimeoutSeconds());
-        Extends.sleep(options.getStepDelayMillis());
+        Extends.sleep(options.nextStepDelayMillis());
         result.setCurrentUrl(browser.getCurrentUrl());
         if (!isLoginRequired(result.getCurrentUrl(), options)) {
             result.setPassed(true);
@@ -64,7 +64,7 @@ public class CrawlEntryService {
         long deadline = System.currentTimeMillis() + waitSeconds * 1000L;
         result.getDiagnostics().put("loginWaitSeconds", waitSeconds);
         while (System.currentTimeMillis() < deadline) {
-            Extends.sleep(Math.max(1000, options.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, options.nextStepDelayMillis()));
             String currentUrl = browser.getCurrentUrl();
             result.setCurrentUrl(currentUrl);
             if (isLoginRequired(currentUrl, options)) {
