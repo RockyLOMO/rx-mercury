@@ -79,7 +79,7 @@ public class AppConfig {
         private int remotingListenPort;
         private int queueMaxConcurrency = 1;
         private int queueTimeoutSeconds = 600;
-        private boolean debugEnabled = true;
+        private boolean debugEnabled = false;
         private int maxTaskMinutes = 4;
         private ChromeProfileConfig chrome = new ChromeProfileConfig();
         private JdUnionConfig jdUnion = new JdUnionConfig();

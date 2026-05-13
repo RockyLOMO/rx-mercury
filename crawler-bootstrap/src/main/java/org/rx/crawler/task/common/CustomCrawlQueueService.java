@@ -15,6 +15,9 @@ import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersTask;
+import org.rx.crawler.task.tb.TbPromotionUrlRequest;
+import org.rx.crawler.task.tb.TbPromotionUrlResult;
+import org.rx.crawler.task.tb.TbPromotionUrlTask;
 import org.rx.io.EntityDatabase;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -42,6 +45,7 @@ public class CustomCrawlQueueService {
     private final AppConfig appConfig;
     private final JdUnionPromotionTask jdUnionPromotionTask;
     private final TbPromotionOrdersTask tbPromotionOrdersTask;
+    private final TbPromotionUrlTask tbPromotionUrlTask;
     private final AtomicInteger runningCount = new AtomicInteger();
     private ExecutorService executor;
 
@@ -92,6 +96,11 @@ public class CustomCrawlQueueService {
         return waitResult(taskId, TbPromotionOrdersResult.class);
     }
 
+    public TbPromotionUrlResult submitAndWaitTbPromotionUrl(String action, TbPromotionUrlRequest request) {
+        long taskId = enqueue(action, request, 0);
+        return waitResult(taskId, TbPromotionUrlResult.class);
+    }
+
     public List<JdUnionPromotionResult> batch(JdUnionBatchRequest request) {
         List<JdUnionPromotionRequest> items = loadBatchItems(request);
         List<JdUnionPromotionResult> results = new ArrayList<JdUnionPromotionResult>();
@@ -105,7 +114,9 @@ public class CustomCrawlQueueService {
     }
 
     public boolean closeProfile(String profileName) {
-        return jdUnionPromotionTask.closeProfile(profileName) || tbPromotionOrdersTask.closeProfile(profileName);
+        return jdUnionPromotionTask.closeProfile(profileName)
+                || tbPromotionOrdersTask.closeProfile(profileName)
+                || tbPromotionUrlTask.closeProfile(profileName);
     }
 
     private long enqueue(String action, Object request, int priority) {
@@ -152,6 +163,13 @@ public class CustomCrawlQueueService {
         }
         if (TbPromotionOrdersResult.class.equals(resultType)) {
             TbPromotionOrdersResult result = new TbPromotionOrdersResult();
+            result.setTaskType(snapshot.action);
+            result.setStatus(CustomCrawlStatus.FAILED);
+            result.setMessage(snapshot.errorMessage);
+            return resultType.cast(result);
+        }
+        if (TbPromotionUrlResult.class.equals(resultType)) {
+            TbPromotionUrlResult result = new TbPromotionUrlResult();
             result.setTaskType(snapshot.action);
             result.setStatus(CustomCrawlStatus.FAILED);
             result.setMessage(snapshot.errorMessage);
@@ -213,6 +231,9 @@ public class CustomCrawlQueueService {
             } else if ("getTbPromotionOrders".equals(snapshot.action)) {
                 TbPromotionOrdersRequest request = objectMapper.readValue(snapshot.requestJson, TbPromotionOrdersRequest.class);
                 result = tbPromotionOrdersTask.getPromotionOrders(request);
+            } else if ("getTbPromotionUrl".equals(snapshot.action)) {
+                TbPromotionUrlRequest request = objectMapper.readValue(snapshot.requestJson, TbPromotionUrlRequest.class);
+                result = tbPromotionUrlTask.getPromotionUrl(request);
             } else {
                 JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
                 result = jdUnionPromotionTask.getPromotionUrl(request);

@@ -7,6 +7,20 @@
 - 运行前置：每次抓取前先通过 `https://bot.sannysoft.com/` 指纹检测。
 - 浏览器：仅使用本机 Chrome + Playwright，持久化 profile，优先模拟真实人工操作，不追求并发效率。
 
+## 推广链接任务约定
+
+- 任务名统一使用 `getPromotionUrl`。
+- 不保留旧的大小写兼容名。
+- `getPromotionUrl` 返回结果中必须包含 `productInfo`。
+- `productInfo` 字段固定为：
+  - `imageUrl`
+  - `productName`
+  - `productLink`
+  - `commissionRate`
+  - `finalPrice`
+  - `storeName`
+- 生成推广链接时，若同时存在优惠券链接和普通链接，优先取优惠券链接。
+
 ## 订单任务：getPromotionOrders
 
 - 任务名：`getPromotionOrders`
@@ -14,7 +28,7 @@
 - 登录页前缀：`https://union.jd.com/index?returnUrl=`
 - 业务页面：`https://union.jd.com/order`
 - 前置流程：复用公共 Sannysoft 检测与人工登录接管，默认等待配置仍来自 `app.custom.jdUnion`。
-- 调试开关：`debugEnabled` 已提升到全局 `app.custom.debugEnabled`，测试默认建议开启，便于读取 HTML 快照排查问题。
+- 调试开关：`debugEnabled` 已提升到全局 `app.custom.debugEnabled`；发布默认关闭，测试/本地验证显式开启，便于读取 HTML 快照排查问题。
 - 任务超时：`app.custom.maxTaskMinutes` 默认 4 分钟，超时后返回 `TIMEOUT`。
 - 页面遮挡处理：进入页面后如果右上角 `消息公告` 遮挡主体，先点 `收起`。
 - 窗口要求：任务开始时先最大化 Chrome，避免底部翻页和表格区域被裁切。
@@ -31,7 +45,7 @@
 | `forcePreflight` | 否 | 是否强制每次先跑 Sannysoft，默认使用配置 | `true` |
 | `keepBrowserOpenOnLoginRequired` | 否 | 未登录时是否保留浏览器给人工接管 | `true` |
 | `outputPath` | 否 | 结果 JSONL 写出路径 | `D:/app-crawler/data/jd-union/output.jsonl` |
-| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照，未传时默认取 `app.custom.debugEnabled` | `true` |
+| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照，未传时默认取 `app.custom.debugEnabled`；发布默认关闭，测试/本地验证显式传 `true` | `true` |
 | `debugOutputDir` | 否 | debug 输出目录 | `D:/app-crawler/data/jd-union/debug` |
 
 最小入参：
@@ -237,7 +251,7 @@ Content-Type: application/json
 ## Debug 模式
 
 - `debugEnabled=true` 时，任务会在 `debugOutputDir/profileName/skuId-时间戳/` 下保存每个关键步骤的 `html` 快照。
-- 全局默认开关来自 `app.custom.debugEnabled`，请求里的 `debugEnabled` 只作为显式覆盖。
+- 全局默认开关来自 `app.custom.debugEnabled`，发布默认关闭；请求里的 `debugEnabled` 可显式覆盖，测试类默认显式打开。
 - 每个快照文件名包含步骤序号，便于按执行顺序排查。
 - 默认关闭，不影响正常抓取流程。
 
@@ -367,6 +381,8 @@ Content-Type: application/json
 ## 下个抓取任务描述模板
 
 后续新任务可以按下面格式发需求，便于直接实现。
+
+已新增淘宝联盟推广链接任务说明：[TB_getPromotionUrl_Task.md](./TB_getPromotionUrl_Task.md)，用于记录 `getTbPromotionUrl` 的入参、页面流程、调试和验证命令。
 
 ```md
 # 抓取任务

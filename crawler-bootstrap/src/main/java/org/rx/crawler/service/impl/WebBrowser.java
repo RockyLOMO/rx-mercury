@@ -657,13 +657,17 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     public synchronized void maximize() {
         checkNotClosed();
 
-        if (maximizeByCdp()) {
-            return;
+        boolean maximized = maximizeByCdp();
+        if (!maximized) {
+            try {
+                maximizeByWindowsApi();
+                maximized = true;
+            } catch (Exception e) {
+                log.debug("Playwright browser maximize fallback ignored, error={}", e.getMessage());
+            }
         }
-        try {
-            maximizeByWindowsApi();
-        } catch (Exception e) {
-            log.debug("Playwright browser maximize fallback ignored, error={}", e.getMessage());
+        if (maximized) {
+            notifyWindowResizeAfterMaximize();
         }
     }
 
@@ -736,6 +740,20 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         }
     }
 
+    private void notifyWindowResizeAfterMaximize() {
+        if (page == null) {
+            return;
+        }
+        try {
+            page.bringToFront();
+            Extends.sleep(350);
+            page.evaluate("() => { try { window.dispatchEvent(new Event('resize')); } catch (e) {} }");
+            log.debug("Browser resize event dispatched after maximize");
+        } catch (Exception e) {
+            log.debug("Browser resize event after maximize ignored, error={}", e.getMessage());
+        }
+    }
+
     private String resolveCurrentTargetId(CDPSession session) {
         try {
             JsonObject targets = session.send("Target.getTargets");
@@ -779,6 +797,26 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         if (rect != null) {
             setWindowRectangle(rect);
         }
+    }
+
+    @Override
+    public synchronized void mouseMove(double x, double y) {
+        checkNotClosed();
+        moveMouseLikeHuman(x, y);
+        humanPause();
+    }
+
+    @Override
+    public synchronized void mouseClick(double x, double y) {
+        checkNotClosed();
+        moveMouseLikeHuman(x, y);
+        humanPause(80, 240);
+        page.mouse().down();
+        humanPause(65, 160);
+        page.mouse().up();
+        humanPause();
+        mouseX = x;
+        mouseY = y;
     }
 
     /**

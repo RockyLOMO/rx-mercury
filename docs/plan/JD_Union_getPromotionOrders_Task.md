@@ -18,7 +18,7 @@
 | `profileName` | 否 | Chrome profile 名称，默认 `common` | `common` |
 | `forcePreflight` | 否 | 是否强制每次先跑 Sannysoft | `true` |
 | `keepBrowserOpenOnLoginRequired` | 否 | 未登录时是否保留浏览器给人工接管 | `true` |
-| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照，未传时默认取全局配置 | `true` |
+| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照，未传时默认取全局配置；发布默认关闭，测试/本地验证显式传 `true` | `true` |
 | `debugOutputDir` | 否 | debug 输出目录 | `D:/app-crawler/data/jd-union/debug` |
 
 校验规则：
@@ -117,7 +117,7 @@
 ## 调试与超时
 
 - `debugEnabled=true` 时，任务会在每个关键步骤保存 HTML 快照。
-- 全局默认值来自 `app.custom.debugEnabled`，测试时建议默认开启。
+- 全局默认值来自 `app.custom.debugEnabled`，发布默认关闭；测试类里显式开启。
 - 任务最大执行时间来自 `app.custom.maxTaskMinutes`，当前默认 4 分钟。
 - 超时后返回 `TIMEOUT`，并保留最后一张快照用于排查。
 

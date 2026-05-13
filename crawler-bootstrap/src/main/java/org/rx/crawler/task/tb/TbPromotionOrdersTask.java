@@ -545,6 +545,29 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         }
     }
 
+    private boolean nativeClickMarkedElement(Browser browser, String selector) {
+        try {
+            browser.elementClick(selector, false);
+            return true;
+        } catch (Exception e) {
+            try {
+                Map<String, Object> point = browser.executeScript("var target=document.querySelector(arguments[0]);" +
+                        "if(!target){return null;}var r=target.getBoundingClientRect();" +
+                        "if(r.width<=0||r.height<=0){return null;}" +
+                        "return {x:r.left+r.width/2,y:r.top+r.height/2};", selector);
+                if (point == null || point.isEmpty()) {
+                    return false;
+                }
+                double x = toDouble(point.get("x"));
+                double y = toDouble(point.get("y"));
+                browser.mouseDrag(x, y, x, y, 1);
+                return true;
+            } catch (Exception ex) {
+                return false;
+            }
+        }
+    }
+
     private boolean completeForwardLanding(Browser browser, TbPromotionConfig config) throws TimeoutException {
         String currentUrl = browser.getCurrentUrl();
         String body = bodySnippet(browser);
@@ -634,14 +657,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         if (!Boolean.TRUE.equals(marked)) {
             return false;
         }
-        try {
-            browser.elementClick(selector, false);
-            return true;
-        } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript(
-                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
-                    selector));
-        }
+        return nativeClickMarkedElement(browser, selector);
     }
 
     private String readForwardUrl(Browser browser) {
@@ -885,14 +901,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         if (!Boolean.TRUE.equals(marked)) {
             return false;
         }
-        try {
-            browser.elementClick(selector, false);
-            return true;
-        } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript(
-                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
-                    selector));
-        }
+        return nativeClickMarkedElement(browser, selector);
     }
 
     private boolean nativeClickDateInputInRangePopup(Browser browser) {
@@ -919,14 +928,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         if (!Boolean.TRUE.equals(marked)) {
             return false;
         }
-        try {
-            browser.elementClick(selector, false);
-            return true;
-        } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript(
-                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
-                    selector));
-        }
+        return nativeClickMarkedElement(browser, selector);
     }
 
     private boolean nativeClickDateRangeConfirmIfPresent(Browser browser) {
@@ -950,15 +952,11 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         if (!Boolean.TRUE.equals(marked)) {
             return true;
         }
-        try {
-            browser.elementClick(selector, false);
+        if (nativeClickMarkedElement(browser, selector)) {
             Extends.sleep(500L);
             return true;
-        } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript(
-                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
-                    selector));
         }
+        return false;
     }
 
     private List<String> readDatePickerMonths(Browser browser) {

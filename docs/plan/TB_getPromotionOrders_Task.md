@@ -10,6 +10,7 @@
 - 浏览器：仅使用本机 Chrome + Playwright。
 - Chrome profile：默认使用 `common`，用于复用和记录人工登录态。
 - 操作节奏：每次关键操作前后加入随机等待，尽量模拟真实用户操作节奏。
+- 页面操作：优先使用 `Browser` 封装的原生点击、输入、鼠标拖拽能力；JS 只用于定位元素、读取状态和兜底获取坐标。
 
 ## 入参
 
@@ -22,7 +23,7 @@
 | `profileName` | 否 | Chrome profile 名称，默认 `common` | `common` |
 | `forcePreflight` | 否 | 是否强制每次先跑 Sannysoft | `true` |
 | `keepBrowserOpenOnLoginRequired` | 否 | 未登录时是否保留浏览器给人工接管 | `true` |
-| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照，未传时默认取全局配置 | `true` |
+| `debugEnabled` | 否 | 是否保存关键步骤 HTML 快照，未传时默认取全局配置；发布默认关闭，测试/本地验证显式传 `true` | `true` |
 | `debugOutputDir` | 否 | debug 输出目录 | `D:/app-crawler/data/tb/debug` |
 
 校验规则：
@@ -165,7 +166,7 @@
 
 ## Debug 快照
 
-本地验证和排查页面变化时，必须开启 `debugEnabled=true`。
+本地验证和排查页面变化时，测试类/请求里必须显式开启 `debugEnabled=true`，发布配置默认关闭。
 
 关键快照约定：
 

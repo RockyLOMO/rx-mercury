@@ -8,6 +8,8 @@ import org.rx.crawler.task.jd.JdUnionPromotionRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
+import org.rx.crawler.task.tb.TbPromotionUrlRequest;
+import org.rx.crawler.task.tb.TbPromotionUrlResult;
 
 import java.util.List;
 
@@ -15,12 +17,15 @@ public interface CustomCrawlRemotingContract extends EventPublisher<CustomCrawlR
     String EVENT_PROMOTION_RESULT = "getPromotionUrlResult";
     String EVENT_PROMOTION_ORDERS_RESULT = "getPromotionOrdersResult";
     String EVENT_TB_PROMOTION_ORDERS_RESULT = "getTbPromotionOrdersResult";
+    String EVENT_TB_PROMOTION_URL_RESULT = "getTbPromotionUrlResult";
 
     JdUnionPromotionResult getPromotionUrl(JdUnionPromotionRequest request);
 
     JdUnionPromotionOrdersResult getPromotionOrders(JdUnionPromotionOrdersRequest request);
 
     TbPromotionOrdersResult getTbPromotionOrders(TbPromotionOrdersRequest request);
+
+    TbPromotionUrlResult getTbPromotionUrl(TbPromotionUrlRequest request);
 
     JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request);
 

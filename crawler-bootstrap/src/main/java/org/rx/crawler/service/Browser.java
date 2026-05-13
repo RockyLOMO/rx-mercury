@@ -97,6 +97,22 @@ public interface Browser extends AutoCloseable {
     void normalize();
 
     /**
+     * 使用浏览器原生 Mouse API 按拟人轨迹移动到指定坐标。
+     * 默认空实现，仅 WebBrowser 支持。
+     */
+    default void mouseMove(double x, double y) {
+        // 默认空实现
+    }
+
+    /**
+     * 使用浏览器原生 Mouse API 按拟人轨迹移动后点击指定坐标。
+     * 默认空实现，仅 WebBrowser 支持。
+     */
+    default void mouseClick(double x, double y) {
+        // 默认空实现
+    }
+
+    /**
      * 使用 Playwright 原生 Mouse API 模拟人工拖拽，从 (startX, startY) 缓慢拖动到 (endX, endY)。
      * 默认空实现，仅 WebBrowser 支持。
      *

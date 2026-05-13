@@ -12,6 +12,9 @@ import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersTask;
+import org.rx.crawler.task.tb.TbPromotionUrlRequest;
+import org.rx.crawler.task.tb.TbPromotionUrlResult;
+import org.rx.crawler.task.tb.TbPromotionUrlTask;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RemotingEventArgs;
 import org.rx.net.transport.TcpServer;
@@ -30,6 +33,7 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     private final AppConfig appConfig;
     private final JdUnionPromotionTask jdUnionPromotionTask;
     private final TbPromotionOrdersTask tbPromotionOrdersTask;
+    private final TbPromotionUrlTask tbPromotionUrlTask;
     private TcpServer remotingServer;
 
     @PostConstruct
@@ -73,6 +77,13 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     }
 
     @Override
+    public TbPromotionUrlResult getTbPromotionUrl(TbPromotionUrlRequest request) {
+        TbPromotionUrlResult result = tbPromotionUrlTask.getPromotionUrl(request);
+        publishDirect(EVENT_TB_PROMOTION_URL_RESULT, result);
+        return result;
+    }
+
+    @Override
     public JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request) {
         JdUnionPromotionResult result = jdUnionPromotionTask.loginCheck(request);
         publishDirect(EVENT_PROMOTION_RESULT, result);
@@ -86,7 +97,9 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
 
     @Override
     public boolean closeProfile(String profileName) {
-        return jdUnionPromotionTask.closeProfile(profileName) || tbPromotionOrdersTask.closeProfile(profileName);
+        return jdUnionPromotionTask.closeProfile(profileName)
+                || tbPromotionOrdersTask.closeProfile(profileName)
+                || tbPromotionUrlTask.closeProfile(profileName);
     }
 
     private void publishDirect(String eventName, Object result) {

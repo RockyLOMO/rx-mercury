@@ -16,8 +16,10 @@ public class TbPromotionConfig implements StepDelayConfig {
     private boolean forcePreflight = true;
 
     private String homeUrl = "https://pub.alimama.com/portal/v2/home/plus/index.htm";
+    private String promotionGoodsUrl = "https://pub.alimama.com/portal/v2/pages/promo/goods/index.htm";
     private String orderUrl = "https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm";
     private String loginUrlPrefix = "https://login.taobao.com/havanaone/login/login.htm";
+    private String defaultMediaName = "";
 
     private int pageTimeoutSeconds = 60;
     private int initialPageTimeoutSeconds = 180;

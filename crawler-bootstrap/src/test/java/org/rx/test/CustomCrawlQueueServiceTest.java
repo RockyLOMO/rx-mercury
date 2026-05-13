@@ -9,6 +9,9 @@ import org.rx.crawler.task.jd.JdUnionPromotionRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.tb.TbPromotionOrdersTask;
+import org.rx.crawler.task.tb.TbPromotionUrlRequest;
+import org.rx.crawler.task.tb.TbPromotionUrlResult;
+import org.rx.crawler.task.tb.TbPromotionUrlTask;
 import org.rx.io.EntityDatabase;
 import org.rx.io.EntityDatabaseImpl;
 
@@ -38,7 +41,7 @@ public class CustomCrawlQueueServiceTest {
         });
 
         CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig, task,
-                mock(TbPromotionOrdersTask.class));
+                mock(TbPromotionOrdersTask.class), mock(TbPromotionUrlTask.class));
         try {
             service.init();
 
@@ -69,7 +72,7 @@ public class CustomCrawlQueueServiceTest {
         when(task.getPromotionUrl(any())).thenThrow(new IllegalStateException("boom"));
 
         CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig, task,
-                mock(TbPromotionOrdersTask.class));
+                mock(TbPromotionOrdersTask.class), mock(TbPromotionUrlTask.class));
         try {
             service.init();
 
@@ -79,6 +82,42 @@ public class CustomCrawlQueueServiceTest {
             JdUnionPromotionResult result = service.submitAndWait("getPromotionUrl", request, JdUnionPromotionResult.class);
 
             assertEquals(CustomCrawlStatus.FAILED, result.getStatus());
+        } finally {
+            service.destroy();
+            entityDatabase.close();
+        }
+    }
+
+    @Test
+    public void submitAndWaitShouldDispatchTbPromotionUrlTask() throws Exception {
+        EntityDatabase entityDatabase = new EntityDatabaseImpl("jdbc:h2:mem:queue-test-tb-url;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false", null, 4, true);
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig appConfig = new AppConfig();
+        AppConfig.CustomTaskConfig customTaskConfig = new AppConfig.CustomTaskConfig();
+        customTaskConfig.setQueueMaxConcurrency(1);
+        customTaskConfig.setQueueTimeoutSeconds(5);
+        appConfig.setCustom(customTaskConfig);
+
+        TbPromotionUrlTask tbPromotionUrlTask = mock(TbPromotionUrlTask.class);
+        when(tbPromotionUrlTask.getPromotionUrl(any())).thenAnswer(invocation -> {
+            TbPromotionUrlResult result = new TbPromotionUrlResult();
+            result.setStatus(CustomCrawlStatus.SUCCESS);
+            result.setMessage("");
+            return result;
+        });
+
+        CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig,
+                mock(JdUnionPromotionTask.class), mock(TbPromotionOrdersTask.class), tbPromotionUrlTask);
+        try {
+            service.init();
+
+            TbPromotionUrlRequest request = new TbPromotionUrlRequest();
+            request.setProductInfo("西麦纯燕麦片3kg");
+            request.setAdSiteName("5");
+            TbPromotionUrlResult result = service.submitAndWaitTbPromotionUrl("getTbPromotionUrl", request);
+
+            assertEquals(CustomCrawlStatus.SUCCESS, result.getStatus());
+            verify(tbPromotionUrlTask).getPromotionUrl(any());
         } finally {
             service.destroy();
             entityDatabase.close();

@@ -12,24 +12,12 @@
 - 如果进入登录页，交给人工接管，程序只负责等待和恢复后续流程。
 - 初始页、登录页等待时长、人工接管等待时长都必须可配置。
 - 所有任务都应复用公共前置流程，不要在具体任务里重复造轮子。
-
-## JD 联盟任务约定
-
-- 任务名统一使用 `getPromotionUrl`。
-- 不保留旧的大小写兼容名。
-- `getPromotionUrl` 返回结果中必须包含 `productInfo`。
-- `productInfo` 字段固定为：
-  - `imageUrl`
-  - `productName`
-  - `productLink`
-  - `commissionRate`
-  - `finalPrice`
-  - `storeName`
-- 生成推广链接时，若同时存在优惠券链接和普通链接，优先取优惠券链接。
+- 页面操作优先使用 `Browser` 封装的原生点击、输入、鼠标移动、拖拽能力，模拟真实用户操作；仅在定位元素、读取页面状态或原生操作失败兜底时使用 JS。
 
 ## 本地验证约定
 
-- 本地验证时，默认要把 `debugEnabled=true` 打开。
+- 本地验证/测试类中默认要显式把 `debugEnabled=true` 打开；发布程序默认保持关闭。
+- 本地验证和集成测试时默认使用通用 Chrome profile（`common`），方便复用并记录人工登录态、风控状态和页面调试状态。
 - `debugEnabled=true` 时，任务应保存关键步骤的 HTML 快照，方便排查页面变化。
 - 若未显式指定 `debugOutputDir`，优先写到项目约定的本地调试目录。
 

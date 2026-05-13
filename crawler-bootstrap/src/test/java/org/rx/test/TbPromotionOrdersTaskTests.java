@@ -41,6 +41,8 @@ public class TbPromotionOrdersTaskTests {
 
         assertEquals("common", config.getCustom().getTbPromotion().getProfileName());
         assertEquals("https://pub.alimama.com/portal/v2/home/plus/index.htm", config.getCustom().getTbPromotion().getHomeUrl());
+        assertEquals("https://pub.alimama.com/portal/v2/pages/promo/goods/index.htm",
+                config.getCustom().getTbPromotion().getPromotionGoodsUrl());
         assertEquals("https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm",
                 config.getCustom().getTbPromotion().getOrderUrl());
         assertEquals(180, config.getCustom().getTbPromotion().getInitialPageTimeoutSeconds());

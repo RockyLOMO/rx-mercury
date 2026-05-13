@@ -12,6 +12,8 @@ import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
+import org.rx.crawler.task.tb.TbPromotionUrlRequest;
+import org.rx.crawler.task.tb.TbPromotionUrlResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,6 +46,12 @@ public class CustomCrawlController {
     @PostMapping("/tb/getPromotionOrders")
     public Result<TbPromotionOrdersResult> getTbPromotionOrders(@Valid @RequestBody TbPromotionOrdersRequest request) {
         TbPromotionOrdersResult result = taskQueueService.submitAndWaitTbOrders("getTbPromotionOrders", request);
+        return wrap(result);
+    }
+
+    @PostMapping("/tb/getPromotionUrl")
+    public Result<TbPromotionUrlResult> getTbPromotionUrl(@Valid @RequestBody TbPromotionUrlRequest request) {
+        TbPromotionUrlResult result = taskQueueService.submitAndWaitTbPromotionUrl("getTbPromotionUrl", request);
         return wrap(result);
     }
 
@@ -80,6 +88,13 @@ public class CustomCrawlController {
     }
 
     private Result<TbPromotionOrdersResult> wrap(TbPromotionOrdersResult result) {
+        if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
+            return Result.success(result);
+        }
+        return Result.fail(result.getStatus().name(), result.getMessage(), result);
+    }
+
+    private Result<TbPromotionUrlResult> wrap(TbPromotionUrlResult result) {
         if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
             return Result.success(result);
         }
