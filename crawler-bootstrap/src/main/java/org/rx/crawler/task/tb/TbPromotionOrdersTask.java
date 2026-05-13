@@ -58,12 +58,12 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private static final Pattern MONTH_PATTERN = Pattern.compile("(\\d{4})年(\\d{1,2})月");
     private static final Pattern MONEY_PATTERN = Pattern.compile("[￥¥]\\s*(-?\\d+(?:\\.\\d+)?)");
     private static final Pattern ANY_NUMBER_PATTERN = Pattern.compile("-?\\d+(?:\\.\\d+)?");
-    private static final Pattern DATE_TIME_PATTERN = Pattern.compile("\\d{4}-\\d{2}-\\d{2}(?:\\s+\\d{2}:\\d{2}:\\d{2})?");
+    private static final Pattern DATE_TIME_PATTERN = Pattern
+            .compile("\\d{4}-\\d{2}-\\d{2}(?:\\s+\\d{2}:\\d{2}:\\d{2})?");
     private static final Pattern LONG_NO_PATTERN = Pattern.compile("\\b[A-Za-z0-9_-]{10,}\\b");
     private static final String QUICK_ENTER_TEXT = "快速进入";
     private static final String QUICK_LOGIN_TEXT = "快速登录";
-    private static final String JS_VISIBLE_STRICT =
-            "function visible(el){for(var p=el;p&&p.nodeType===1;p=p.parentElement){var st=getComputedStyle(p),c=((p.className||'')+'').toLowerCase();if(st.display==='none'||st.visibility==='hidden'||c.indexOf('hidden')>=0){return false;}}var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}";
+    private static final String JS_VISIBLE_STRICT = "function visible(el){for(var p=el;p&&p.nodeType===1;p=p.parentElement){var st=getComputedStyle(p),c=((p.className||'')+'').toLowerCase();if(st.display==='none'||st.visibility==='hidden'||c.indexOf('hidden')>=0){return false;}}var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}";
 
     private final AppConfig appConfig;
     private final BrowserProfileManager profileManager;
@@ -141,14 +141,17 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         options.setPreflightUrl(config.getPreflightUrl());
         options.setPreflightStrict(config.isPreflightStrict());
         options.setPreflightCacheMinutes(config.getPreflightCacheMinutes());
-        options.setForcePreflight(request.getForcePreflight() == null ? config.isForcePreflight() : request.getForcePreflight());
+        options.setForcePreflight(
+                request.getForcePreflight() == null ? config.isForcePreflight() : request.getForcePreflight());
         options.setInitialUrl(config.getHomeUrl());
         options.setLoginUrlPrefix(config.getLoginUrlPrefix());
         options.setInitialPageTimeoutSeconds(config.getInitialPageTimeoutSeconds());
         options.setLoginWaitSeconds(config.getLoginWaitSeconds());
         options.setStepDelayMillis(config.getStepDelayMillis());
+        options.setStepDelayRandomMillis(config.getStepDelayRandomMillis());
         options.setKeepBrowserOpenOnLoginRequired(request.getKeepBrowserOpenOnLoginRequired() == null
-                ? config.isKeepBrowserOpenOnLoginRequired() : request.getKeepBrowserOpenOnLoginRequired());
+                ? config.isKeepBrowserOpenOnLoginRequired()
+                : request.getKeepBrowserOpenOnLoginRequired());
         options.setKeepBrowserOpenSecondsOnLoginRequired(config.getKeepBrowserOpenSecondsOnLoginRequired());
         options.setLoginRequiredUrlMatcher(url -> isLoginRequired(url, config));
         options.setLoggedInUrlMatcher(url -> isLoggedInUrl(url, config));
@@ -171,10 +174,11 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             return;
         }
         browser.navigateUrl(config.getOrderUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         // 导航后检测并处理滑块验证
         if (!checkAndHandleSliderVerify(browser, config, result, debug, "02-order-slider")) {
-            fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion slider verify not cleared before order page ready");
+            fail(result, CustomCrawlStatus.PAGE_CHANGED,
+                    "TB promotion slider verify not cleared before order page ready");
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "02-order-slider-not-cleared");
             return;
@@ -207,7 +211,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         debug.snapshot(browser, "03-date-range-selected");
 
         if (!nativeClickOrderSearchButton(browser)) {
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             waitOrderRowsSettled(browser, config);
             if (!isOrderListLoaded(browser)) {
                 fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order search button not found");
@@ -218,7 +222,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             result.getDiagnostics().put("searchButtonMissingSkipped", true);
             debug.snapshot(browser, "04-search-button-skipped");
         } else {
-            Extends.sleep(config.getStepDelayMillis() * 2L);
+            Extends.sleep(config.nextStepDelayMillis() * 2L);
         }
         // 搜索后检测滑块验证
         if (!checkAndHandleSliderVerify(browser, config, result, debug, "04-search-slider")) {
@@ -250,9 +254,10 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 result.getDiagnostics().put("nextPageClickFailedAt", pageNo);
                 break;
             }
-            Extends.sleep(config.getStepDelayMillis() * 2L);
+            Extends.sleep(config.nextStepDelayMillis() * 2L);
             // 翻页后检测滑块验证
-            if (!checkAndHandleSliderVerify(browser, config, result, debug, String.format("05-page-%03d-slider", pageNo + 1))) {
+            if (!checkAndHandleSliderVerify(browser, config, result, debug,
+                    String.format("05-page-%03d-slider", pageNo + 1))) {
                 fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion slider verify not cleared during page turn");
                 result.getDiagnostics().put("body", bodySnippet(browser));
                 return;
@@ -285,7 +290,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             result.getDiagnostics().put("sliderVerifyAt", stepTag);
 
             boolean slid = simulateSlideDrag(browser, config, debug, stepTag, attempt + 1);
-            Extends.sleep(Math.max(1500, config.getStepDelayMillis() * 2L));
+            Extends.sleep(Math.max(1500, config.nextStepDelayMillis() * 2L));
             debug.snapshot(browser, stepTag + "-after-slide-" + (attempt + 1));
 
             if (slid && !isSliderVerifyPage(browser)) {
@@ -293,13 +298,14 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 result.getDiagnostics().put("sliderVerifyPassed", true);
                 return true;
             }
-            log.warn("TB promotion slider verify not resolved, step={}, attempt={}, slid={}", stepTag, attempt + 1, slid);
+            log.warn("TB promotion slider verify not resolved, step={}, attempt={}, slid={}", stepTag, attempt + 1,
+                    slid);
 
             // 检测"验证失败，点击框体重试"文案，先点击框体触发重置
             clickRetryContainerIfPresent(browser, debug, stepTag, attempt + 1);
 
             // 等待一段时间再重试
-            Extends.sleep(Math.max(2000, config.getStepDelayMillis() * 3L));
+            Extends.sleep(Math.max(2000, config.nextStepDelayMillis() * 3L));
         }
         log.warn("TB promotion slider verify failed after 3 attempts, step={}", stepTag);
         debug.snapshot(browser, stepTag + "-manual-wait");
@@ -313,7 +319,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         return false;
     }
 
-    private boolean waitSliderVerifyCleared(Browser browser, TbPromotionConfig config, String stepTag) throws TimeoutException {
+    private boolean waitSliderVerifyCleared(Browser browser, TbPromotionConfig config, String stepTag)
+            throws TimeoutException {
         int waitSeconds = Math.max(10, config.getLoginWaitSeconds());
         extendTaskDeadline(waitSeconds + Math.max(10, config.getPageTimeoutSeconds()));
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(waitSeconds);
@@ -322,7 +329,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             if (!isSliderVerifyPage(browser)) {
                 return true;
             }
-            Extends.sleep(Math.max(1000L, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000L, config.nextStepDelayMillis()));
         }
         return false;
     }
@@ -365,26 +372,30 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             if (!containsAny(body, "验证失败", "点击框体重试")) {
                 return;
             }
-            log.info("TB promotion slider verify failed hint detected, clicking container to retry, step={}, attempt={}", stepTag, attempt);
+            log.info(
+                    "TB promotion slider verify failed hint detected, clicking container to retry, step={}, attempt={}",
+                    stepTag, attempt);
             debug.snapshot(browser, stepTag + "-verify-failed-" + attempt);
 
             // 通过 JS 找到 NC 验证容器框体坐标（.nc-container 或 .nc_wrapper 或含"验证失败"文字的父级区域）
             Map<String, Object> containerInfo = browser.executeScript(
                     "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                    "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                    // 优先找 NC 容器
-                    "var c=document.querySelector('.nc-container,.nc_wrapper,.sm-pop-inner');" +
-                    "if(c&&visible(c)){var r=c.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}" +
-                    // 兜底：找含"验证失败"文字的可见元素
-                    "var all=Array.prototype.slice.call(document.querySelectorAll('div,span,p'));" +
-                    "for(var i=0;i<all.length;i++){" +
-                    "  var t=(all[i].innerText||all[i].textContent||'').trim();" +
-                    "  if(t.indexOf('验证失败')>=0&&visible(all[i])){" +
-                    "    var r=all[i].getBoundingClientRect();" +
-                    "    if(r.width>50&&r.height>20){return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}" +
-                    "  }" +
-                    "}" +
-                    "return null;");
+                            "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                            // 优先找 NC 容器
+                            "var c=document.querySelector('.nc-container,.nc_wrapper,.sm-pop-inner');" +
+                            "if(c&&visible(c)){var r=c.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}"
+                            +
+                            // 兜底：找含"验证失败"文字的可见元素
+                            "var all=Array.prototype.slice.call(document.querySelectorAll('div,span,p'));" +
+                            "for(var i=0;i<all.length;i++){" +
+                            "  var t=(all[i].innerText||all[i].textContent||'').trim();" +
+                            "  if(t.indexOf('验证失败')>=0&&visible(all[i])){" +
+                            "    var r=all[i].getBoundingClientRect();" +
+                            "    if(r.width>50&&r.height>20){return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}"
+                            +
+                            "  }" +
+                            "}" +
+                            "return null;");
 
             if (containerInfo == null) {
                 log.warn("TB promotion verify-failed container not found, step={}, attempt={}", stepTag, attempt);
@@ -398,13 +409,15 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 return;
             }
 
-            log.info("TB promotion clicking verify-failed container at ({}, {}), step={}, attempt={}", cx, cy, stepTag, attempt);
+            log.info("TB promotion clicking verify-failed container at ({}, {}), step={}, attempt={}", cx, cy, stepTag,
+                    attempt);
             // 用 mouseDrag 原地点击（起点终点相同 = 点击效果），比 elementClick 更自然
             browser.mouseDrag(cx, cy, cx, cy, 1);
             Extends.sleep(1500);
             debug.snapshot(browser, stepTag + "-verify-retry-clicked-" + attempt);
         } catch (Exception e) {
-            log.warn("TB promotion click retry container error, step={}, attempt={}, error={}", stepTag, attempt, e.getMessage());
+            log.warn("TB promotion click retry container error, step={}, attempt={}, error={}", stepTag, attempt,
+                    e.getMessage());
         }
     }
 
@@ -419,61 +432,66 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         // 找到滑块按钮，返回 {x, y, width, height, trackWidth}，用于计算拖拽距离
         Map<String, Object> sliderInfo = browser.executeScript(
                 "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                // 1) 首先精确匹配阿里云 NoCaptcha (NC) 滑块把手: class 含 btn_slide
-                "var handles=Array.prototype.slice.call(document.querySelectorAll('.btn_slide,[class*=btn_slide]')).filter(visible);" +
-                // 2) NC 轨道: .nc_scale
-                "var tracks=Array.prototype.slice.call(document.querySelectorAll('.nc_scale,[class*=nc_scale],[class*=nc_wrapper]')).filter(function(e){" +
-                "  if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
-                "});" +
-                // 3) 通用备选: class 含 slider/handle/drag 且宽度 <= 80
-                "if(handles.length===0){" +
-                "  handles=Array.prototype.slice.call(document.querySelectorAll(" +
-                "    '[class*=slider],[class*=Slider],[class*=handle],[class*=Handle],[class*=drag],[class*=Drag]'" +
-                "  )).filter(function(e){" +
-                "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();" +
-                "    return r.width>0&&r.width<=80&&r.height>0&&r.height<=80;" +
-                "  });" +
-                "}" +
-                // 4) 轨道备选: 宽度较大且 class 含 track/rail/groove
-                "if(tracks.length===0){" +
-                "  tracks=Array.prototype.slice.call(document.querySelectorAll(" +
-                "    '[class*=track],[class*=Track],[class*=rail],[class*=Rail],[class*=groove],[class*=Groove]'" +
-                "  )).filter(function(e){" +
-                "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
-                "  });" +
-                "}" +
-                // 5) 最终兑底: 找到文字含'拖'的父容器内第一个小方块
-                "if(handles.length===0){" +
-                "  var verifyBox=null;" +
-                "  var allDivs=Array.prototype.slice.call(document.querySelectorAll('div,span,section'));" +
-                "  for(var i=0;i<allDivs.length;i++){" +
-                "    var t=norm(allDivs[i].innerText||allDivs[i].textContent||'');" +
-                "    if(t.indexOf('\u62d6')>=0&&t.indexOf('\u6ed1\u5757')>=0){verifyBox=allDivs[i];break;}" +
-                "  }" +
-                "  if(verifyBox){" +
-                "    var kids=Array.prototype.slice.call(verifyBox.querySelectorAll('*'));" +
-                "    for(var j=0;j<kids.length;j++){" +
-                "      var kr=kids[j].getBoundingClientRect();" +
-                "      if(visible(kids[j])&&kr.width>10&&kr.width<=80&&kr.height>10&&kr.height<=80){" +
-                "        handles.push(kids[j]);break;" +
-                "      }" +
-                "    }" +
-                "  }" +
-                "}" +
-                "if(handles.length===0){return null;}" +
-                "var handle=handles[0];" +
-                "var hr=handle.getBoundingClientRect();" +
-                "var trackWidth=hr.width;" +  // 默认以 handle 宽度兜底
-                "if(tracks.length>0){" +
-                "  var tr=tracks[0].getBoundingClientRect();" +
-                "  trackWidth=tr.width;" +
-                "}" +
-                "return {x:hr.left+hr.width/2,y:hr.top+hr.height/2,width:hr.width,height:hr.height,trackWidth:trackWidth};");
+                        "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                        "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                        // 1) 首先精确匹配阿里云 NoCaptcha (NC) 滑块把手: class 含 btn_slide
+                        "var handles=Array.prototype.slice.call(document.querySelectorAll('.btn_slide,[class*=btn_slide]')).filter(visible);"
+                        +
+                        // 2) NC 轨道: .nc_scale
+                        "var tracks=Array.prototype.slice.call(document.querySelectorAll('.nc_scale,[class*=nc_scale],[class*=nc_wrapper]')).filter(function(e){"
+                        +
+                        "  if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
+                        "});" +
+                        // 3) 通用备选: class 含 slider/handle/drag 且宽度 <= 80
+                        "if(handles.length===0){" +
+                        "  handles=Array.prototype.slice.call(document.querySelectorAll(" +
+                        "    '[class*=slider],[class*=Slider],[class*=handle],[class*=Handle],[class*=drag],[class*=Drag]'"
+                        +
+                        "  )).filter(function(e){" +
+                        "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();" +
+                        "    return r.width>0&&r.width<=80&&r.height>0&&r.height<=80;" +
+                        "  });" +
+                        "}" +
+                        // 4) 轨道备选: 宽度较大且 class 含 track/rail/groove
+                        "if(tracks.length===0){" +
+                        "  tracks=Array.prototype.slice.call(document.querySelectorAll(" +
+                        "    '[class*=track],[class*=Track],[class*=rail],[class*=Rail],[class*=groove],[class*=Groove]'"
+                        +
+                        "  )).filter(function(e){" +
+                        "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
+                        "  });" +
+                        "}" +
+                        // 5) 最终兑底: 找到文字含'拖'的父容器内第一个小方块
+                        "if(handles.length===0){" +
+                        "  var verifyBox=null;" +
+                        "  var allDivs=Array.prototype.slice.call(document.querySelectorAll('div,span,section'));" +
+                        "  for(var i=0;i<allDivs.length;i++){" +
+                        "    var t=norm(allDivs[i].innerText||allDivs[i].textContent||'');" +
+                        "    if(t.indexOf('\u62d6')>=0&&t.indexOf('\u6ed1\u5757')>=0){verifyBox=allDivs[i];break;}" +
+                        "  }" +
+                        "  if(verifyBox){" +
+                        "    var kids=Array.prototype.slice.call(verifyBox.querySelectorAll('*'));" +
+                        "    for(var j=0;j<kids.length;j++){" +
+                        "      var kr=kids[j].getBoundingClientRect();" +
+                        "      if(visible(kids[j])&&kr.width>10&&kr.width<=80&&kr.height>10&&kr.height<=80){" +
+                        "        handles.push(kids[j]);break;" +
+                        "      }" +
+                        "    }" +
+                        "  }" +
+                        "}" +
+                        "if(handles.length===0){return null;}" +
+                        "var handle=handles[0];" +
+                        "var hr=handle.getBoundingClientRect();" +
+                        "var trackWidth=hr.width;" + // 默认以 handle 宽度兜底
+                        "if(tracks.length>0){" +
+                        "  var tr=tracks[0].getBoundingClientRect();" +
+                        "  trackWidth=tr.width;" +
+                        "}" +
+                        "return {x:hr.left+hr.width/2,y:hr.top+hr.height/2,width:hr.width,height:hr.height,trackWidth:trackWidth};");
 
         if (sliderInfo == null) {
-            log.warn("TB promotion slider handle not found, cannot simulate drag, step={}, attempt={}", stepTag, attempt);
+            log.warn("TB promotion slider handle not found, cannot simulate drag, step={}, attempt={}", stepTag,
+                    attempt);
             // 保存当前页 HTML 便于 debug 排查滑块元素结构
             debug.snapshot(browser, stepTag + "-slide-no-handle-" + attempt);
             return false;
@@ -486,7 +504,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
 
         // 坐标合法性校验：NaN/Infinity 会导致 Playwright Mouse API 异常；(0,0) 也是非法滑块位置
         if (!Double.isFinite(startX) || !Double.isFinite(startY) || startX < 1 || startY < 1) {
-            log.warn("TB promotion slider handle coordinates invalid, startX={}, startY={}, step={}, attempt={}, skip drag",
+            log.warn(
+                    "TB promotion slider handle coordinates invalid, startX={}, startY={}, step={}, attempt={}, skip drag",
                     startX, startY, stepTag, attempt);
             // 保存当前页 HTML 便于 debug 排查坐标问题
             debug.snapshot(browser, stepTag + "-slide-invalid-coord-" + attempt);
@@ -503,7 +522,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             dragDistance = Math.max(200, viewportWidth * 0.70 - handleWidth);
         }
 
-        log.info("TB promotion simulate slide drag, startX={}, startY={}, handleWidth={}, trackWidth={}, dragDistance={}",
+        log.info(
+                "TB promotion simulate slide drag, startX={}, startY={}, handleWidth={}, trackWidth={}, dragDistance={}",
                 startX, startY, handleWidth, trackWidth, dragDistance);
 
         // 使用 Playwright 原生 Mouse API 模拟拖拽（真实浏览器输入事件，比 JS dispatchEvent 更难被检测）
@@ -514,9 +534,15 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
 
     /** Object -> double 工具方法，兼容 Integer / Long / Double / String */
     private double toDouble(Object val) {
-        if (val == null) return 0;
-        if (val instanceof Number) return ((Number) val).doubleValue();
-        try { return Double.parseDouble(val.toString()); } catch (Exception e) { return 0; }
+        if (val == null)
+            return 0;
+        if (val instanceof Number)
+            return ((Number) val).doubleValue();
+        try {
+            return Double.parseDouble(val.toString());
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     private boolean completeForwardLanding(Browser browser, TbPromotionConfig config) throws TimeoutException {
@@ -540,7 +566,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             if (!forwardLanding && !hasQuickEntrance && containsAny(body, "阿里妈妈", "淘宝联盟", "效果报表", "订单")) {
                 return true;
             }
-            if (hasQuickEntrance && System.currentTimeMillis() - lastClickAt >= Math.max(3000L, config.getStepDelayMillis() * 3L)
+            if (hasQuickEntrance
+                    && System.currentTimeMillis() - lastClickAt >= Math.max(3000L, config.nextStepDelayMillis() * 3L)
                     && nativeClickQuickEnter(browser)) {
                 clicked = true;
                 lastClickAt = System.currentTimeMillis();
@@ -550,24 +577,25 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 }
                 continue;
             }
-            Extends.sleep(Math.max(800, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
         }
         String forwardUrl = readForwardUrl(browser);
         if (!Strings.isEmpty(forwardUrl)) {
             browser.navigateUrl(forwardUrl, Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
             return waitForwardLandingResolvedAfterClick(browser, config,
                     System.currentTimeMillis() + Math.max(10, config.getPageTimeoutSeconds()) * 1000L);
         }
         return clicked;
     }
 
-    private boolean waitForwardLandingResolvedAfterClick(Browser browser, TbPromotionConfig config, long outerDeadline) throws TimeoutException {
+    private boolean waitForwardLandingResolvedAfterClick(Browser browser, TbPromotionConfig config, long outerDeadline)
+            throws TimeoutException {
         long deadline = Math.min(outerDeadline,
-                System.currentTimeMillis() + Math.max(8000L, config.getStepDelayMillis() * 8L));
+                System.currentTimeMillis() + Math.max(8000L, config.nextStepDelayMillis() * 8L));
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.waitForwardLandingResolvedAfterClick");
-            Extends.sleep(Math.max(700L, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(700L, config.nextStepDelayMillis()));
             String currentUrl = browser.getCurrentUrl();
             String body = bodySnippet(browser);
             boolean forwardLanding = isForwardLandingUrl(currentUrl);
@@ -588,14 +616,20 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private boolean nativeClickQuickEnter(Browser browser) {
         String selector = "[data-rx-tb-quick-enter='1']";
         Boolean marked = browser.executeScript("var attr='data-rx-tb-quick-enter';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                +
                 "if(document.readyState==='loading'){return false;}" +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
-                "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,[role=\"button\"],span,div'));" +
-                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e);if(t!=='快速进入'&&t!=='快速登录'&&t.indexOf('快速进入')<0&&t.indexOf('快速登录')<0){continue;}" +
-                "var target=e.closest('button,a,[role=\"button\"]')||e,r=target.getBoundingClientRect(),score=r.width*r.height/1000+(t==='快速进入'?0:80);if(score<bestScore){best=target;bestScore=score;}}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}"
+                +
+                "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}"
+                +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,[role=\"button\"],span,div'));"
+                +
+                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e);if(t!=='快速进入'&&t!=='快速登录'&&t.indexOf('快速进入')<0&&t.indexOf('快速登录')<0){continue;}"
+                +
+                "var target=e.closest('button,a,[role=\"button\"]')||e,r=target.getBoundingClientRect(),score=r.width*r.height/1000+(t==='快速进入'?0:80);if(score<bestScore){best=target;bestScore=score;}}"
+                +
                 "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});return true;");
         if (!Boolean.TRUE.equals(marked)) {
             return false;
@@ -604,7 +638,9 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             browser.elementClick(selector, false);
             return true;
         } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript("var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;", selector));
+            return Boolean.TRUE.equals(browser.executeScript(
+                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
+                    selector));
         }
     }
 
@@ -620,7 +656,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         long deadline = System.currentTimeMillis() + Math.max(1, config.getInitialPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.waitOrderPageReady");
-            Extends.sleep(Math.max(1000, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
             String body = bodySnippet(browser);
             if (containsAny(body, "付款时间", "搜索订单编号", "查找订单", "订单状态", "佣金比例")) {
                 return true;
@@ -635,18 +671,19 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 && containsAny(body, "上一页", "下一页", "子订单编号", "父订单编号", "暂无数据");
     }
 
-    private boolean selectPaymentDateRange(Browser browser, LocalDate startDate, LocalDate endDate, TbPromotionConfig config,
+    private boolean selectPaymentDateRange(Browser browser, LocalDate startDate, LocalDate endDate,
+            TbPromotionConfig config,
             DebugRecorder debug) throws TimeoutException {
         if (!nativeClickPaymentTimeRange(browser)) {
             debug.snapshot(browser, "03-date-range-open-click-missing");
             return false;
         }
-        Extends.sleep(Math.max(600, config.getStepDelayMillis() / 2L));
+        Extends.sleep(Math.max(600, config.nextStepDelayMillis() / 2L));
         debug.snapshot(browser, "03-date-range-after-open-click");
 
         List<String> months = waitDatePickerMonths(browser, config);
         if (months.isEmpty() && !isDateRangePopupOpen(browser) && nativeClickPaymentTimeRange(browser)) {
-            Extends.sleep(Math.max(800, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
             debug.snapshot(browser, "03-date-range-after-open-retry-click");
             months = waitDatePickerMonths(browser, config);
         }
@@ -660,7 +697,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 debug.snapshot(browser, "03-date-range-inner-input-missing");
                 return false;
             }
-            Extends.sleep(Math.max(600, config.getStepDelayMillis() / 2L));
+            Extends.sleep(Math.max(600, config.nextStepDelayMillis() / 2L));
             debug.snapshot(browser, "03-date-range-after-inner-input-click");
             months = waitDatePickerMonths(browser, config);
             if (months.isEmpty()) {
@@ -685,18 +722,19 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 break;
             }
             boolean clicked = left != null && left.isAfter(startMonth)
-                    ? nativeClickDatePickerNav(browser, false) : nativeClickDatePickerNav(browser, true);
+                    ? nativeClickDatePickerNav(browser, false)
+                    : nativeClickDatePickerNav(browser, true);
             if (!clicked) {
                 debug.snapshot(browser, "03-date-range-start-month-nav-missing");
                 return false;
             }
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
         }
         if (!startMonthReady || !nativeClickDateInMonth(browser, startDate)) {
             debug.snapshot(browser, "03-date-range-start-day-missing");
             return false;
         }
-        Extends.sleep(config.getStepDelayMillis());
+        Extends.sleep(config.nextStepDelayMillis());
         debug.snapshot(browser, "03-date-range-start-day-selected");
 
         months = readDatePickerMonths(browser);
@@ -722,12 +760,13 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 break;
             }
             boolean clicked = right != null && right.isAfter(endMonth)
-                    ? nativeClickDatePickerNav(browser, false) : nativeClickDatePickerNav(browser, true);
+                    ? nativeClickDatePickerNav(browser, false)
+                    : nativeClickDatePickerNav(browser, true);
             if (!clicked) {
                 debug.snapshot(browser, "03-date-range-end-month-nav-missing");
                 return false;
             }
-            Extends.sleep(config.getStepDelayMillis());
+            Extends.sleep(config.nextStepDelayMillis());
         }
         boolean clicked = endMonthReady && nativeClickDateInMonth(browser, endDate);
         if (!clicked) {
@@ -757,7 +796,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
 
     private boolean waitPaymentDateRangeSelected(Browser browser, LocalDate startDate, LocalDate endDate,
             TbPromotionConfig config) throws TimeoutException {
-        long deadline = System.currentTimeMillis() + Math.max(5000L, config.getStepDelayMillis() * 5L);
+        long deadline = System.currentTimeMillis() + Math.max(5000L, config.nextStepDelayMillis() * 5L);
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.waitPaymentDateRangeSelected");
             if (isPaymentDateRangeSelected(browser, startDate, endDate)) {
@@ -773,14 +812,15 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
                 "var start=arguments[0],end=arguments[1];" +
                 "var labels=Array.prototype.slice.call(document.querySelectorAll('.mux-calendar-label-container'));" +
-                "for(var i=0;i<labels.length;i++){var e=labels[i];if(!visible(e)||e.closest('.mux-tooltip,.mux-picker-dropdown,.mux-picker-panel-container')){continue;}" +
+                "for(var i=0;i<labels.length;i++){var e=labels[i];if(!visible(e)||e.closest('.mux-tooltip,.mux-picker-dropdown,.mux-picker-panel-container')){continue;}"
+                +
                 "var t=norm(e.innerText||e.textContent);if(t.indexOf(start)>=0&&t.indexOf(end)>=0){return true;}}" +
                 "return false;", startDate.toString(), endDate.toString());
         return Boolean.TRUE.equals(selected);
     }
 
     private List<String> waitDatePickerMonths(Browser browser, TbPromotionConfig config) throws TimeoutException {
-        long deadline = System.currentTimeMillis() + Math.max(2500L, config.getStepDelayMillis() * 3L);
+        long deadline = System.currentTimeMillis() + Math.max(2500L, config.nextStepDelayMillis() * 3L);
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.waitDatePickerMonths");
             List<String> months = readDatePickerMonths(browser);
@@ -795,10 +835,14 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private boolean isDateRangePopupOpen(Browser browser) {
         Boolean open = browser.executeScript(JS_VISIBLE_STRICT +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('[class*=calendar],[class*=Calendar],[class*=picker],[class*=Picker],[class*=dropdown],[class*=Dropdown],[class*=overlay],[class*=Overlay],[class*=popup],[class*=Popup]'));" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var r=e.getBoundingClientRect(),st=getComputedStyle(e),c=((e.className||'')+'').toLowerCase();" +
-                "if(r.width<160||r.height<60){continue;}if(st.position!=='absolute'&&st.position!=='fixed'&&c.indexOf('overlay')<0&&c.indexOf('dropdown')<0&&c.indexOf('popup')<0){continue;}" +
-                "var t=norm(e.innerText||e.textContent);if(t.indexOf('选择时间')>=0||/\\d{4}年\\d{1,2}月/.test(t)||t.indexOf('开始')>=0||t.indexOf('结束')>=0){return true;}}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('[class*=calendar],[class*=Calendar],[class*=picker],[class*=Picker],[class*=dropdown],[class*=Dropdown],[class*=overlay],[class*=Overlay],[class*=popup],[class*=Popup]'));"
+                +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var r=e.getBoundingClientRect(),st=getComputedStyle(e),c=((e.className||'')+'').toLowerCase();"
+                +
+                "if(r.width<160||r.height<60){continue;}if(st.position!=='absolute'&&st.position!=='fixed'&&c.indexOf('overlay')<0&&c.indexOf('dropdown')<0&&c.indexOf('popup')<0){continue;}"
+                +
+                "var t=norm(e.innerText||e.textContent);if(t.indexOf('选择时间')>=0||/\\d{4}年\\d{1,2}月/.test(t)||t.indexOf('开始')>=0||t.indexOf('结束')>=0){return true;}}"
+                +
                 "return false;");
         return Boolean.TRUE.equals(open);
     }
@@ -806,26 +850,37 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private boolean nativeClickPaymentTimeRange(Browser browser) {
         String selector = "[data-rx-tb-payment-time-range='1']";
         Boolean marked = browser.executeScript("var attr='data-rx-tb-payment-time-range';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}"
+                +
                 "function rect(el){return el.getBoundingClientRect();}" +
-                "function text(el){return norm(el.innerText||el.value||el.getAttribute('placeholder')||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('input,button,a,span,div,[role=\"combobox\"]'));" +
-                "var direct=null;for(var i=0;i<nodes.length;i++){var e=nodes[i],t=text(e);if(visible(e)&&(t==='时间范围'||t.indexOf('时间范围')>=0)){direct=e;break;}}" +
-                "if(!direct){var labels=Array.prototype.slice.call(document.querySelectorAll('label,span,div,p')),label=null;" +
-                "for(var l=0;l<labels.length;l++){var lt=text(labels[l]);if(visible(labels[l])&&lt.indexOf('付款时间')>=0&&lt.length<=12){label=labels[l];break;}}" +
+                "function text(el){return norm(el.innerText||el.value||el.getAttribute('placeholder')||el.getAttribute('title')||el.getAttribute('aria-label'));}"
+                +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('input,button,a,span,div,[role=\"combobox\"]'));"
+                +
+                "var direct=null;for(var i=0;i<nodes.length;i++){var e=nodes[i],t=text(e);if(visible(e)&&(t==='时间范围'||t.indexOf('时间范围')>=0)){direct=e;break;}}"
+                +
+                "if(!direct){var labels=Array.prototype.slice.call(document.querySelectorAll('label,span,div,p')),label=null;"
+                +
+                "for(var l=0;l<labels.length;l++){var lt=text(labels[l]);if(visible(labels[l])&&lt.indexOf('付款时间')>=0&&lt.length<=12){label=labels[l];break;}}"
+                +
                 "if(label){var lr=rect(label),best=null,bestScore=999999;" +
-                "for(var j=0;j<nodes.length;j++){var n=nodes[j];if(!visible(n)||n===label||label.contains(n)){continue;}var nr=rect(n),t=text(n);" +
+                "for(var j=0;j<nodes.length;j++){var n=nodes[j];if(!visible(n)||n===label||label.contains(n)){continue;}var nr=rect(n),t=text(n);"
+                +
                 "var dy=Math.abs((nr.top+nr.bottom)/2-(lr.top+lr.bottom)/2),dx=nr.left-lr.right;" +
-                "if(dx>=-30&&dy<80&&(/时间|日期|开始|结束|range|date/i.test(t+' '+n.className+' '+n.id)||nr.width>80)){var score=dy*20+Math.max(0,dx)+nr.width/20;if(score<bestScore){best=n;bestScore=score;}}}" +
+                "if(dx>=-30&&dy<80&&(/时间|日期|开始|结束|range|date/i.test(t+' '+n.className+' '+n.id)||nr.width>80)){var score=dy*20+Math.max(0,dx)+nr.width/20;if(score<bestScore){best=n;bestScore=score;}}}"
+                +
                 "direct=best;}}" +
                 "if(!direct){return false;}var target=null;" +
                 "if(direct.matches&&direct.matches('.mux-calendar-label-container')){target=direct;}" +
                 "if(!target&&direct.querySelector){target=direct.querySelector('.mux-calendar-label-container');}" +
                 "if(!target&&direct.closest){target=direct.closest('.mux-calendar-label-container');}" +
-                "if(!target&&direct.closest){var wrap=direct.closest('.mux-calendar-dropdown-wrapper');if(wrap){target=wrap.querySelector('.mux-calendar-label-container')||wrap;}}" +
-                "if(!target){target=(direct.querySelector&&direct.querySelector('.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,input,[role=\"combobox\"]'))||direct.closest('.next-select,.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"],button,a')||direct;}" +
+                "if(!target&&direct.closest){var wrap=direct.closest('.mux-calendar-dropdown-wrapper');if(wrap){target=wrap.querySelector('.mux-calendar-label-container')||wrap;}}"
+                +
+                "if(!target){target=(direct.querySelector&&direct.querySelector('.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,input,[role=\"combobox\"]'))||direct.closest('.next-select,.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"],button,a')||direct;}"
+                +
                 "target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;");
         if (!Boolean.TRUE.equals(marked)) {
             return false;
@@ -834,23 +889,32 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             browser.elementClick(selector, false);
             return true;
         } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript("var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;", selector));
+            return Boolean.TRUE.equals(browser.executeScript(
+                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
+                    selector));
         }
     }
 
     private boolean nativeClickDateInputInRangePopup(Browser browser) {
         String selector = "[data-rx-tb-date-input='1']";
         Boolean marked = browser.executeScript("var attr='data-rx-tb-date-input';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                +
                 JS_VISIBLE_STRICT +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function scoreRoot(el){var t=norm(el.innerText||el.textContent);return t.indexOf('选择日期')>=0||t.indexOf('选择时间')>=0||t.indexOf('快捷日期')>=0?0:200;}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.mux-calendar-dropdown-overlay .mux-picker-input-active input,.mux-calendar-dropdown-overlay .mux-picker-input input,input,.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"]'));" +
-                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||e.disabled){continue;}var p=e,score=999;" +
+                "function scoreRoot(el){var t=norm(el.innerText||el.textContent);return t.indexOf('选择日期')>=0||t.indexOf('选择时间')>=0||t.indexOf('快捷日期')>=0?0:200;}"
+                +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.mux-calendar-dropdown-overlay .mux-picker-input-active input,.mux-calendar-dropdown-overlay .mux-picker-input input,input,.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"]'));"
+                +
+                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||e.disabled){continue;}var p=e,score=999;"
+                +
                 "for(var d=0;p&&d<6;d++,p=p.parentElement){score=Math.min(score,scoreRoot(p));}" +
-                "var ph=norm(e.getAttribute&&e.getAttribute('placeholder'));if(ph.indexOf('开始日期')>=0){score-=30;}if((e.className||'').indexOf('active')>=0){score-=20;}" +
-                "var r=e.getBoundingClientRect();score+=r.top/100+r.left/1000;if(score<bestScore){best=e;bestScore=score;}}" +
-                "if(!best){return false;}var target=best.closest('.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"]')||best;" +
+                "var ph=norm(e.getAttribute&&e.getAttribute('placeholder'));if(ph.indexOf('开始日期')>=0){score-=30;}if((e.className||'').indexOf('active')>=0){score-=20;}"
+                +
+                "var r=e.getBoundingClientRect();score+=r.top/100+r.left/1000;if(score<bestScore){best=e;bestScore=score;}}"
+                +
+                "if(!best){return false;}var target=best.closest('.next-date-picker,.next-range-picker,.ant-picker,.el-date-editor,[role=\"combobox\"]')||best;"
+                +
                 "target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;");
         if (!Boolean.TRUE.equals(marked)) {
             return false;
@@ -859,20 +923,26 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             browser.elementClick(selector, false);
             return true;
         } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript("var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;", selector));
+            return Boolean.TRUE.equals(browser.executeScript(
+                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
+                    selector));
         }
     }
 
     private boolean nativeClickDateRangeConfirmIfPresent(Browser browser) {
         String selector = "[data-rx-tb-date-confirm='1']";
         Boolean marked = browser.executeScript("var attr='data-rx-tb-date-confirm';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                +
                 JS_VISIBLE_STRICT +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "var overlays=Array.prototype.slice.call(document.querySelectorAll('.mux-calendar-dropdown-overlay,[class*=calendar][class*=overlay],[class*=picker][class*=dropdown]')).filter(visible);" +
+                "var overlays=Array.prototype.slice.call(document.querySelectorAll('.mux-calendar-dropdown-overlay,[class*=calendar][class*=overlay],[class*=picker][class*=dropdown]')).filter(visible);"
+                +
                 "if(overlays.length===0){return null;}" +
-                "var root=overlays[0],nodes=Array.prototype.slice.call(root.querySelectorAll('button,a,[role=\"button\"],span,div'));" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||e.disabled||e.getAttribute('aria-disabled')==='true'){continue;}var t=norm(e.innerText||e.textContent||e.value||e.getAttribute('title')||e.getAttribute('aria-label'));if(t==='确定'){var target=e.closest('button,a,[role=\"button\"]')||e;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}" +
+                "var root=overlays[0],nodes=Array.prototype.slice.call(root.querySelectorAll('button,a,[role=\"button\"],span,div'));"
+                +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||e.disabled||e.getAttribute('aria-disabled')==='true'){continue;}var t=norm(e.innerText||e.textContent||e.value||e.getAttribute('title')||e.getAttribute('aria-label'));if(t==='确定'){var target=e.closest('button,a,[role=\"button\"]')||e;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}"
+                +
                 "return false;");
         if (marked == null) {
             return true;
@@ -885,7 +955,9 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             Extends.sleep(500L);
             return true;
         } catch (Exception e) {
-            return Boolean.TRUE.equals(browser.executeScript("var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;", selector));
+            return Boolean.TRUE.equals(browser.executeScript(
+                    "var target=document.querySelector(arguments[0]);if(!target){return false;}target.click();return true;",
+                    selector));
         }
     }
 
@@ -893,15 +965,22 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         List<String> months = browser.executeScript(JS_VISIBLE_STRICT +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
                 "var items=[];" +
-                "var pickers=Array.prototype.slice.call(document.querySelectorAll('.mux-picker-dropdown,.mux-picker-panel-container,.mux-picker-panels')).filter(visible);" +
-                "for(var p=0;p<pickers.length;p++){var views=Array.prototype.slice.call(pickers[p].querySelectorAll('.mux-picker-header-view'));" +
-                "for(var v=0;v<views.length;v++){var view=views[v];if(!visible(view)){continue;}var y=view.querySelector('.mux-picker-year-btn'),m=view.querySelector('.mux-picker-month-btn');" +
-                "var yt=norm(y&&y.innerText||y&&y.textContent),mt=norm(m&&m.innerText||m&&m.textContent);if(/^\\d{4}年$/.test(yt)&&/^\\d{1,2}月$/.test(mt)){var vr=view.getBoundingClientRect();items.push({text:yt+mt,top:vr.top,left:vr.left});}}}" +
+                "var pickers=Array.prototype.slice.call(document.querySelectorAll('.mux-picker-dropdown,.mux-picker-panel-container,.mux-picker-panels')).filter(visible);"
+                +
+                "for(var p=0;p<pickers.length;p++){var views=Array.prototype.slice.call(pickers[p].querySelectorAll('.mux-picker-header-view'));"
+                +
+                "for(var v=0;v<views.length;v++){var view=views[v];if(!visible(view)){continue;}var y=view.querySelector('.mux-picker-year-btn'),m=view.querySelector('.mux-picker-month-btn');"
+                +
+                "var yt=norm(y&&y.innerText||y&&y.textContent),mt=norm(m&&m.innerText||m&&m.textContent);if(/^\\d{4}年$/.test(yt)&&/^\\d{1,2}月$/.test(mt)){var vr=view.getBoundingClientRect();items.push({text:yt+mt,top:vr.top,left:vr.left});}}}"
+                +
                 "var nodes=Array.prototype.slice.call(document.querySelectorAll('div,span,button,th'));" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i],t=norm(e.innerText||e.textContent||e.getAttribute('title'));" +
-                "if(visible(e)&&/^\\d{4}年\\d{1,2}月$/.test(t)){var r=e.getBoundingClientRect();items.push({text:t,top:r.top,left:r.left});}}" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i],t=norm(e.innerText||e.textContent||e.getAttribute('title'));"
+                +
+                "if(visible(e)&&/^\\d{4}年\\d{1,2}月$/.test(t)){var r=e.getBoundingClientRect();items.push({text:t,top:r.top,left:r.left});}}"
+                +
                 "items.sort(function(a,b){return Math.abs(a.top-b.top)>20?a.top-b.top:a.left-b.left;});" +
-                "var out=[];for(var j=0;j<items.length;j++){if(out.indexOf(items[j].text)<0){out.push(items[j].text);}}" +
+                "var out=[];for(var j=0;j<items.length;j++){if(out.indexOf(items[j].text)<0){out.push(items[j].text);}}"
+                +
                 "return out;");
         return months == null ? new ArrayList<String>() : months;
     }
@@ -909,18 +988,27 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private boolean nativeClickDatePickerNav(Browser browser, boolean next) {
         String selector = "[data-rx-tb-picker-nav='1']";
         Boolean marked = browser.executeScript("var next=arguments[0],attr='data-rx-tb-picker-nav';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                +
                 JS_VISIBLE_STRICT +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|disable/.test(c);}" +
-                "var picker=Array.prototype.slice.call(document.querySelectorAll('.mux-picker-dropdown,.mux-picker-panel-container')).filter(visible)[0];" +
-                "if(picker){var muxNodes=Array.prototype.slice.call(picker.querySelectorAll(next?'.mux-picker-header-next-btn':'.mux-picker-header-prev-btn')).filter(function(e){return visible(e)&&!disabled(e)&&((e.className||'')+'').indexOf('super')<0;});" +
-                "if(muxNodes.length>0){muxNodes[0].setAttribute(attr,'1');muxNodes[0].scrollIntoView({block:'center',inline:'center'});return true;}}" +
+                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|disable/.test(c);}"
+                +
+                "var picker=Array.prototype.slice.call(document.querySelectorAll('.mux-picker-dropdown,.mux-picker-panel-container')).filter(visible)[0];"
+                +
+                "if(picker){var muxNodes=Array.prototype.slice.call(picker.querySelectorAll(next?'.mux-picker-header-next-btn':'.mux-picker-header-prev-btn')).filter(function(e){return visible(e)&&!disabled(e)&&((e.className||'')+'').indexOf('super')<0;});"
+                +
+                "if(muxNodes.length>0){muxNodes[0].setAttribute(attr,'1');muxNodes[0].scrollIntoView({block:'center',inline:'center'});return true;}}"
+                +
                 "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,span,i,div'));" +
-                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||disabled(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title),c=((e.className||'')+'').toLowerCase();" +
-                "var ok=next?(t==='>'||t==='›'||/下个月|后一月|next|right|arrow-right/.test(t+' '+c)):(t==='<'||t==='‹'||/上个月|前一月|prev|left|arrow-left/.test(t+' '+c));" +
-                "if(!ok){continue;}var r=e.getBoundingClientRect();if(r.width>90||r.height>90){continue;}var score=next?(window.innerWidth-r.left):r.left;if(score<bestScore){best=e;bestScore=score;}}" +
-                "if(!best){return false;}var target=best.closest('button,a')||best;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;", next);
+                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||disabled(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title),c=((e.className||'')+'').toLowerCase();"
+                +
+                "var ok=next?(t==='>'||t==='›'||/下个月|后一月|next|right|arrow-right/.test(t+' '+c)):(t==='<'||t==='‹'||/上个月|前一月|prev|left|arrow-left/.test(t+' '+c));"
+                +
+                "if(!ok){continue;}var r=e.getBoundingClientRect();if(r.width>90||r.height>90){continue;}var score=next?(window.innerWidth-r.left):r.left;if(score<bestScore){best=e;bestScore=score;}}"
+                +
+                "if(!best){return false;}var target=best.closest('button,a')||best;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;",
+                next);
         if (!Boolean.TRUE.equals(marked)) {
             return false;
         }
@@ -934,20 +1022,32 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
 
     private boolean nativeClickDateInMonth(Browser browser, LocalDate date) {
         String selector = "[data-rx-tb-picker-day='1']";
-        Boolean marked = browser.executeScript("var monthText=arguments[0],day=String(arguments[1]),dateText=arguments[2],attr='data-rx-tb-picker-day';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
-                JS_VISIBLE_STRICT +
-                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function bad(el){var c=((el.className||'')+'').toLowerCase();return /disabled|prev|next|other|off|unavailable/.test(c)||el.getAttribute('aria-disabled')==='true'||(c.indexOf('mux-picker-cell')>=0&&c.indexOf('mux-picker-cell-in-view')<0);}" +
-                "var picker=Array.prototype.slice.call(document.querySelectorAll('.mux-picker-dropdown,.mux-picker-panel-container')).filter(visible)[0];" +
-                "if(picker){var exact=Array.prototype.slice.call(picker.querySelectorAll('td[title=\"'+dateText+'\"],td[title=\"'+dateText+'\"] .mux-picker-cell-inner')).filter(function(e){var cell=e.closest('td')||e;return visible(e)&&visible(cell)&&!bad(cell);});" +
-                "if(exact.length>0){var target=exact[0].closest('td,button,a')||exact[0];target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}" +
-                "var headers=Array.prototype.slice.call(document.querySelectorAll('div,span,button,th')).filter(function(e){return visible(e)&&norm(e.innerText||e.textContent||e.title)===monthText;});" +
-                "if(headers.length===0){return false;}headers.sort(function(a,b){var ar=a.getBoundingClientRect(),br=b.getBoundingClientRect();return Math.abs(ar.top-br.top)>20?ar.top-br.top:ar.left-br.left;});" +
-                "var h=headers[0],hr=h.getBoundingClientRect(),root=h;for(var d=0;root.parentElement&&d<8;d++,root=root.parentElement){var rr=root.getBoundingClientRect(),txt=norm(root.innerText||root.textContent);if(txt.indexOf(monthText)>=0&&rr.width>=180&&rr.width<=900&&rr.height>=180&&rr.height<=700){break;}}" +
-                "var nodes=Array.prototype.slice.call(root.querySelectorAll('td,button,span,div'));" +
-                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||bad(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title);if(t!==day){continue;}var r=e.getBoundingClientRect();if(r.top<hr.bottom-5||r.width>80||r.height>80){continue;}var score=Math.abs((r.left+r.right)/2-(hr.left+hr.right)/2)+Math.abs(r.top-hr.bottom);if(score<bestScore){best=e;bestScore=score;}}" +
-                "if(!best){return false;}var target=best.closest('td,button,a')||best;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;", formatMonth(date), date.getDayOfMonth(), date.toString());
+        Boolean marked = browser.executeScript(
+                "var monthText=arguments[0],day=String(arguments[1]),dateText=arguments[2],attr='data-rx-tb-picker-day';"
+                        +
+                        "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                        +
+                        JS_VISIBLE_STRICT +
+                        "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                        "function bad(el){var c=((el.className||'')+'').toLowerCase();return /disabled|prev|next|other|off|unavailable/.test(c)||el.getAttribute('aria-disabled')==='true'||(c.indexOf('mux-picker-cell')>=0&&c.indexOf('mux-picker-cell-in-view')<0);}"
+                        +
+                        "var picker=Array.prototype.slice.call(document.querySelectorAll('.mux-picker-dropdown,.mux-picker-panel-container')).filter(visible)[0];"
+                        +
+                        "if(picker){var exact=Array.prototype.slice.call(picker.querySelectorAll('td[title=\"'+dateText+'\"],td[title=\"'+dateText+'\"] .mux-picker-cell-inner')).filter(function(e){var cell=e.closest('td')||e;return visible(e)&&visible(cell)&&!bad(cell);});"
+                        +
+                        "if(exact.length>0){var target=exact[0].closest('td,button,a')||exact[0];target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}"
+                        +
+                        "var headers=Array.prototype.slice.call(document.querySelectorAll('div,span,button,th')).filter(function(e){return visible(e)&&norm(e.innerText||e.textContent||e.title)===monthText;});"
+                        +
+                        "if(headers.length===0){return false;}headers.sort(function(a,b){var ar=a.getBoundingClientRect(),br=b.getBoundingClientRect();return Math.abs(ar.top-br.top)>20?ar.top-br.top:ar.left-br.left;});"
+                        +
+                        "var h=headers[0],hr=h.getBoundingClientRect(),root=h;for(var d=0;root.parentElement&&d<8;d++,root=root.parentElement){var rr=root.getBoundingClientRect(),txt=norm(root.innerText||root.textContent);if(txt.indexOf(monthText)>=0&&rr.width>=180&&rr.width<=900&&rr.height>=180&&rr.height<=700){break;}}"
+                        +
+                        "var nodes=Array.prototype.slice.call(root.querySelectorAll('td,button,span,div'));" +
+                        "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||bad(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title);if(t!==day){continue;}var r=e.getBoundingClientRect();if(r.top<hr.bottom-5||r.width>80||r.height>80){continue;}var score=Math.abs((r.left+r.right)/2-(hr.left+hr.right)/2)+Math.abs(r.top-hr.bottom);if(score<bestScore){best=e;bestScore=score;}}"
+                        +
+                        "if(!best){return false;}var target=best.closest('td,button,a')||best;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;",
+                formatMonth(date), date.getDayOfMonth(), date.toString());
         if (!Boolean.TRUE.equals(marked)) {
             return false;
         }
@@ -962,15 +1062,22 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private boolean nativeClickOrderSearchButton(Browser browser) {
         String selector = "[data-rx-tb-order-search='1']";
         Boolean marked = browser.executeScript("var attr='data-rx-tb-order-search';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
-                "function text(el){return norm(el.innerText||el.value||el.getAttribute('title')||el.getAttribute('aria-label')||el.getAttribute('placeholder'));}" +
-                "var inputs=Array.prototype.slice.call(document.querySelectorAll('input,textarea')).filter(function(e){return visible(e)&&text(e).indexOf('搜索订单编号')>=0;});" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}"
+                +
+                "function text(el){return norm(el.innerText||el.value||el.getAttribute('title')||el.getAttribute('aria-label')||el.getAttribute('placeholder'));}"
+                +
+                "var inputs=Array.prototype.slice.call(document.querySelectorAll('input,textarea')).filter(function(e){return visible(e)&&text(e).indexOf('搜索订单编号')>=0;});"
+                +
                 "var input=inputs.length>0?inputs[0]:null,ir=input?input.getBoundingClientRect():null;" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,span,div,[role=\"button\"]'));" +
-                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e);if(t!=='查找订单'&&t.indexOf('查找订单')<0){continue;}var target=e.closest('button,a,[role=\"button\"]')||e,r=target.getBoundingClientRect(),score=r.width*r.height/1000;" +
-                "if(ir){score+=Math.abs(r.left-ir.right)+Math.abs((r.top+r.bottom-ir.top-ir.bottom)/2);}if(score<bestScore){best=target;bestScore=score;}}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,span,div,[role=\"button\"]'));"
+                +
+                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e);if(t!=='查找订单'&&t.indexOf('查找订单')<0){continue;}var target=e.closest('button,a,[role=\"button\"]')||e,r=target.getBoundingClientRect(),score=r.width*r.height/1000;"
+                +
+                "if(ir){score+=Math.abs(r.left-ir.right)+Math.abs((r.top+r.bottom-ir.top-ir.bottom)/2);}if(score<bestScore){best=target;bestScore=score;}}"
+                +
                 "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});return true;");
         if (!Boolean.TRUE.equals(marked)) {
             return false;
@@ -987,7 +1094,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         long deadline = System.currentTimeMillis() + Math.max(10, config.getPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.waitOrderRowsSettled");
-            Extends.sleep(Math.max(800, config.getStepDelayMillis()));
+            Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
             String body = bodySnippet(browser);
             if (!containsAny(body, "加载中", "查询中") && containsAny(body, "订单", "暂无", "没有", "无数据", "佣金比例")) {
                 return;
@@ -996,30 +1103,47 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     }
 
     private List<TbPromotionOrderItem> readOrderRows(Browser browser) {
-        List<Map<String, Object>> rows = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "function text(el){return norm(el.innerText||el.textContent||el.value||'');}" +
-                "function lines(el){return (el.innerText||el.textContent||'').split(/\\n+/).map(norm).filter(function(x){return !!x;});}" +
-                "function cellList(row){var out=[];var kids=Array.prototype.slice.call(row.children||[]);for(var i=0;i<kids.length;i++){var k=kids[i],c=((k.className||'')+'').toLowerCase();if(visible(k)&&(k.tagName==='TD'||k.tagName==='TH'||c.indexOf('cell')>=0)){out.push(k);}}" +
-                "if(out.length<5){out=Array.prototype.slice.call(row.querySelectorAll('td,.next-table-cell,[class*=\"table-cell\"],[class*=\"TableCell\"]')).filter(visible);}return out;}" +
-                "function firstMoney(v){var m=String(v||'').match(/[￥¥]\\s*(-?\\d+(?:\\.\\d+)?)/);return m?'￥'+Number(m[1]).toFixed(2):'';}" +
-                "function sumMoney(v,nullWhenDash){var s=String(v||'');var ms=s.match(/[￥¥]\\s*-?\\d+(?:\\.\\d+)?/g),sum=0,count=0;if(ms){for(var i=0;i<ms.length;i++){var n=ms[i].replace(/[￥¥\\s]/g,'');sum+=Number(n);count++;}}" +
-                "if(count===0){var ns=s.match(/-?\\d+(?:\\.\\d+)?/g);if(ns){for(var j=0;j<ns.length;j++){sum+=Number(ns[j]);count++;}}}" +
-                "if(count===0&&nullWhenDash&&s.indexOf('--')>=0){return null;}return count===0?'':'￥'+sum.toFixed(2);}" +
-                "function firstDate(v){var m=String(v||'').match(/\\d{4}-\\d{2}-\\d{2}(?:\\s+\\d{2}:\\d{2}:\\d{2})?/);return m?m[0]:'';}" +
-                "function label(v,re){var m=String(v||'').match(re);return m?norm(m[1]||m[0]):'';}" +
-                "function longNos(v){return String(v||'').match(/\\b[A-Za-z0-9_-]{10,}\\b/g)||[];}" +
-                "function productName(cell){var as=Array.prototype.slice.call(cell.querySelectorAll('a[href]')).filter(visible),best='',href='',score=-1;for(var i=0;i<as.length;i++){var t=text(as[i]),h=as[i].href||as[i].getAttribute('href')||'';if(!t||/订单|主单|复制|查看/.test(t)){continue;}if(t.length>score){best=t;href=h;score=t.length;}}" +
-                "if(best){return {name:best,link:href};}var ls=lines(cell);return {name:ls.length>0?ls[0]:'',link:''};}" +
-                "function parse(row){var cells=cellList(row);if(cells.length<5){return null;}var first=cells[0],ft=text(first),ls=lines(first),p=productName(first),main=label(ft,/(?:父订单编号|父订单号|主单号|主订单号|主订单编号)[:：\\s]*([A-Za-z0-9_-]{8,})/),order=label(ft,/(?:子订单编号|子订单号)[:：\\s]*([A-Za-z0-9_-]{8,})/);" +
-                "if(!order){order=label(ft,/(?:^|[^父子主])(?:订单号|订单编号)[:：\\s]*([A-Za-z0-9_-]{8,})/);}" +
-                "if(!main||!order){var nos=longNos(ft);if(!main&&nos.length>0){main=nos[0];}if(!order&&nos.length>1){order=nos[1];}else if(!order&&nos.length>0){order=nos[nos.length-1];}}" +
-                "var store='';for(var i=0;i<ls.length;i++){var line=ls[i];if(line===p.name||/订单|主单|￥|¥|\\d{4}-\\d{2}-\\d{2}/.test(line)){continue;}if(!store||/店|铺/.test(line)){store=line;if(/店|铺/.test(line)){break;}}}" +
-                "store=store.replace(/^店铺名[:：\\s]*/,'');" +
-                "var estBilling=firstMoney(ft),actual=sumMoney(text(cells[4]),true);" +
-                "return {productName:p.name,productLink:p.link,storeName:store,mainOrderNo:main,orderNo:order,estimatedBillingAmount:estBilling,orderTime:firstDate(ft),orderStatus:text(cells[1]),commissionRate:(text(cells[2]).match(/\\d+(?:\\.\\d+)?%/)||[''])[0],estimatedCommission:sumMoney(text(cells[3]),false),actualCommission:actual,actualBillingAmount:actual==null?null:estBilling};}" +
-                "var raw=Array.prototype.slice.call(document.querySelectorAll('tbody tr,.next-table-row,[class*=\"table-row\"],[class*=\"TableRow\"]')).filter(visible);" +
-                "var out=[],seen={};for(var i=0;i<raw.length;i++){var rt=text(raw[i]);if(!rt||rt.indexOf('暂无')>=0||rt.indexOf('无数据')>=0){continue;}if((rt.indexOf('订单信息')>=0&&rt.indexOf('订单状态')>=0&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))||(rt.indexOf('订单状态')>=0&&(rt.indexOf('佣金比例')>=0||rt.indexOf('总提成率')>=0)&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))){continue;}if(rt.indexOf('订单')<0&&rt.indexOf('￥')<0&&rt.indexOf('¥')<0){continue;}var item=parse(raw[i]);if(!item||(!item.orderNo&&!item.mainOrderNo&&!item.productName)){continue;}var key=(item.orderNo||'')+'|'+(item.mainOrderNo||'')+'|'+(item.orderTime||'')+'|'+(item.estimatedCommission||'');if(seen[key]){continue;}seen[key]=true;out.push(item);}return out;");
+        List<Map<String, Object>> rows = browser
+                .executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                        "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}"
+                        +
+                        "function text(el){return norm(el.innerText||el.textContent||el.value||'');}" +
+                        "function lines(el){return (el.innerText||el.textContent||'').split(/\\n+/).map(norm).filter(function(x){return !!x;});}"
+                        +
+                        "function cellList(row){var out=[];var kids=Array.prototype.slice.call(row.children||[]);for(var i=0;i<kids.length;i++){var k=kids[i],c=((k.className||'')+'').toLowerCase();if(visible(k)&&(k.tagName==='TD'||k.tagName==='TH'||c.indexOf('cell')>=0)){out.push(k);}}"
+                        +
+                        "if(out.length<5){out=Array.prototype.slice.call(row.querySelectorAll('td,.next-table-cell,[class*=\"table-cell\"],[class*=\"TableCell\"]')).filter(visible);}return out;}"
+                        +
+                        "function firstMoney(v){var m=String(v||'').match(/[￥¥]\\s*(-?\\d+(?:\\.\\d+)?)/);return m?'￥'+Number(m[1]).toFixed(2):'';}"
+                        +
+                        "function sumMoney(v,nullWhenDash){var s=String(v||'');var ms=s.match(/[￥¥]\\s*-?\\d+(?:\\.\\d+)?/g),sum=0,count=0;if(ms){for(var i=0;i<ms.length;i++){var n=ms[i].replace(/[￥¥\\s]/g,'');sum+=Number(n);count++;}}"
+                        +
+                        "if(count===0){var ns=s.match(/-?\\d+(?:\\.\\d+)?/g);if(ns){for(var j=0;j<ns.length;j++){sum+=Number(ns[j]);count++;}}}"
+                        +
+                        "if(count===0&&nullWhenDash&&s.indexOf('--')>=0){return null;}return count===0?'':'￥'+sum.toFixed(2);}"
+                        +
+                        "function firstDate(v){var m=String(v||'').match(/\\d{4}-\\d{2}-\\d{2}(?:\\s+\\d{2}:\\d{2}:\\d{2})?/);return m?m[0]:'';}"
+                        +
+                        "function label(v,re){var m=String(v||'').match(re);return m?norm(m[1]||m[0]):'';}" +
+                        "function longNos(v){return String(v||'').match(/\\b[A-Za-z0-9_-]{10,}\\b/g)||[];}" +
+                        "function productName(cell){var as=Array.prototype.slice.call(cell.querySelectorAll('a[href]')).filter(visible),best='',href='',score=-1;for(var i=0;i<as.length;i++){var t=text(as[i]),h=as[i].href||as[i].getAttribute('href')||'';if(!t||/订单|主单|复制|查看/.test(t)){continue;}if(t.length>score){best=t;href=h;score=t.length;}}"
+                        +
+                        "if(best){return {name:best,link:href};}var ls=lines(cell);return {name:ls.length>0?ls[0]:'',link:''};}"
+                        +
+                        "function parse(row){var cells=cellList(row);if(cells.length<5){return null;}var first=cells[0],ft=text(first),ls=lines(first),p=productName(first),main=label(ft,/(?:父订单编号|父订单号|主单号|主订单号|主订单编号)[:：\\s]*([A-Za-z0-9_-]{8,})/),order=label(ft,/(?:子订单编号|子订单号)[:：\\s]*([A-Za-z0-9_-]{8,})/);"
+                        +
+                        "if(!order){order=label(ft,/(?:^|[^父子主])(?:订单号|订单编号)[:：\\s]*([A-Za-z0-9_-]{8,})/);}" +
+                        "if(!main||!order){var nos=longNos(ft);if(!main&&nos.length>0){main=nos[0];}if(!order&&nos.length>1){order=nos[1];}else if(!order&&nos.length>0){order=nos[nos.length-1];}}"
+                        +
+                        "var store='';for(var i=0;i<ls.length;i++){var line=ls[i];if(line===p.name||/订单|主单|￥|¥|\\d{4}-\\d{2}-\\d{2}/.test(line)){continue;}if(!store||/店|铺/.test(line)){store=line;if(/店|铺/.test(line)){break;}}}"
+                        +
+                        "store=store.replace(/^店铺名[:：\\s]*/,'');" +
+                        "var estBilling=firstMoney(ft),actual=sumMoney(text(cells[4]),true);" +
+                        "return {productName:p.name,productLink:p.link,storeName:store,mainOrderNo:main,orderNo:order,estimatedBillingAmount:estBilling,orderTime:firstDate(ft),orderStatus:text(cells[1]),commissionRate:(text(cells[2]).match(/\\d+(?:\\.\\d+)?%/)||[''])[0],estimatedCommission:sumMoney(text(cells[3]),false),actualCommission:actual,actualBillingAmount:actual==null?null:estBilling};}"
+                        +
+                        "var raw=Array.prototype.slice.call(document.querySelectorAll('tbody tr,.next-table-row,[class*=\"table-row\"],[class*=\"TableRow\"]')).filter(visible);"
+                        +
+                        "var out=[],seen={};for(var i=0;i<raw.length;i++){var rt=text(raw[i]);if(!rt||rt.indexOf('暂无')>=0||rt.indexOf('无数据')>=0){continue;}if((rt.indexOf('订单信息')>=0&&rt.indexOf('订单状态')>=0&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))||(rt.indexOf('订单状态')>=0&&(rt.indexOf('佣金比例')>=0||rt.indexOf('总提成率')>=0)&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))){continue;}if(rt.indexOf('订单')<0&&rt.indexOf('￥')<0&&rt.indexOf('¥')<0){continue;}var item=parse(raw[i]);if(!item||(!item.orderNo&&!item.mainOrderNo&&!item.productName)){continue;}var key=(item.orderNo||'')+'|'+(item.mainOrderNo||'')+'|'+(item.orderTime||'')+'|'+(item.estimatedCommission||'');if(seen[key]){continue;}seen[key]=true;out.push(item);}return out;");
         if (rows != null && !rows.isEmpty()) {
             List<TbPromotionOrderItem> items = new ArrayList<TbPromotionOrderItem>();
             for (Map<String, Object> row : rows) {
@@ -1032,10 +1156,14 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
 
     private String readOrderListOuterHtml(Browser browser) {
         String html = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "function score(el){var t=norm(el.innerText||el.textContent),s=0;if(t.indexOf('订单状态')>=0){s+=20;}if(t.indexOf('佣金比例')>=0){s+=20;}if(t.indexOf('预估')>=0){s+=10;}if(t.indexOf('实际')>=0){s+=10;}s+=el.querySelectorAll('tbody tr,.next-table-row,[class*=\"table-row\"],[class*=\"TableRow\"]').length;return s;}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.next-table,table,[class*=\"table\"],[class*=\"Table\"]')).filter(visible);" +
-                "var best=null,bestScore=-1;for(var i=0;i<nodes.length;i++){var sc=score(nodes[i]);if(sc>bestScore){best=nodes[i];bestScore=sc;}}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}"
+                +
+                "function score(el){var t=norm(el.innerText||el.textContent),s=0;if(t.indexOf('订单状态')>=0){s+=20;}if(t.indexOf('佣金比例')>=0){s+=20;}if(t.indexOf('预估')>=0){s+=10;}if(t.indexOf('实际')>=0){s+=10;}s+=el.querySelectorAll('tbody tr,.next-table-row,[class*=\"table-row\"],[class*=\"TableRow\"]').length;return s;}"
+                +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.next-table,table,[class*=\"table\"],[class*=\"Table\"]')).filter(visible);"
+                +
+                "var best=null,bestScore=-1;for(var i=0;i<nodes.length;i++){var sc=score(nodes[i]);if(sc>bestScore){best=nodes[i];bestScore=sc;}}"
+                +
                 "return best&&bestScore>0?best.outerHTML:'';");
         return html == null ? "" : html;
     }
@@ -1055,7 +1183,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 }
                 if ((rowText.contains("订单信息") && rowText.contains("订单状态") && !DATE_TIME_PATTERN.matcher(rowText).find())
                         || (rowText.contains("订单状态") && (rowText.contains("佣金比例") || rowText.contains("总提成率"))
-                        && !DATE_TIME_PATTERN.matcher(rowText).find())) {
+                                && !DATE_TIME_PATTERN.matcher(rowText).find())) {
                     continue;
                 }
                 Elements cells = rowCells(row);
@@ -1063,7 +1191,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                     continue;
                 }
                 TbPromotionOrderItem item = parseOrderCells(cells);
-                if (Strings.isEmpty(item.getOrderNo()) && Strings.isEmpty(item.getMainOrderNo()) && Strings.isEmpty(item.getProductName())) {
+                if (Strings.isEmpty(item.getOrderNo()) && Strings.isEmpty(item.getMainOrderNo())
+                        && Strings.isEmpty(item.getProductName())) {
                     continue;
                 }
                 items.add(item);
@@ -1079,7 +1208,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         Elements cells = new Elements();
         for (Element child : row.children()) {
             String className = child.className() == null ? "" : child.className().toLowerCase(Locale.ROOT);
-            if ("td".equalsIgnoreCase(child.tagName()) || "th".equalsIgnoreCase(child.tagName()) || className.contains("cell")) {
+            if ("td".equalsIgnoreCase(child.tagName()) || "th".equalsIgnoreCase(child.tagName())
+                    || className.contains("cell")) {
                 cells.add(child);
             }
         }
@@ -1128,7 +1258,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         item.setProductName(productName);
         item.setProductLink(productLink);
         for (String line : lines) {
-            if (line.equals(productName) || containsAny(line, "订单", "主单", "￥", "¥") || DATE_TIME_PATTERN.matcher(line).find()) {
+            if (line.equals(productName) || containsAny(line, "订单", "主单", "￥", "¥")
+                    || DATE_TIME_PATTERN.matcher(line).find()) {
                 continue;
             }
             if (Strings.isEmpty(item.getStoreName()) || containsAny(line, "店", "铺")) {
@@ -1162,22 +1293,30 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private void scrollOrderPageBottom(Browser browser, TbPromotionConfig config) throws TimeoutException {
         for (int i = 0; i < 2; i++) {
             ensureTaskDeadline("getTbPromotionOrders.scrollPageBottom");
-            browser.executeScript("function canScroll(e){return e&&e.scrollHeight&&e.clientHeight&&e.scrollHeight>e.clientHeight+8;}" +
-                    "var roots=[document.scrollingElement,document.documentElement,document.body];" +
-                    "Array.prototype.slice.call(document.querySelectorAll('*')).forEach(function(e){if(canScroll(e)){roots.push(e);}});" +
-                    "roots.forEach(function(e){try{e.scrollTop=e.scrollHeight;}catch(ex){}});" +
-                    "window.scrollTo(0,Math.max(document.body.scrollHeight,document.documentElement.scrollHeight));");
-            Extends.sleep(Math.max(300, config.getStepDelayMillis()));
+            browser.executeScript(
+                    "function canScroll(e){return e&&e.scrollHeight&&e.clientHeight&&e.scrollHeight>e.clientHeight+8;}"
+                            +
+                            "var roots=[document.scrollingElement,document.documentElement,document.body];" +
+                            "Array.prototype.slice.call(document.querySelectorAll('*')).forEach(function(e){if(canScroll(e)){roots.push(e);}});"
+                            +
+                            "roots.forEach(function(e){try{e.scrollTop=e.scrollHeight;}catch(ex){}});" +
+                            "window.scrollTo(0,Math.max(document.body.scrollHeight,document.documentElement.scrollHeight));");
+            Extends.sleep(Math.max(300, config.nextStepDelayMillis()));
         }
     }
 
     private boolean hasNextOrderPage(Browser browser) {
         Boolean ok = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|disable/.test(c);}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.next-pagination button,.next-pagination a,.next-pagination span,.next-pagination li,button,a,li,span'));" +
-                "for(var i=nodes.length-1;i>=0;i--){var e=nodes[i];if(!visible(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title),c=((e.className||'')+'').toLowerCase();" +
-                "if(t.indexOf('下一页')>=0||/next/.test(c)){var target=e.closest('button,a,li')||e;if(!disabled(e)&&!disabled(target)){return true;}}}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}"
+                +
+                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|disable/.test(c);}"
+                +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.next-pagination button,.next-pagination a,.next-pagination span,.next-pagination li,button,a,li,span'));"
+                +
+                "for(var i=nodes.length-1;i>=0;i--){var e=nodes[i];if(!visible(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title),c=((e.className||'')+'').toLowerCase();"
+                +
+                "if(t.indexOf('下一页')>=0||/next/.test(c)){var target=e.closest('button,a,li')||e;if(!disabled(e)&&!disabled(target)){return true;}}}"
+                +
                 "return false;");
         return Boolean.TRUE.equals(ok);
     }
@@ -1185,13 +1324,19 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private boolean nativeClickNextOrderPage(Browser browser) {
         String selector = "[data-rx-tb-next-page='1']";
         Boolean marked = browser.executeScript("var attr='data-rx-tb-next-page';" +
-                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});"
+                +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|disable/.test(c);}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.next-pagination button,.next-pagination a,.next-pagination span,.next-pagination li,button,a,li,span'));" +
-                "for(var i=nodes.length-1;i>=0;i--){var e=nodes[i];if(!visible(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title),c=((e.className||'')+'').toLowerCase();" +
-                "if(t.indexOf('下一页')>=0||/next/.test(c)){var target=e.closest('button,a,li')||e;if(!disabled(e)&&!disabled(target)){target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}}" +
+                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}"
+                +
+                "function disabled(el){var c=((el.className||'')+'').toLowerCase();return !!el.disabled||el.getAttribute('aria-disabled')==='true'||/disabled|disable/.test(c);}"
+                +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('.next-pagination button,.next-pagination a,.next-pagination span,.next-pagination li,button,a,li,span'));"
+                +
+                "for(var i=nodes.length-1;i>=0;i--){var e=nodes[i];if(!visible(e)){continue;}var t=norm(e.innerText||e.textContent||e.getAttribute('aria-label')||e.title),c=((e.className||'')+'').toLowerCase();"
+                +
+                "if(t.indexOf('下一页')>=0||/next/.test(c)){var target=e.closest('button,a,li')||e;if(!disabled(e)&&!disabled(target)){target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}}"
+                +
                 "return false;");
         if (!Boolean.TRUE.equals(marked)) {
             return false;
@@ -1225,7 +1370,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             throw new InvalidException("startTime and endTime are required");
         }
         if (Strings.isEmpty(request.getProfileName())) {
-            request.setProfileName(Strings.isEmpty(config.getProfileName()) ? profileManager.defaultProfileName() : config.getProfileName());
+            request.setProfileName(Strings.isEmpty(config.getProfileName()) ? profileManager.defaultProfileName()
+                    : config.getProfileName());
         }
         request.setProfileName(profileManager.normalizeProfileName(request.getProfileName()));
         if (Strings.isEmpty(request.getOutputPath())) {
@@ -1303,7 +1449,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
 
     private String rowKey(TbPromotionOrderItem row) {
         return String.valueOf(row.getOrderNo()) + "|" + row.getMainOrderNo() + "|" + row.getOrderTime() + "|"
-                + row.getEstimatedBillingAmount() + "|" + row.getEstimatedCommission() + "|" + row.getActualCommission();
+                + row.getEstimatedBillingAmount() + "|" + row.getEstimatedCommission() + "|"
+                + row.getActualCommission();
     }
 
     private YearMonth parseYearMonthText(String text) {
@@ -1427,7 +1574,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 break;
             } catch (Exception e) {
                 String message = e.getMessage();
-                if (message != null && (message.contains("Execution context was destroyed") || message.contains("because of a navigation"))) {
+                if (message != null && (message.contains("Execution context was destroyed")
+                        || message.contains("because of a navigation"))) {
                     log.debug("Read TB promotion body while navigating, retry={}", i + 1);
                     Extends.sleep(500L * (i + 1));
                     continue;
@@ -1520,7 +1668,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             String safeStep = step == null ? "step" : step.replaceAll("[^a-zA-Z0-9._-]+", "_");
             int index = ++stepIndex;
             try {
-                String html = browser.executeScript("return document.documentElement ? document.documentElement.outerHTML : '';");
+                String html = browser
+                        .executeScript("return document.documentElement ? document.documentElement.outerHTML : '';");
                 Path file = taskDir.resolve(String.format("%02d_%s.html", index, safeStep));
                 Files.writeString(file, html == null ? "" : html, StandardCharsets.UTF_8,
                         StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
