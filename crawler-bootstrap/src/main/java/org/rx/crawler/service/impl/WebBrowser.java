@@ -780,38 +780,102 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
 
     /**
      * 使用 Playwright 原生 Mouse API 模拟人工拖拽滑块。
-     * 先贝塞尔曲线移动到起点 → mousedown → 分多步缓慢向终点移动（先快后慢，加随机Y抖动）→ mouseup。
+     * 先贝塞尔曲线移动到起点 → mousedown → 分多步缓慢向终点移动 → mouseup。
+     * 增强拟人策略：随机中途停顿、不均匀步距、微回退抖动、终点过冲回调。
      */
     @Override
     public synchronized void mouseDrag(double startX, double startY, double endX, double endY, int steps) {
         checkNotClosed();
 
+        // 实际步数加随机偏移，避免固定步数被检测
+        int actualSteps = steps + randomInt(-5, 8);
+        if (actualSteps < 15) actualSteps = 15;
+
         // 先移动到起点附近（用贝塞尔曲线模拟人类鼠标轨迹）
         moveMouseLikeHuman(startX, startY);
-        humanPause(100, 300);
+        humanPause(150, 400);
 
         // 按下鼠标
         page.mouse().down();
-        humanPause(60, 180);
+        humanPause(80, 250);
 
-        // 分多步缓慢拖动到终点（先快后慢 + 随机Y抖动，模拟真人手感）
+        // 随机选取1-2个中途停顿点（模拟犹豫）
+        int pausePoint1 = randomInt(actualSteps / 4, actualSteps / 2);
+        int pausePoint2 = randomInt(actualSteps * 2 / 3, actualSteps * 4 / 5);
+        boolean doPause2 = ThreadLocalRandom.current().nextBoolean();
+
         double totalDx = endX - startX;
         double totalDy = endY - startY;
-        for (int i = 1; i <= steps; i++) {
-            double ratio = (double) i / steps;
-            // 缓动函数：前 70% 匀速推进到 85% 距离，后 30% 减速完成剩余 15%
-            double ease = ratio < 0.7 ? ratio / 0.7 * 0.85 : 0.85 + (ratio - 0.7) / 0.3 * 0.15;
-            double cx = startX + totalDx * ease + randomBetween(-1.5, 1.5);
-            double cy = startY + totalDy * ease + randomBetween(-1.2, 1.2);
+        double prevCx = startX, prevCy = startY;
+        for (int i = 1; i <= actualSteps; i++) {
+            double ratio = (double) i / actualSteps;
+            // 三段变速缓动：加速 → 匀速 → 减速
+            double ease;
+            if (ratio < 0.2) {
+                // 起步阶段：慢加速（二次缓入）
+                ease = ratio / 0.2;
+                ease = ease * ease * 0.2;
+            } else if (ratio < 0.75) {
+                // 中段：匀速推进
+                ease = 0.2 + (ratio - 0.2) / 0.55 * 0.65;
+            } else {
+                // 末段：减速（二次缓出）
+                double t = (ratio - 0.75) / 0.25;
+                ease = 0.85 + (1 - (1 - t) * (1 - t)) * 0.15;
+            }
+
+            // X 方向加随机抖动（越靠后抖动越小，模拟手指稳定过程）
+            double jitterX = randomBetween(-2.0, 2.0) * (1.0 - ratio * 0.6);
+            // Y 方向微抖动
+            double jitterY = randomBetween(-1.5, 1.5) * (1.0 - ratio * 0.5);
+            double cx = startX + totalDx * ease + jitterX;
+            double cy = startY + totalDy * ease + jitterY;
+
+            // 偶尔制造微回退（概率 5%，且不在起步/末尾阶段）
+            if (i > 3 && i < actualSteps - 3 && ThreadLocalRandom.current().nextInt(100) < 5) {
+                double backCx = prevCx - randomBetween(1, 4);
+                page.mouse().move(backCx, prevCy + randomBetween(-1, 1), new Mouse.MoveOptions().setSteps(1));
+                humanPause(15, 45);
+            }
+
             page.mouse().move(cx, cy, new Mouse.MoveOptions().setSteps(1));
-            // 前半段快、后半段慢
-            humanPause(i < steps * 0.7 ? 10 : 25, i < steps * 0.7 ? 35 : 80);
+            prevCx = cx;
+            prevCy = cy;
+
+            // 中途停顿（模拟犹豫/手指调整）
+            if (i == pausePoint1) {
+                humanPause(80, 280);
+            } else if (doPause2 && i == pausePoint2) {
+                humanPause(50, 180);
+            } else {
+                // 常规延迟：前段快、中段适中、末段慢
+                if (ratio < 0.2) {
+                    humanPause(12, 40);
+                } else if (ratio < 0.75) {
+                    humanPause(8, 30);
+                } else {
+                    humanPause(20, 70);
+                }
+            }
         }
 
-        // 在终点稍作停顿后松开鼠标
-        humanPause(50, 200);
+        // 过冲回调：先超过终点 3~8px，再慢慢退回到终点（模拟人手惯性）
+        double overshoot = randomBetween(3, 8);
+        page.mouse().move(endX + overshoot, endY + randomBetween(-1, 1), new Mouse.MoveOptions().setSteps(1));
+        humanPause(40, 120);
+        // 分 2-3 步回退到终点
+        int backSteps = randomInt(2, 3);
+        for (int b = backSteps; b >= 1; b--) {
+            double bx = endX + overshoot * ((double) b / (backSteps + 1));
+            page.mouse().move(bx, endY + randomBetween(-0.5, 0.5), new Mouse.MoveOptions().setSteps(1));
+            humanPause(25, 60);
+        }
+        page.mouse().move(endX, endY, new Mouse.MoveOptions().setSteps(1));
+        humanPause(60, 250);
+
+        // 松开鼠标
         page.mouse().up();
-        humanPause(100, 300);
+        humanPause(100, 350);
         mouseX = endX;
         mouseY = endY;
     }
