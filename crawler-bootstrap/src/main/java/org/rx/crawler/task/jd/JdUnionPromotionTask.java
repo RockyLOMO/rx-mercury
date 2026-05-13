@@ -23,14 +23,9 @@ import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
-import org.rx.net.rpc.Remoting;
-import org.rx.net.rpc.RemotingEventArgs;
-import org.rx.net.transport.TcpServer;
 import org.rx.util.BeanMapper;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -57,7 +52,7 @@ import static org.rx.core.Extends.tryClose;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionRequest, JdUnionPromotionResult>, JdUnionCrawlContract {
+public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionRequest, JdUnionPromotionResult> {
     private static final String TASK_TYPE = "getPromotionUrl";
     private static final String ORDERS_TASK_TYPE = "getPromotionOrders";
     private static final Pattern SEARCH_RESULT_COUNT_PATTERN = Pattern.compile("所有结果\\s*共\\s*(\\d+)\\s*件商品");
@@ -69,27 +64,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     private final CrawlEntryService entryService;
     private final ResultWriter resultWriter;
     private final ObjectMapper objectMapper;
-    private TcpServer remotingServer;
     private final ThreadLocal<Long> taskDeadlineHolder = new ThreadLocal<Long>();
-
-    @PostConstruct
-    public void init() {
-        if (!appConfig.getCustom().isRemotingEnabled() || appConfig.getCustom().getRemotingListenPort() <= 0) {
-            return;
-        }
-        try {
-            remotingServer = Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
-            log.info("JD union custom crawl remoting listen on {}", appConfig.getCustom().getRemotingListenPort());
-        } catch (Exception e) {
-            log.warn("JD union custom crawl remoting register fail, port={}, error={}",
-                    appConfig.getCustom().getRemotingListenPort(), e.getMessage());
-        }
-    }
-
-    @PreDestroy
-    public void destroy() {
-        tryClose(remotingServer);
-    }
 
     @Override
     public String taskType() {
@@ -101,32 +76,18 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return getPromotionUrl(request);
     }
 
-    @Override
     public JdUnionPromotionResult getPromotionUrl(JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = executeInternal(request, true);
-        publishDirectResult(result);
-        return result;
+        return executeInternal(request, true);
     }
 
-    @Override
     public JdUnionPromotionOrdersResult getPromotionOrders(JdUnionPromotionOrdersRequest request) {
-        JdUnionPromotionOrdersResult result = executeOrdersInternal(request);
-        try {
-            publishEvent(EVENT_PROMOTION_ORDERS_RESULT, RemotingEventArgs.direct(result));
-        } catch (Exception e) {
-            log.debug("Ignore direct event publish outside remoting context: {}", e.getMessage());
-        }
-        return result;
+        return executeOrdersInternal(request);
     }
 
-    @Override
     public JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = executeInternal(request, false);
-        publishDirectResult(result);
-        return result;
+        return executeInternal(request, false);
     }
 
-    @Override
     public boolean closeProfile(String profileName) {
         return profileManager.closeSession(profileName);
     }
@@ -1249,14 +1210,6 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     private void fail(JdUnionPromotionOrdersResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
-    }
-
-    private void publishDirectResult(JdUnionPromotionResult result) {
-        try {
-            publishEvent(EVENT_PROMOTION_RESULT, RemotingEventArgs.direct(result));
-        } catch (Exception e) {
-            log.debug("Ignore direct event publish outside remoting context: {}", e.getMessage());
-        }
     }
 
     private List<JdUnionPromotionRequest> loadBatchItems(JdUnionBatchRequest request) {

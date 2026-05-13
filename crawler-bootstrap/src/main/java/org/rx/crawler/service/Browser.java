@@ -95,4 +95,18 @@ public interface Browser extends AutoCloseable {
     void maximize();
 
     void normalize();
+
+    /**
+     * 使用 Playwright 原生 Mouse API 模拟人工拖拽，从 (startX, startY) 缓慢拖动到 (endX, endY)。
+     * 默认空实现，仅 WebBrowser 支持。
+     *
+     * @param startX 起点 X 坐标
+     * @param startY 起点 Y 坐标
+     * @param endX   终点 X 坐标
+     * @param endY   终点 Y 坐标
+     * @param steps  拖拽步数，步数越多越慢越像人类操作
+     */
+    default void mouseDrag(double startX, double startY, double endX, double endY, int steps) {
+        // 默认空实现
+    }
 }

@@ -778,6 +778,44 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         }
     }
 
+    /**
+     * 使用 Playwright 原生 Mouse API 模拟人工拖拽滑块。
+     * 先贝塞尔曲线移动到起点 → mousedown → 分多步缓慢向终点移动（先快后慢，加随机Y抖动）→ mouseup。
+     */
+    @Override
+    public synchronized void mouseDrag(double startX, double startY, double endX, double endY, int steps) {
+        checkNotClosed();
+
+        // 先移动到起点附近（用贝塞尔曲线模拟人类鼠标轨迹）
+        moveMouseLikeHuman(startX, startY);
+        humanPause(100, 300);
+
+        // 按下鼠标
+        page.mouse().down();
+        humanPause(60, 180);
+
+        // 分多步缓慢拖动到终点（先快后慢 + 随机Y抖动，模拟真人手感）
+        double totalDx = endX - startX;
+        double totalDy = endY - startY;
+        for (int i = 1; i <= steps; i++) {
+            double ratio = (double) i / steps;
+            // 缓动函数：前 70% 匀速推进到 85% 距离，后 30% 减速完成剩余 15%
+            double ease = ratio < 0.7 ? ratio / 0.7 * 0.85 : 0.85 + (ratio - 0.7) / 0.3 * 0.15;
+            double cx = startX + totalDx * ease + randomBetween(-1.5, 1.5);
+            double cy = startY + totalDy * ease + randomBetween(-1.2, 1.2);
+            page.mouse().move(cx, cy, new Mouse.MoveOptions().setSteps(1));
+            // 前半段快、后半段慢
+            humanPause(i < steps * 0.7 ? 10 : 25, i < steps * 0.7 ? 35 : 80);
+        }
+
+        // 在终点稍作停顿后松开鼠标
+        humanPause(50, 200);
+        page.mouse().up();
+        humanPause(100, 300);
+        mouseX = endX;
+        mouseY = endY;
+    }
+
     @Override
     public synchronized void nativeGet(String url) {
         navigate(url);

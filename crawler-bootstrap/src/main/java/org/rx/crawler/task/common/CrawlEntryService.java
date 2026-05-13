@@ -85,8 +85,8 @@ public class CrawlEntryService {
         if (Strings.isEmpty(currentUrl)) {
             return false;
         }
-        if (options.getLoginRequiredUrlMatcher() != null && options.getLoginRequiredUrlMatcher().test(currentUrl)) {
-            return true;
+        if (options.getLoginRequiredUrlMatcher() != null) {
+            return options.getLoginRequiredUrlMatcher().test(currentUrl);
         }
         String lower = currentUrl.toLowerCase(Locale.ROOT);
         return (!Strings.isEmpty(options.getLoginUrlPrefix()) && currentUrl.startsWith(options.getLoginUrlPrefix()))

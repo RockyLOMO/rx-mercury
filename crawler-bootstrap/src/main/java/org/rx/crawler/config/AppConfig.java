@@ -8,6 +8,7 @@ import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.dto.CrawlPageConfig;
 import org.rx.crawler.task.common.ChromeProfileConfig;
 import org.rx.crawler.task.jd.JdUnionConfig;
+import org.rx.crawler.task.tb.TbPromotionConfig;
 import org.rx.util.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -80,6 +81,7 @@ public class AppConfig {
         private int maxTaskMinutes = 4;
         private ChromeProfileConfig chrome = new ChromeProfileConfig();
         private JdUnionConfig jdUnion = new JdUnionConfig();
+        private TbPromotionConfig tbPromotion = new TbPromotionConfig();
     }
 
     private BrowserPoolConfig browser = new BrowserPoolConfig();

@@ -8,6 +8,7 @@ import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.jd.JdUnionPromotionRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
+import org.rx.crawler.task.tb.TbPromotionOrdersTask;
 import org.rx.io.EntityDatabase;
 import org.rx.io.EntityDatabaseImpl;
 
@@ -36,7 +37,8 @@ public class CustomCrawlQueueServiceTest {
             return result;
         });
 
-        CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig, task);
+        CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig, task,
+                mock(TbPromotionOrdersTask.class));
         try {
             service.init();
 
@@ -66,7 +68,8 @@ public class CustomCrawlQueueServiceTest {
         JdUnionPromotionTask task = mock(JdUnionPromotionTask.class);
         when(task.getPromotionUrl(any())).thenThrow(new IllegalStateException("boom"));
 
-        CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig, task);
+        CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig, task,
+                mock(TbPromotionOrdersTask.class));
         try {
             service.init();
 

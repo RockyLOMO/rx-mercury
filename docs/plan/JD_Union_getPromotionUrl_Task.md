@@ -249,16 +249,16 @@ Content-Type: application/json
 app:
   custom:
     remotingEnabled: true
-    remotingListenPort: 1211
+    remotingListenPort: 1221
 ```
 
-启动后，`JdUnionPromotionTask` 会在初始化时执行：
+启动后，`CustomCrawlRemotingService` 会在初始化时执行：
 
 ```java
 Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
 ```
 
-也就是说，当前项目会把 `JdUnionCrawlContract` 暴露到 `1211` 端口。
+也就是说，当前项目会把统一的 `CustomCrawlRemotingContract` 暴露到 `1221` 端口。
 
 ## Remoting Client 调用
 
@@ -266,7 +266,7 @@ Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
 
 `crawler-api` 模块提供：
 
-- `org.rx.crawler.task.jd.JdUnionCrawlContract`
+- `org.rx.crawler.task.common.CustomCrawlRemotingContract`
 - `org.rx.crawler.task.jd.JdUnionPromotionRequest`
 - `org.rx.crawler.task.jd.JdUnionPromotionResult`
 - `org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest`
@@ -284,7 +284,7 @@ Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
 ```
 
 ```java
-import org.rx.crawler.task.jd.JdUnionCrawlContract;
+import org.rx.crawler.task.common.CustomCrawlRemotingContract;
 import org.rx.crawler.task.jd.JdUnionPromotionRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.net.rpc.Remoting;
@@ -294,9 +294,9 @@ import static org.rx.core.Extends.tryClose;
 
 public class JdUnionGetPromotionUrlClient {
     public static void main(String[] args) {
-        JdUnionCrawlContract client = Remoting.createFacade(
-                JdUnionCrawlContract.class,
-                RpcClientConfig.statefulMode("127.0.0.1:1211", 0));
+        CustomCrawlRemotingContract client = Remoting.createFacade(
+                CustomCrawlRemotingContract.class,
+                RpcClientConfig.statefulMode("127.0.0.1:1221", 0));
         try {
             JdUnionPromotionRequest request = new JdUnionPromotionRequest();
             request.setSkuId("100341910908");
@@ -313,13 +313,7 @@ public class JdUnionGetPromotionUrlClient {
 }
 ```
 
-兼容入口仍可调用：
-
-```java
-JdUnionPromotionResult result = client.promotion(request);
-```
-
-但新任务统一推荐调用：
+统一推荐调用：
 
 ```java
 JdUnionPromotionResult result = client.getPromotionUrl(request);

@@ -8,28 +8,100 @@ import java.io.Serializable;
 public class JdUnionPromotionOrderItem implements Serializable {
     private static final long serialVersionUID = -5338651386297968923L;
 
+    /**
+     * 商品名称。
+     */
     private String productName;
+    /**
+     * 商品超链接；页面 DOM 未提供时为空。
+     */
     private String productLink;
+    /**
+     * 商品价格。
+     */
     private String productPrice;
+    /**
+     * 店铺名。
+     */
     private String storeName;
+    /**
+     * 订单号。
+     */
     private String orderNo;
+    /**
+     * 主单号。
+     */
     private String mainOrderNo;
+    /**
+     * 订单状态。
+     */
     private String orderStatus;
+    /**
+     * 时间原始文本，包含下单、完成、结算等时间信息。
+     */
     private String time;
+    /**
+     * 下单时间。
+     */
     private String orderTime;
+    /**
+     * 完成时间。
+     */
     private String finishTime;
+    /**
+     * 结算时间。
+     */
     private String settleTime;
+    /**
+     * 预估计佣金额。
+     */
     private String estimatedBillingAmount;
+    /**
+     * 预估佣金。
+     */
     private String estimatedCommission;
+    /**
+     * 佣金比例。
+     */
     private String commissionRate;
+    /**
+     * 分成比例。
+     */
     private String shareRate;
+    /**
+     * 实际计佣金额。
+     */
     private String actualBillingAmount;
+    /**
+     * 实际佣金。
+     */
     private String actualCommission;
+    /**
+     * 数量原始文本，包含商品数量、售后数量、退货数量。
+     */
     private String quantity;
+    /**
+     * 商品数量。
+     */
     private String productQuantity;
+    /**
+     * 售后数量。
+     */
     private String afterSaleQuantity;
+    /**
+     * 退货数量。
+     */
     private String returnQuantity;
+    /**
+     * 推广信息原始文本。
+     */
     private String promotionInfo;
+    /**
+     * 推广位。
+     */
     private String promotionPosition;
+    /**
+     * 订单类型。
+     */
     private String orderType;
 }
