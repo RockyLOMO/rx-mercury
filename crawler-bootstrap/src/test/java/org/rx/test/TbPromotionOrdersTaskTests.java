@@ -102,6 +102,10 @@ public class TbPromotionOrdersTaskTests {
                 new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
 
         String html = "<div class='next-table'><div class='next-table-row'>"
+                + "<div class='next-table-cell'>订单信息</div><div class='next-table-cell'>订单状态</div>"
+                + "<div class='next-table-cell'>总提成率</div><div class='next-table-cell'>付款预估收入</div>"
+                + "<div class='next-table-cell'>结算预估收入</div>"
+                + "</div><div class='next-table-row'>"
                 + "<div class='next-table-cell'><a href='https://item.taobao.com/item.htm?id=1'>测试商品A</a>"
                 + "<div>老王旗舰店</div><div>主单号：1234567890123456</div><div>订单号：2234567890123456</div>"
                 + "<div>￥100.00 2026-05-01 10:11:12</div></div>"
@@ -111,7 +115,7 @@ public class TbPromotionOrdersTaskTests {
                 + "<div class='next-table-cell'><div>实际佣金 ￥1.00</div><div>补贴 ￥0.20</div></div>"
                 + "</div><div class='next-table-row'>"
                 + "<div class='next-table-cell'><a href='https://item.taobao.com/item.htm?id=2'>测试商品B</a>"
-                + "<div>老王专卖店</div><div>主单号：3234567890123456</div><div>订单号：4234567890123456</div>"
+                + "<div>店铺名：老王专卖店</div><div>父订单编号：3234567890123456</div><div>子订单编号：4234567890123456</div>"
                 + "<div>￥80.00 2026-05-02 11:12:13</div></div>"
                 + "<div class='next-table-cell'>订单结算</div>"
                 + "<div class='next-table-cell'>10%</div>"
@@ -136,6 +140,9 @@ public class TbPromotionOrdersTaskTests {
         assertEquals("￥1.50", items.get(0).getEstimatedCommission());
         assertEquals("￥1.20", items.get(0).getActualCommission());
         assertEquals("￥100.00", items.get(0).getActualBillingAmount());
+        assertEquals("老王专卖店", items.get(1).getStoreName());
+        assertEquals("3234567890123456", items.get(1).getMainOrderNo());
+        assertEquals("4234567890123456", items.get(1).getOrderNo());
         assertNull(items.get(1).getActualCommission());
         assertNull(items.get(1).getActualBillingAmount());
     }

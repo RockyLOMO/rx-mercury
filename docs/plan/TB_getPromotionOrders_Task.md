@@ -132,20 +132,29 @@ org.rx.crawler.task.common.CustomCrawlRemotingContract#getTbPromotionOrders
   - `拖动滑块`
   - `拖到最右边`
   - `按住滑块`
+  - `验证失败`
 
 ### 模拟滑动策略
 
-- 通过 JS 遍历 DOM 定位滑块把手元素（class 含 `slider/handle/btn/drag`），获取其屏幕坐标。
-- 轨道宽度通过 class 含 `track/rail/groove` 的元素读取；未找到时以把手宽度兜底。
-- 拖拽距离 = `轨道宽 - 把手宽 - 2px`，最小 100px。
-- 通过 `dispatchEvent` 依次发送：`mousedown` → 30 步 `mousemove`（先快后慢，加随机抖动模拟真人）→ `mouseup`。
-- Java 侧同步分 15 步补发 `mousemove`，总耗时约 1.5s，增强时序真实性。
-- 每次验证最多重试 3 次，失败后等待后继续重试；3 次均失败时记录 `sliderVerifyFailed` 到 `diagnostics`，不中断主流程。
+不再使用容易被前端反爬风控指纹识别的 JS `dispatchEvent` 模拟合成事件，全面升级为通过 **Playwright 原生 `Mouse` API** 直接向浏览器发送真实鼠标物理事件。
+
+1. **WebBrowser.mouseDrag — 增强拟人拖拽轨迹**：
+   - **随机步数**：实际步数在指定步数基础上加 `steps ± 5~8` 的随机偏移，避免因步数固定特征被识别。
+   - **三段变速缓动**：起步慢加速（二次缓入）→ 中段匀速推进 → 末段慢减速（二次缓出），完美契合人类手指发力习惯。
+   - **随机中途停顿**：拖拽至 1/4~1/2 以及 2/3~4/5 进度时，随机选取 1~2 个停顿点暂停 80~280ms，模拟人类滑动时的停顿和犹豫感。
+   - **微回退抖动**：中段滑动中有 5% 的概率向后微回退 1~4px 并产生微小抖动，极大地丰富了滑动路径的动态特征。
+   - **过冲回调机制**：模拟真人用力过猛的惯性：到达终点时先轻轻超过终点 3~8px 停顿，随后分 2~3 步缓慢拉回到精确的终点位置后松开。
+   - **衰减抖动**：X/Y 方向引入动态抖动幅度，抖动随拖动进度逐渐衰减（例如起步时波动较大，快完成时手指微调稳定）。
+
+2. **checkAndHandleSliderVerify — "验证失败，点击框体重试"处理**：
+   - **新增 `clickRetryContainerIfPresent` 方法**：若在模拟滑动后检测到页面包含 "验证失败" 或 "点击框体重试" 的红色警告文案，则主动触发框体重载。
+   - **框体定位与点击**：通过 JS 多层定位 NC 验证容器元素（`.nc-container`、`.nc_wrapper` 或包含 "验证失败" 特征文本的可视化容器），获取其正中心坐标，并使用 `browser.mouseDrag` 在原地点按，安全触发阿里滑块的刷新，等待 1.5s 容器重载完毕后进入下一轮滑动重试。
+   - **每步快照追踪**：在滑动前（`before-slide`）、滑动后（`after-slide`）、检测到验证失败（`verify-failed`）及重试点击后（`verify-retry-clicked`）均保存 HTML 完整快照，提供无死角的 debug 追踪能力。
 
 ### 诊断字段
 
 | 字段 | 说明 |
 | --- | --- |
 | `sliderVerifyAt` | 最近一次触发验证的步骤标签 |
-| `sliderVerifyPassed` | 验证成功时写入 `true` |
+| `sliderVerifyPassed` | 自动/重试验证成功时写入 `true` |
 | `sliderVerifyFailed` | 3 次重试均失败时写入触发步骤名 |
