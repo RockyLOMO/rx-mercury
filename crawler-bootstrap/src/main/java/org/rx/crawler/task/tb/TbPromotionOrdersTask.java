@@ -1293,13 +1293,18 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         for (int i = 0; i < 2; i++) {
             ensureTaskDeadline("getTbPromotionOrders.scrollPageBottom");
             browser.executeScript(
-                    "function canScroll(e){return e&&e.scrollHeight&&e.clientHeight&&e.scrollHeight>e.clientHeight+8;}"
+                    "function canScrollY(e){return e&&e.scrollHeight&&e.clientHeight&&e.scrollHeight>e.clientHeight+8;}"
+                            +
+                            "function canScrollX(e){return e&&e.scrollWidth&&e.clientWidth&&e.scrollWidth>e.clientWidth+8;}"
                             +
                             "var roots=[document.scrollingElement,document.documentElement,document.body];" +
-                            "Array.prototype.slice.call(document.querySelectorAll('*')).forEach(function(e){if(canScroll(e)){roots.push(e);}});"
+                            "Array.prototype.slice.call(document.querySelectorAll('*')).forEach(function(e){if(canScrollY(e)||canScrollX(e)){roots.push(e);}});"
                             +
-                            "roots.forEach(function(e){try{e.scrollTop=e.scrollHeight;}catch(ex){}});" +
-                            "window.scrollTo(0,Math.max(document.body.scrollHeight,document.documentElement.scrollHeight));");
+                            "roots.forEach(function(e){try{if(canScrollY(e)){e.scrollTop=e.scrollHeight;}if(canScrollX(e)){e.scrollLeft=e.scrollWidth;}}catch(ex){}});"
+                            +
+                            "try{document.documentElement.scrollLeft=document.documentElement.scrollWidth;document.body.scrollLeft=document.body.scrollWidth;}catch(ex){}"
+                            +
+                            "window.scrollTo(Math.max(document.body.scrollWidth,document.documentElement.scrollWidth),Math.max(document.body.scrollHeight,document.documentElement.scrollHeight));");
             Extends.sleep(Math.max(300, config.nextStepDelayMillis()));
         }
     }
