@@ -19,10 +19,15 @@ import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryOptions;
 import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
+import org.rx.crawler.task.common.CrawlResultValidator;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
 import org.rx.crawler.task.common.KeepAliveUrlStore;
 import org.rx.crawler.task.common.LoginNotificationContext;
+import org.rx.crawler.task.common.ProductInfoDto;
+import org.rx.crawler.task.common.PromotionOrderItem;
+import org.rx.crawler.task.common.PromotionUrlRequest;
+import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
 import org.rx.util.BeanMapper;
@@ -54,9 +59,10 @@ import static org.rx.core.Extends.tryClose;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionRequest, JdUnionPromotionResult> {
+public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest, PromotionUrlResult> {
     private static final String TASK_TYPE = "getPromotionUrl";
     private static final String ORDERS_TASK_TYPE = "getPromotionOrders";
+    private static final String PRIMARY_PROMOTE_SELECTOR = "[data-rx-jd-primary-promote='1']";
     private static final Pattern SEARCH_RESULT_COUNT_PATTERN = Pattern.compile("所有结果\\s*共\\s*(\\d+)\\s*件商品");
     private static final DateTimeFormatter DEBUG_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -80,11 +86,11 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     @Override
-    public JdUnionPromotionResult execute(JdUnionPromotionRequest request) {
+    public PromotionUrlResult execute(PromotionUrlRequest request) {
         return getPromotionUrl(request);
     }
 
-    public JdUnionPromotionResult getPromotionUrl(JdUnionPromotionRequest request) {
+    public PromotionUrlResult getPromotionUrl(PromotionUrlRequest request) {
         return executeInternal(request, true);
     }
 
@@ -92,7 +98,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return executeOrdersInternal(request);
     }
 
-    public JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request) {
+    public PromotionUrlResult loginCheck(PromotionUrlRequest request) {
         return executeInternal(request, false);
     }
 
@@ -100,10 +106,10 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return profileManager.closeSession(profileName);
     }
 
-    public List<JdUnionPromotionResult> batch(JdUnionBatchRequest request) {
-        List<JdUnionPromotionRequest> items = loadBatchItems(request);
-        List<JdUnionPromotionResult> results = new ArrayList<JdUnionPromotionResult>();
-        for (JdUnionPromotionRequest item : items) {
+    public List<PromotionUrlResult> batch(JdUnionBatchRequest request) {
+        List<PromotionUrlRequest> items = loadBatchItems(request);
+        List<PromotionUrlResult> results = new ArrayList<PromotionUrlResult>();
+        for (PromotionUrlRequest item : items) {
             if (Strings.isEmpty(item.getOutputPath()) && !Strings.isEmpty(request.getOutputPath())) {
                 item.setOutputPath(request.getOutputPath());
             }
@@ -116,7 +122,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
         JdUnionPromotionOrdersRequest request = normalizeOrdersRequest(rawRequest, jdConfig);
         JdUnionPromotionOrdersResult result = createOrdersResult(request);
-        JdUnionPromotionRequest debugRequest = toDebugRequest(request);
+        PromotionUrlRequest debugRequest = toDebugRequest(request);
         DebugRecorder debug = new DebugRecorder(debugRequest, jdConfig, objectMapper, ORDERS_TASK_TYPE);
         if (debug.enabled()) {
             result.getDiagnostics().put("debugEnabled", true);
@@ -156,10 +162,10 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private JdUnionPromotionResult executeInternal(JdUnionPromotionRequest rawRequest, boolean doPromotion) {
+    private PromotionUrlResult executeInternal(PromotionUrlRequest rawRequest, boolean doPromotion) {
         JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
-        JdUnionPromotionRequest request = normalizeRequest(rawRequest, jdConfig);
-        JdUnionPromotionResult result = createResult(request);
+        PromotionUrlRequest request = normalizeRequest(rawRequest, jdConfig);
+        PromotionUrlResult result = createResult(request);
         DebugRecorder debug = new DebugRecorder(request, jdConfig, objectMapper);
         if (debug.enabled()) {
             result.getDiagnostics().put("debugEnabled", true);
@@ -192,8 +198,8 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshotText("99-timeout", result.getMessage());
             return result;
         } catch (Exception e) {
-            log.warn("JD union promotion fail, skuId={}, profile={}, error={}",
-                    request.getSkuId(), request.getProfileName(), e.getMessage(), e);
+            log.warn("JD union promotion fail, keyword={}, profile={}, error={}",
+                    request.getKeyword(), request.getProfileName(), e.getMessage(), e);
             fail(result, CustomCrawlStatus.FAILED, e.getMessage());
             debug.snapshotText("99-failed", result.getMessage());
             return result;
@@ -204,15 +210,15 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config) {
+    private CrawlEntryOptions createEntryOptions(PromotionUrlRequest request, JdUnionConfig config) {
         return createEntryOptions(request, config, config.getOverviewUrl(), TASK_TYPE);
     }
 
-    private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config, String initialUrl) {
+    private CrawlEntryOptions createEntryOptions(PromotionUrlRequest request, JdUnionConfig config, String initialUrl) {
         return createEntryOptions(request, config, initialUrl, TASK_TYPE);
     }
 
-    private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config, String initialUrl,
+    private CrawlEntryOptions createEntryOptions(PromotionUrlRequest request, JdUnionConfig config, String initialUrl,
             String taskType) {
         CrawlEntryOptions options = new CrawlEntryOptions();
         options.setTaskType(taskType);
@@ -238,7 +244,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return options;
     }
 
-    private void applyEntryResult(JdUnionPromotionResult result, CrawlEntryResult entry) {
+    private void applyEntryResult(PromotionUrlResult result, CrawlEntryResult entry) {
         result.setFingerprintPassed(entry.isFingerprintPassed());
         result.setCurrentUrl(entry.getCurrentUrl());
         result.setLoginRequired(entry.isLoginRequired());
@@ -258,15 +264,15 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private void runPromotionFlow(Browser browser, JdUnionPromotionRequest request, JdUnionConfig config,
-            JdUnionPromotionResult result, DebugRecorder debug) throws TimeoutException {
+    private void runPromotionFlow(Browser browser, PromotionUrlRequest request, JdUnionConfig config,
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         if (!enterPromotionWorkbench(browser, config, result, debug)) {
             return;
         }
         result.setCurrentUrl(browser.getCurrentUrl());
         debug.snapshot(browser, "02-workbench-ready");
 
-        if (!nativeSetSearchValue(browser, request.getSkuId())) {
+        if (!nativeSetSearchValue(browser, request.getKeyword())) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union search input not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "03-search-input-missing");
@@ -290,6 +296,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             return;
         }
         scrollToProductPromotionArea(browser, config);
+        result.getDiagnostics().put("primaryPromoteScroll", readPrimaryPromoteScrollMetrics(browser));
         debug.snapshot(browser, "05-scroll-product-area");
 
         int searchResultCount = readSearchResultCount(searchBody);
@@ -308,7 +315,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "06-search-result-not-unique");
             return;
         }
-        JdUnionProductInfoDto productInfo = readProductInfo(browser);
+        ProductInfoDto productInfo = readProductInfo(browser);
         if (productInfo != null) {
             result.setProductInfo(productInfo);
         } else {
@@ -317,6 +324,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         debug.snapshot(browser, "06-product-info-collected");
         if (!nativeClickPrimaryPromoteButton(browser)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union primary promotion entry not found");
+            result.getDiagnostics().put("primaryPromoteScroll", readPrimaryPromoteScrollMetrics(browser));
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "07-primary-promote-missing");
             return;
@@ -325,9 +333,16 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         waitAndClickText(browser, "已获取权益，继续推广", true, config, 8);
         waitAndClickText(browser, "继续推广", false, config, 3);
         debug.snapshot(browser, "08-rights-confirmed");
-        waitTextVisible(browser, request.getMediaType(), config);
+        String promotionType = config.getDefaultMediaType();
+        if (!waitTextVisible(browser, promotionType, config)) {
+            fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union media type option not visible");
+            result.getDiagnostics().put("promotionDialog", collectPromotionDialogDiagnostics(browser));
+            result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "09-media-type-not-visible");
+            return;
+        }
 
-        if (!clickByText(browser, request.getMediaType(), true)) {
+        if (!clickByText(browser, promotionType, true)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union media type option not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "09-media-type-missing");
@@ -387,6 +402,14 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             debug.snapshot(browser, "14-promotion-link-missing");
             return;
         }
+        List<String> validationErrors = CrawlResultValidator.validateRequired("productInfo", result.getProductInfo());
+        if (!validationErrors.isEmpty()) {
+            fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union product info validation failed");
+            result.getDiagnostics().put("validationErrors", validationErrors);
+            result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "14-product-info-invalid");
+            return;
+        }
 
         result.setPromotionUrl(promotionUrl);
         result.setStatus(CustomCrawlStatus.SUCCESS);
@@ -429,14 +452,14 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         scrollOrderPageBottom(browser, config);
         debug.snapshot(browser, "04-search-clicked");
 
-        LinkedHashMap<String, JdUnionPromotionOrderItem> orders = new LinkedHashMap<String, JdUnionPromotionOrderItem>();
+        LinkedHashMap<String, PromotionOrderItem> orders = new LinkedHashMap<String, PromotionOrderItem>();
         List<String> previousPageKeys = Collections.emptyList();
         for (int pageNo = 1; pageNo <= 200; pageNo++) {
             ensureTaskDeadline("getPromotionOrders.pageLoop");
-            List<JdUnionPromotionOrderItem> pageOrders = readOrderRowsByScrolling(browser, config);
+            List<PromotionOrderItem> pageOrders = readOrderRowsByScrolling(browser, config);
             List<String> pageKeys = new ArrayList<String>();
             int beforeSize = orders.size();
-            for (JdUnionPromotionOrderItem item : pageOrders) {
+            for (PromotionOrderItem item : pageOrders) {
                 String key = rowKey(item);
                 pageKeys.add(key);
                 if (!orders.containsKey(key)) {
@@ -447,7 +470,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             result.getDiagnostics().put("lastPageSize", pageOrders.size());
             result.getDiagnostics().put("lastPageNewSize", orders.size() - beforeSize);
             result.getDiagnostics().put("orderCount", orders.size());
-            result.setOrders(new ArrayList<JdUnionPromotionOrderItem>(orders.values()));
+            result.setOrders(new ArrayList<PromotionOrderItem>(orders.values()));
             debug.snapshot(browser, String.format("05-page-%03d-collected", pageNo));
             if (pageNo > 1 && (!pageKeys.isEmpty() && pageKeys.equals(previousPageKeys) || orders.size() == beforeSize)) {
                 result.getDiagnostics().put("duplicatePageStop", true);
@@ -464,7 +487,15 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             Extends.sleep(config.nextStepDelayMillis() * 2L);
         }
 
-        result.setOrders(new ArrayList<JdUnionPromotionOrderItem>(orders.values()));
+        result.setOrders(new ArrayList<PromotionOrderItem>(orders.values()));
+        List<String> validationErrors = CrawlResultValidator.validateItems("orders", result.getOrders());
+        if (!validationErrors.isEmpty()) {
+            fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union order item validation failed");
+            result.getDiagnostics().put("validationErrors", validationErrors);
+            result.getDiagnostics().put("orderCount", orders.size());
+            debug.snapshot(browser, "05-orders-invalid");
+            return;
+        }
         result.setStatus(CustomCrawlStatus.SUCCESS);
         result.setMessage("");
         result.getDiagnostics().put("orderCount", orders.size());
@@ -476,14 +507,14 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         keepAliveUrlStore.collect("jd", browser, result.getDiagnostics());
     }
 
-    private List<JdUnionPromotionOrderItem> readOrderRowsByScrolling(Browser browser, JdUnionConfig config) throws TimeoutException {
-        LinkedHashMap<String, JdUnionPromotionOrderItem> rows = new LinkedHashMap<String, JdUnionPromotionOrderItem>();
+    private List<PromotionOrderItem> readOrderRowsByScrolling(Browser browser, JdUnionConfig config) throws TimeoutException {
+        LinkedHashMap<String, PromotionOrderItem> rows = new LinkedHashMap<String, PromotionOrderItem>();
         scrollOrderTableTop(browser);
         Extends.sleep(Math.max(300, config.nextStepDelayMillis() / 2));
         for (int i = 0; i < 80; i++) {
             ensureTaskDeadline("getPromotionOrders.readOrderRows");
-            List<JdUnionPromotionOrderItem> visibleRows = readOrderRows(browser);
-            for (JdUnionPromotionOrderItem row : visibleRows) {
+            List<PromotionOrderItem> visibleRows = readOrderRows(browser);
+            for (PromotionOrderItem row : visibleRows) {
                 rows.put(rowKey(row), row);
             }
             if (!scrollOrderRowsDown(browser)) {
@@ -492,13 +523,13 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             Extends.sleep(Math.max(250, config.nextStepDelayMillis() / 3));
         }
         scrollOrderPageBottom(browser, config);
-        return new ArrayList<JdUnionPromotionOrderItem>(rows.values());
+        return new ArrayList<PromotionOrderItem>(rows.values());
     }
 
-    private String rowKey(JdUnionPromotionOrderItem row) {
+    private String rowKey(PromotionOrderItem row) {
         return String.valueOf(row.getOrderNo()) + "|" + row.getOrderStatus() + "|" + row.getTime() + "|" + row.getEstimatedBillingAmount() + "|"
                 + row.getEstimatedCommission() + "|" + row.getActualCommission() + "|" + row.getPromotionInfo() + "|"
-                + row.getOrderType();
+                ;
     }
 
     private void scrollOrderTableTop(Browser browser) {
@@ -791,7 +822,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return nativeClickByText(browser, "查找订单", true) || clickByText(browser, "查询", true) || clickByText(browser, "搜索", true);
     }
 
-    private List<JdUnionPromotionOrderItem> readOrderRows(Browser browser) {
+    private List<PromotionOrderItem> readOrderRows(Browser browser) {
         String tableHtml = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
                 "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
                 "function cellText(el){return norm(el.innerText||el.textContent||el.value||'');}" +
@@ -802,7 +833,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "['订单状态','预估计佣金额','预估佣金','佣金比例','分成比例','实际计佣金额','实际佣金','推广信息','订单类型'].forEach(function(k){if(tx.indexOf(k)>=0){score++;}});" +
                 "if(score>bestScore){best=t;bestScore=score;}}" +
                 "return best&&bestScore>0?best.outerHTML:'';");
-        List<JdUnionPromotionOrderItem> items = parseOrderRowsFromHtml(tableHtml);
+        List<PromotionOrderItem> items = parseOrderRowsFromHtml(tableHtml);
         if (!items.isEmpty()) {
             return items;
         }
@@ -833,18 +864,18 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "actualCommission:cellText(cells[9]),quantity:qty,promotionInfo:promo,promotionPosition:promo,orderType:cellText(cells[12])});}" +
                 "return out;");
         if (rows == null || rows.isEmpty()) {
-            return new ArrayList<JdUnionPromotionOrderItem>();
+            return new ArrayList<PromotionOrderItem>();
         }
-        List<JdUnionPromotionOrderItem> fallback = new ArrayList<JdUnionPromotionOrderItem>();
+        List<PromotionOrderItem> fallback = new ArrayList<PromotionOrderItem>();
         for (Map<String, Object> row : rows) {
-            fallback.add(objectMapper.convertValue(row, JdUnionPromotionOrderItem.class));
+            fallback.add(objectMapper.convertValue(row, PromotionOrderItem.class));
         }
         return fallback;
     }
 
-    private List<JdUnionPromotionOrderItem> parseOrderRowsFromHtml(String html) {
+    private List<PromotionOrderItem> parseOrderRowsFromHtml(String html) {
         if (Strings.isEmpty(html)) {
-            return new ArrayList<JdUnionPromotionOrderItem>();
+            return new ArrayList<PromotionOrderItem>();
         }
         try {
             Document document = Jsoup.parse(html);
@@ -853,11 +884,11 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 table = document.selectFirst("table");
             }
             if (table == null) {
-                return new ArrayList<JdUnionPromotionOrderItem>();
+                return new ArrayList<PromotionOrderItem>();
             }
 
             Elements trs = table.select("tr");
-            List<JdUnionPromotionOrderItem> items = new ArrayList<JdUnionPromotionOrderItem>();
+            List<PromotionOrderItem> items = new ArrayList<PromotionOrderItem>();
             for (Element tr : trs) {
                 Elements cells = tr.select("td");
                 if (cells.size() < 3) {
@@ -868,7 +899,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                     continue;
                 }
 
-                JdUnionPromotionOrderItem item = new JdUnionPromotionOrderItem();
+                PromotionOrderItem item = new PromotionOrderItem();
                 fillProductInfo(item, cells.get(0));
                 fillOrderNumbers(item, cellTextAt(cells, 1));
                 item.setOrderStatus(cellTextAt(cells, 2));
@@ -881,17 +912,16 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 item.setActualCommission(cellTextAt(cells, 9));
                 fillQuantityInfo(item, cellTextAt(cells, 10));
                 fillPromotionInfo(item, cellTextAt(cells, 11));
-                item.setOrderType(cellTextAt(cells, 12));
                 items.add(item);
             }
             return items;
         } catch (Exception e) {
             log.debug("Parse JD union order rows from html fail, error={}", e.getMessage());
-            return new ArrayList<JdUnionPromotionOrderItem>();
+            return new ArrayList<PromotionOrderItem>();
         }
     }
 
-    private void fillProductInfo(JdUnionPromotionOrderItem item, Element cell) {
+    private void fillProductInfo(PromotionOrderItem item, Element cell) {
         item.setProductName(elementText(cell, ".sku-name"));
         item.setProductLink(elementAttr(cell, "a[href]", "href"));
         item.setProductPrice(elementText(cell, ".price"));
@@ -901,7 +931,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private void fillOrderNumbers(JdUnionPromotionOrderItem item, String orderText) {
+    private void fillOrderNumbers(PromotionOrderItem item, String orderText) {
         Matcher matcher = Pattern.compile("\\b\\d{16}\\b").matcher(orderText == null ? "" : orderText);
         if (matcher.find()) {
             item.setOrderNo(matcher.group());
@@ -912,21 +942,21 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private void fillTimeInfo(JdUnionPromotionOrderItem item, String timeText) {
+    private void fillTimeInfo(PromotionOrderItem item, String timeText) {
         item.setTime(timeText);
         item.setOrderTime(extractLabeledValue(timeText, "下单时间", "完成时间", "结算时间"));
         item.setFinishTime(extractLabeledValue(timeText, "完成时间", "结算时间"));
         item.setSettleTime(extractLabeledValue(timeText, "结算时间"));
     }
 
-    private void fillQuantityInfo(JdUnionPromotionOrderItem item, String quantityText) {
+    private void fillQuantityInfo(PromotionOrderItem item, String quantityText) {
         item.setQuantity(quantityText);
         item.setProductQuantity(extractLabeledValue(quantityText, "商品数量", "售后数量", "退货数量"));
         item.setAfterSaleQuantity(extractLabeledValue(quantityText, "售后数量", "退货数量"));
         item.setReturnQuantity(extractLabeledValue(quantityText, "退货数量"));
     }
 
-    private void fillPromotionInfo(JdUnionPromotionOrderItem item, String promotionText) {
+    private void fillPromotionInfo(PromotionOrderItem item, String promotionText) {
         item.setPromotionInfo(promotionText);
         item.setPromotionPosition(extractLabeledValue(promotionText, "推广位Id", "推广位名称", "pid"));
     }
@@ -1013,7 +1043,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private boolean enterPromotionWorkbench(Browser browser, JdUnionConfig config, JdUnionPromotionResult result,
+    private boolean enterPromotionWorkbench(Browser browser, JdUnionConfig config, PromotionUrlResult result,
             DebugRecorder debug)
             throws TimeoutException {
         browser.navigateUrl(config.getOverviewUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
@@ -1078,7 +1108,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     @SneakyThrows
-    private WebBrowserConfig createBrowserConfig(JdUnionPromotionRequest request, JdUnionConfig jdConfig) {
+    private WebBrowserConfig createBrowserConfig(PromotionUrlRequest request, JdUnionConfig jdConfig) {
         WebBrowserConfig config = BeanMapper.DEFAULT.map(appConfig.getBrowser(), WebBrowserConfig.class);
         config.setProfileDataPath(profileManager.resolveProfileDataPath(request.getProfileName()));
         config.setHeadless(jdConfig.isHeadless());
@@ -1090,17 +1120,14 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return config;
     }
 
-    private JdUnionPromotionRequest normalizeRequest(JdUnionPromotionRequest request, JdUnionConfig config) {
+    private PromotionUrlRequest normalizeRequest(PromotionUrlRequest request, JdUnionConfig config) {
         if (request == null) {
-            request = new JdUnionPromotionRequest();
+            request = new PromotionUrlRequest();
         }
         if (Strings.isEmpty(request.getProfileName())) {
             request.setProfileName(Strings.isEmpty(config.getProfileName()) ? profileManager.defaultProfileName() : config.getProfileName());
         }
         request.setProfileName(profileManager.normalizeProfileName(request.getProfileName()));
-        if (Strings.isEmpty(request.getMediaType())) {
-            request.setMediaType(config.getDefaultMediaType());
-        }
         if (Strings.isEmpty(request.getMediaName())) {
             request.setMediaName(config.getDefaultMediaName());
         }
@@ -1129,9 +1156,9 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return request;
     }
 
-    private JdUnionPromotionRequest toDebugRequest(JdUnionPromotionOrdersRequest request) {
-        JdUnionPromotionRequest debugRequest = new JdUnionPromotionRequest();
-        debugRequest.setSkuId("orders-" + request.getStartTime() + "-" + request.getEndTime());
+    private PromotionUrlRequest toDebugRequest(JdUnionPromotionOrdersRequest request) {
+        PromotionUrlRequest debugRequest = new PromotionUrlRequest();
+        debugRequest.setKeyword("orders-" + request.getStartTime() + "-" + request.getEndTime());
         debugRequest.setAdSiteName("0");
         debugRequest.setProfileName(request.getProfileName());
         debugRequest.setForcePreflight(request.getForcePreflight());
@@ -1142,13 +1169,12 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return debugRequest;
     }
 
-    private JdUnionPromotionResult createResult(JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = new JdUnionPromotionResult();
+    private PromotionUrlResult createResult(PromotionUrlRequest request) {
+        PromotionUrlResult result = new PromotionUrlResult();
         result.setTaskType(TASK_TYPE);
         result.setStatus(CustomCrawlStatus.FAILED);
-        result.setSkuId(request.getSkuId());
+        result.setKeyword(request.getKeyword());
         result.setAdSiteName(request.getAdSiteName());
-        result.setMediaType(request.getMediaType());
         result.setMediaName(request.getMediaName());
         result.setProfileName(request.getProfileName());
         return result;
@@ -1193,7 +1219,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return currentUrl.startsWith(config.getOverviewUrl());
     }
 
-    private boolean waitPromotionWorkbenchReady(Browser browser, JdUnionConfig config, JdUnionPromotionResult result) throws TimeoutException {
+    private boolean waitPromotionWorkbenchReady(Browser browser, JdUnionConfig config, PromotionUrlResult result) throws TimeoutException {
         long deadline = System.currentTimeMillis() + Math.max(1, config.getInitialPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getPromotionUrl.waitWorkbenchReady");
@@ -1221,7 +1247,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return Boolean.TRUE.equals(ready);
     }
 
-    private void fail(JdUnionPromotionResult result, CustomCrawlStatus status, String message) {
+    private void fail(PromotionUrlResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
         if (status == CustomCrawlStatus.LOGIN_REQUIRED) {
@@ -1258,19 +1284,19 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         entryService.notifyLoginRequired(context);
     }
 
-    private List<JdUnionPromotionRequest> loadBatchItems(JdUnionBatchRequest request) {
+    private List<PromotionUrlRequest> loadBatchItems(JdUnionBatchRequest request) {
         if (request == null) {
-            return new ArrayList<JdUnionPromotionRequest>();
+            return new ArrayList<PromotionUrlRequest>();
         }
         if (request.getItems() != null && !request.getItems().isEmpty()) {
             return request.getItems();
         }
         if (Strings.isEmpty(request.getInputPath())) {
-            return new ArrayList<JdUnionPromotionRequest>();
+            return new ArrayList<PromotionUrlRequest>();
         }
         try {
             return objectMapper.readValue(new File(request.getInputPath()),
-                    new TypeReference<List<JdUnionPromotionRequest>>() {
+                    new TypeReference<List<PromotionUrlRequest>>() {
                     });
         } catch (Exception e) {
             throw new InvalidException("Read JD union batch input fail, path={}", request.getInputPath(), e);
@@ -1349,42 +1375,106 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     private boolean nativeClickPrimaryPromoteButton(Browser browser) {
-        String selector = "[data-rx-jd-primary-promote='1']";
+        if (!markPrimaryPromoteButton(browser)) {
+            return false;
+        }
+        scrollPrimaryPromoteIntoClickableArea(browser);
+        try {
+            browser.elementClick(PRIMARY_PROMOTE_SELECTOR, false);
+            return true;
+        } catch (Exception e) {
+            // 原生点击被遮挡时，兜底触发页面绑定的 click 事件。
+        }
+
+        Boolean clicked = browser.executeScript("var target=document.querySelector('[data-rx-jd-primary-promote=\"1\"]');" +
+                "if(!target){return false;}" +
+                "function fire(el,type){var r=el.getBoundingClientRect();" +
+                "el.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,view:window,clientX:r.left+r.width/2,clientY:r.top+r.height/2,button:0}));}" +
+                "fire(target,'mouseover');fire(target,'mousemove');fire(target,'mousedown');fire(target,'mouseup');fire(target,'click');" +
+                "if(typeof target.click==='function'){target.click();}" +
+                "return true;");
+        return Boolean.TRUE.equals(clicked);
+    }
+
+    private void scrollToProductPromotionArea(Browser browser, JdUnionConfig config) {
+        if (markPrimaryPromoteButton(browser)) {
+            browser.scrollToElement(PRIMARY_PROMOTE_SELECTOR, 0.45D);
+            scrollPrimaryPromoteIntoClickableArea(browser);
+        }
+        Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
+    }
+
+    private boolean markPrimaryPromoteButton(Browser browser) {
         Boolean marked = browser.executeScript("var attr='data-rx-jd-primary-promote';" +
                 "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled;}" +
                 "function text(el){return norm(el.innerText||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
-                "function productBox(el){var p=el;for(var d=0;p&&d<8;d++,p=p.parentElement){var t=norm(p.innerText);" +
+                "function productBox(el){var p=el;for(var d=0;p&&d<8&&p&&p!==document.body&&p!==document.documentElement;d++,p=p.parentElement){var t=norm(p.innerText);" +
                 "if(t.indexOf('为您推荐以下相似商品')>=0){return null;}" +
-                "if(t.indexOf('佣金比例')>=0&&t.indexOf('预估收益')>=0&&t.indexOf('到手价')>=0){return p;}}return null;}" +
+                "if(t.length<2500&&t.indexOf('佣金比例')>=0&&t.indexOf('预估收益')>=0&&t.indexOf('到手价')>=0&&t.indexOf('一键领链')>=0){return p;}}return null;}" +
                 "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,span,div'));" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||text(e)!=='我要推广'){continue;}" +
-                "if(productBox(e)){var target=e.closest('button,a')||e;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}}" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i],button=e.closest('button');" +
+                "if(!button||!visible(button)||text(button)!=='我要推广'){continue;}" +
+                "if((String(button.className||'').indexOf('card-button')>=0||productBox(button))&&productBox(button)){" +
+                "button.setAttribute(attr,'1');return true;}}" +
                 "return false;");
-        if (!Boolean.TRUE.equals(marked)) {
-            return false;
-        }
-        try {
-            browser.elementClick(selector, false);
-            return true;
-        } catch (Exception e) {
-            return false;
+        return Boolean.TRUE.equals(marked);
+    }
+
+    private void scrollPrimaryPromoteIntoClickableArea(Browser browser) {
+        for (int i = 0; i < 6; i++) {
+            Map<String, Object> metrics = adjustPrimaryPromoteScroll(browser, true);
+            if (Boolean.TRUE.equals(metrics.get("clickable"))) {
+                return;
+            }
+            double delta = metricDouble(metrics, "delta");
+            if (Math.abs(delta) < 80D) {
+                delta = metricDouble(metrics, "bottom") > metricDouble(metrics, "safeBottom") ? 360D : -260D;
+            }
+            browser.scrollPage(0, Math.max(-700D, Math.min(700D, delta)));
+            Extends.sleep(180);
         }
     }
 
-    private void scrollToProductPromotionArea(Browser browser, JdUnionConfig config) {
-        browser.executeScript("var marker=null;" +
-                "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,span,div'));" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i],t=norm(e.innerText||e.value||e.getAttribute('title'));" +
-                "if(visible(e)&&t==='我要推广'){var p=e;for(var d=0;p&&d<8;d++,p=p.parentElement){var pt=norm(p.innerText);" +
-                "if(pt.indexOf('佣金比例')>=0&&pt.indexOf('预估收益')>=0&&pt.indexOf('到手价')>=0&&pt.indexOf('为您推荐以下相似商品')<0){marker=e;break;}}" +
-                "if(marker){break;}}}" +
-                "if(marker){marker.scrollIntoView({block:'center',inline:'center'});window.scrollBy(0,180);}else{window.scrollBy(0,Math.floor(window.innerHeight*0.7));}");
-        Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
+    private Map<String, Object> readPrimaryPromoteScrollMetrics(Browser browser) {
+        return adjustPrimaryPromoteScroll(browser, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> adjustPrimaryPromoteScroll(Browser browser, boolean scroll) {
+        Object value = browser.executeScript("var doScroll=arguments[0]===true;" +
+                "var target=document.querySelector('[data-rx-jd-primary-promote=\"1\"]');" +
+                "function vh(){return window.innerHeight||document.documentElement.clientHeight||800;}" +
+                "function vw(){return window.innerWidth||document.documentElement.clientWidth||1200;}" +
+                "function pageY(){return window.pageYOffset||document.documentElement.scrollTop||document.body.scrollTop||0;}" +
+                "function metric(){if(!target){return {found:false};}" +
+                "var r=target.getBoundingClientRect(),h=vh(),w=vw(),safeTop=90,safeBottom=Math.max(180,h-135),center=r.top+r.height/2,targetY=h*0.45;" +
+                "return {found:true,top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height,innerHeight:h,pageYOffset:pageY()," +
+                "rootScrollTop:(document.scrollingElement||document.documentElement||document.body).scrollTop||0,bodyScrollTop:document.body?document.body.scrollTop||0:0," +
+                "safeTop:safeTop,safeBottom:safeBottom,delta:center-targetY,clickable:r.top>=safeTop&&r.bottom<=safeBottom&&r.left>=0&&r.right<=w};}" +
+                "function add(list,node){if(node&&list.indexOf(node)<0){list.push(node);}}" +
+                "function roots(){var list=[];add(list,document.scrollingElement);add(list,document.documentElement);add(list,document.body);return list;}" +
+                "function ancestors(){var list=[];for(var p=target&&target.parentElement;p;p=p.parentElement){if(p.scrollHeight>p.clientHeight+20){add(list,p);}}return list;}" +
+                "function allScrollables(){var list=roots(),all=Array.prototype.slice.call(document.querySelectorAll('*'));" +
+                "for(var i=0;i<all.length;i++){var n=all[i];if(n.scrollHeight>n.clientHeight+20){add(list,n);}}return list;}" +
+                "function fireWheel(dy){try{var r=target.getBoundingClientRect();target.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:dy,deltaMode:0,clientX:Math.max(1,Math.min(vw()-2,r.left+r.width/2)),clientY:Math.max(1,Math.min(vh()-2,r.top+r.height/2))}));}catch(e){}}" +
+                "function move(list,dy){var before=target.getBoundingClientRect().top;" +
+                "try{window.scrollTo(window.pageXOffset||0,pageY()+dy);}catch(e){}" +
+                "for(var i=0;i<list.length;i++){try{list[i].scrollTop=(list[i].scrollTop||0)+dy;}catch(e){}}" +
+                "fireWheel(dy);return Math.abs(target.getBoundingClientRect().top-before);}" +
+                "if(target&&doScroll){try{target.scrollIntoView({block:'center',inline:'nearest',behavior:'auto'});}catch(e){}" +
+                "for(var step=0;step<10;step++){var m=metric();if(m.clickable){break;}var dy=m.delta;" +
+                "if(Math.abs(dy)<30){dy=m.bottom>m.safeBottom?260:-220;}dy=Math.max(-780,Math.min(780,dy));" +
+                "var moved=move(roots().concat(ancestors()),dy);if(moved<1){move(allScrollables(),dy>0?420:-320);}}}" +
+                "return metric();", scroll);
+        return value instanceof Map ? (Map<String, Object>) value : Collections.<String, Object>emptyMap();
+    }
+
+    private double metricDouble(Map<String, Object> metrics, String key) {
+        Object value = metrics.get(key);
+        return value instanceof Number ? ((Number) value).doubleValue() : 0D;
     }
 
     private boolean selectGuideMedia(Browser browser, String mediaName, JdUnionConfig config) {
@@ -1794,7 +1884,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "return coupon[0]||'';");
     }
 
-    private JdUnionProductInfoDto readProductInfo(Browser browser) {
+    private ProductInfoDto readProductInfo(Browser browser) {
         Map<String, Object> raw = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();" +
                 "return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
@@ -1804,10 +1894,18 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "if(t.indexOf('佣金比例')<0||t.indexOf('到手价')<0||t.indexOf('一键领链')<0){return 999999;}" +
                 "var imgs=el.querySelectorAll('img').length,as=el.querySelectorAll('a[href]').length;" +
                 "return r.width*r.height - imgs*8000 - as*800;}" +
+                "function hrefOf(a){var href=a.href||a.getAttribute('href')||'';return href.indexOf('//')===0?location.protocol+href:href;}" +
+                "function anchorName(a){return norm(a.getAttribute('title')||a.innerText||a.textContent);}" +
+                "function productAnchor(card){var selectors=['p.two a[href][title]','p[class*=two] a[href][title]','a[href][title]'];" +
+                "for(var si=0;si<selectors.length;si++){var as=Array.prototype.slice.call(card.querySelectorAll(selectors[si]));" +
+                "for(var i=0;i<as.length;i++){var a=as[i],name=anchorName(a),href=hrefOf(a);" +
+                "if(!visible(a)||!name||/我要推广|一键领链|查看全部|更多|清空|奖励活动|去报名/.test(name)){continue;}" +
+                "if(/item\\.jd\\.com|\\.jd\\.com/.test(href)&&!/proManager/.test(href)){return {name:name,href:href};}}}" +
+                "return null;}" +
                 "function bestLink(card){var as=Array.prototype.slice.call(card.querySelectorAll('a[href]'));" +
                 "var best='';var bestScore=-1;" +
-                "for(var i=0;i<as.length;i++){var a=as[i];if(!visible(a)){continue;}var t=text(a);var href=a.href||a.getAttribute('href')||'';" +
-                "if(!t||/我要推广|一键领链|查看全部|更多|清空/.test(t)){continue;}" +
+                "for(var i=0;i<as.length;i++){var a=as[i];if(!visible(a)){continue;}var t=anchorName(a)||text(a);var href=hrefOf(a);" +
+                "if(!t||/我要推广|一键领链|查看全部|更多|清空|奖励活动|去报名/.test(t)){continue;}" +
                 "var score=t.length;if(/item\\.jd\\.com|union\\.jd\\.com\\/product|\\.jd\\.com/.test(href)&&!/proManager/.test(href)){score+=80;}" +
                 "if(score>bestScore){best=href;bestScore=score;}}" +
                 "return best;}" +
@@ -1819,9 +1917,10 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)||text(e)!=='我要推广'){continue;}" +
                 "var p=e;for(var d=0;p&&d<10;d++,p=p.parentElement){var sc=cardScore(p);if(sc<bestCardScore){card=p;bestCardScore=sc;}}}" +
                 "if(!card){return null;}" +
-                "var anchors=Array.prototype.slice.call(card.querySelectorAll('a[href]'));var name='';var nameScore=-1;var link='';" +
-                "for(var n=0;n<anchors.length;n++){var a=anchors[n],t=text(a),href=a.href||a.getAttribute('href')||'';" +
-                "if(!visible(a)||!t||/我要推广|一键领链|查看全部|更多|清空/.test(t)){continue;}" +
+                "var titleAnchor=productAnchor(card),anchors=Array.prototype.slice.call(card.querySelectorAll('a[href]'));" +
+                "var name=titleAnchor?titleAnchor.name:'',nameScore=name?999999:-1,link=titleAnchor?titleAnchor.href:'';" +
+                "for(var n=0;n<anchors.length;n++){var a=anchors[n],t=anchorName(a)||text(a),href=hrefOf(a);" +
+                "if(!visible(a)||!t||/我要推广|一键领链|查看全部|更多|清空|奖励活动|去报名/.test(t)){continue;}" +
                 "if(/旗舰店|专卖店|店铺|自营|京配|促销|券/.test(t)&&t.length<=40){continue;}" +
                 "var score=t.length;if(/item\\.jd\\.com|\\.jd\\.com/.test(href)&&!/proManager/.test(href)){score+=80;}" +
                 "if(score>nameScore){name=t;nameScore=score;link=href;}}" +
@@ -1833,13 +1932,13 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
                 "productName: name || extract(card,/([\\u4e00-\\u9fa5A-Za-z0-9【】\\(\\)\\[\\]\\-_.+·\\s]{6,120})/)," +
                 "productLink: link || bestLink(card)," +
                 "commissionRate: extract(card,/佣金比例[:：]?\\s*([0-9.]+%)/)," +
-                "finalPrice: extract(card,/到手价[￥¥]?\\s*([0-9.]+(?:\\.[0-9]+)?(?:[万千]?)?)/)," +
+                "price: extract(card,/到手价[￥¥]?\\s*([0-9.]+(?:\\.[0-9]+)?(?:[万千]?)?)/)," +
                 "storeName: store" +
                 "};");
         if (raw == null || raw.isEmpty()) {
             return null;
         }
-        return objectMapper.convertValue(raw, JdUnionProductInfoDto.class);
+        return objectMapper.convertValue(raw, ProductInfoDto.class);
     }
 
     private Map<String, Object> collectPromotionDialogDiagnostics(Browser browser) {
@@ -1889,7 +1988,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         return false;
     }
 
-    private boolean isDebugEnabled(JdUnionPromotionRequest request) {
+    private boolean isDebugEnabled(PromotionUrlRequest request) {
         if (request != null && request.getDebugEnabled() != null) {
             return request.getDebugEnabled();
         }
@@ -1903,7 +2002,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         }
     }
 
-    private String resolveDebugOutputDir(JdUnionPromotionRequest request, JdUnionConfig config) {
+    private String resolveDebugOutputDir(PromotionUrlRequest request, JdUnionConfig config) {
         if (request != null && !Strings.isEmpty(request.getDebugOutputDir())) {
             return request.getDebugOutputDir();
         }
@@ -1915,11 +2014,11 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         private final Path taskDir;
         private int stepIndex;
 
-        private DebugRecorder(JdUnionPromotionRequest request, JdUnionConfig config, ObjectMapper objectMapper) {
+        private DebugRecorder(PromotionUrlRequest request, JdUnionConfig config, ObjectMapper objectMapper) {
             this(request, config, objectMapper, TASK_TYPE);
         }
 
-        private DebugRecorder(JdUnionPromotionRequest request, JdUnionConfig config, ObjectMapper objectMapper, String taskType) {
+        private DebugRecorder(PromotionUrlRequest request, JdUnionConfig config, ObjectMapper objectMapper, String taskType) {
             this.enabled = isDebugEnabled(request);
             if (!enabled) {
                 this.taskDir = null;
@@ -1927,15 +2026,15 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             }
             String baseDir = resolveDebugOutputDir(request, config);
             String profileName = Strings.isEmpty(request.getProfileName()) ? "default" : request.getProfileName();
-            String skuId = Strings.isEmpty(request.getSkuId()) ? "unknown" : request.getSkuId();
+            String keyword = Strings.isEmpty(request.getKeyword()) ? "unknown" : request.getKeyword();
             String time = LocalDateTime.now().format(DEBUG_TIME_FORMATTER);
-            this.taskDir = Paths.get(baseDir, profileName, skuId + "-" + time);
+            this.taskDir = Paths.get(baseDir, profileName, keyword + "-" + time);
             try {
                 Files.createDirectories(this.taskDir);
                 Files.writeString(this.taskDir.resolve("_task.txt"),
                         "taskType=" + taskType + System.lineSeparator()
                                 + "profileName=" + profileName + System.lineSeparator()
-                                + "skuId=" + skuId + System.lineSeparator(),
+                                + "keyword=" + keyword + System.lineSeparator(),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
                         StandardOpenOption.WRITE);
             } catch (Exception e) {

@@ -1,4 +1,4 @@
-﻿# 京东联盟 getPromotionUrl 抓取任务
+# 京东联盟 getPromotionUrl 抓取任务
 
 ## 任务定义
 
@@ -17,7 +17,7 @@
   - `productName`
   - `productLink`
   - `commissionRate`
-  - `finalPrice`
+  - `price`
   - `storeName`
 - 生成推广链接时，若同时存在优惠券链接和普通链接，优先取优惠券链接。
 
@@ -130,11 +130,11 @@ Content-Type: application/json
 
 ## 入参
 
-请求对象：`JdUnionPromotionRequest`
+请求对象：`PromotionUrlRequest`
 
 | 字段 | 必填 | 说明 | 示例 |
 | --- | --- | --- | --- |
-| `skuId` | 是 | 商品 ID，只允许数字 | `100341910908` |
+| `keyword` | 是 | 商品 ID，只允许数字 | `100341910908` |
 | `adSiteName` | 是 | 推广位名称，只允许数字 | `5` |
 | `profileName` | 否 | Chrome profile 名称，默认 `common` | `common` |
 | `forcePreflight` | 否 | 是否强制每次先跑 Sannysoft，默认使用配置 | `true` |
@@ -145,14 +145,14 @@ Content-Type: application/json
 
 ```json
 {
-  "skuId": "100341910908",
+  "keyword": "100341910908",
   "adSiteName": "5"
 }
 ```
 
 ## 出参
 
-返回对象：`JdUnionPromotionResult`
+返回对象：`PromotionUrlResult`
 
 关键字段：
 
@@ -160,7 +160,7 @@ Content-Type: application/json
 | --- | --- |
 | `status` | `SUCCESS` 表示成功，其它值表示失败原因 |
 | `taskType` | 固定为 `getPromotionUrl` |
-| `skuId` | 商品 ID |
+| `keyword` | 商品 ID |
 | `adSiteName` | 推广位名称 |
 | `productInfo` | 商品信息 DTO |
 | `promotionUrl` | 成功时返回推广链接 |
@@ -175,17 +175,16 @@ Content-Type: application/json
 {
   "status": "SUCCESS",
   "taskType": "getPromotionUrl",
-  "skuId": "100341910908",
+  "keyword": "100341910908",
   "adSiteName": "5",
   "productInfo": {
     "imageUrl": "https://...",
     "productName": "小白熊摇奶器保温二合一温奶...",
     "productLink": "https://item.jd.com/...",
     "commissionRate": "4.8%",
-    "finalPrice": "480.95",
+    "price": "480.95",
     "storeName": "小白熊京东自营旗舰店"
   },
-  "mediaType": "导购媒体推广",
   "mediaName": "微信",
   "profileName": "common",
   "promotionUrl": "https://u.jd.com/f6FcZZw",
@@ -213,7 +212,7 @@ Content-Type: application/json
    - 再点击 `商品推广`。
    - 如果菜单未找到，兜底进入 `https://union.jd.com/proManager/index?pageNo=1`。
 6. 在商品推广页搜索商品：
-   - 在商品搜索输入框输入 `skuId`。
+   - 在商品搜索输入框输入 `keyword`。
    - 点击 `搜索全部商品`。
    - 等待结果加载。
 7. 搜索后页面下滚，避免目标商品的 `我要推广` 按钮被遮挡。
@@ -242,6 +241,21 @@ Content-Type: application/json
 15. 点击 `复制`。
 16. 从弹窗输入框、文本区域或页面文本读取 `https://...` 链接，优先取 `优惠券链接`，再取普通 `推广链接`，写入 `promotionUrl`。
 
+### 问题记录：`我要推广` 按钮误定位
+
+- 商品推广页存在多个 `我要推广` 文案：左侧导航菜单也叫 `我要推广`，商品卡片内的主按钮也叫 `我要推广`。
+- 之前按钮定位条件过宽，只按文案查找时会误选左侧导航项；诊断坐标表现为 `left=0`、`width≈179.8`、`top≈100`，虽然 `clickable=true`，但点击后仍停留在列表页，不会打开生成推广链接弹窗。
+- 正确目标必须限定为商品卡片内按钮：
+  - 元素优先是 `button.card-button`。
+  - 祖先商品卡片文本必须同时包含 `佣金比例`、`预估收益`、`到手价`、`一键领链`。
+  - 祖先文本不能包含 `为您推荐以下相似商品`。
+- 搜索后需要先滚动到商品卡片操作区，否则商品卡片的 `我要推广` 可能被底部批量操作栏遮住。
+- 当前修复策略：
+  - 先给目标商品卡片按钮打 `data-rx-jd-primary-promote=1` 标记。
+  - 再调用 `Browser.scrollToElement` 优先走 Playwright 原生滚动。
+  - 如果按钮仍不在安全点击区，使用 JS 按按钮 `top/bottom` 坐标反复校正，直到落在 `safeTop` 与 `safeBottom` 之间。
+  - diagnostics 中记录 `primaryPromoteScroll`，用于确认是否滚到了商品按钮；正确示例坐标为 `left≈251`、`top≈395`、`bottom≈437`、`clickable=true`。
+
 ### Cookie 记录
 
 - `cookies.html` 现在作为对比页使用，会同时展示当前 `HttpServletRequest` 的 `Cookie` 头和 `HttpClientCookieJar` 里同一 URL 对应的 cookie。
@@ -250,7 +264,7 @@ Content-Type: application/json
 
 ## Debug 模式
 
-- `debugEnabled=true` 时，任务会在 `debugOutputDir/profileName/skuId-时间戳/` 下保存每个关键步骤的 `html` 快照。
+- `debugEnabled=true` 时，任务会在 `debugOutputDir/profileName/keyword-时间戳/` 下保存每个关键步骤的 `html` 快照。
 - 全局默认开关来自 `app.custom.debugEnabled`，发布默认关闭；请求里的 `debugEnabled` 可显式覆盖，测试类默认显式打开。
 - 每个快照文件名包含步骤序号，便于按执行顺序排查。
 - 默认关闭，不影响正常抓取流程。
@@ -332,8 +346,8 @@ Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
 `crawler-api` 模块提供：
 
 - `org.rx.crawler.task.common.CustomCrawlRemotingContract`
-- `org.rx.crawler.task.jd.JdUnionPromotionRequest`
-- `org.rx.crawler.task.jd.JdUnionPromotionResult`
+- `org.rx.crawler.task.common.PromotionUrlRequest`
+- `org.rx.crawler.task.common.PromotionUrlResult`
 - `org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest`
 - `org.rx.crawler.task.jd.JdUnionPromotionOrdersResult`
 - `org.rx.crawler.task.jd.JdUnionBatchRequest`
@@ -350,8 +364,8 @@ Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
 
 ```java
 import org.rx.crawler.task.common.CustomCrawlRemotingContract;
-import org.rx.crawler.task.jd.JdUnionPromotionRequest;
-import org.rx.crawler.task.jd.JdUnionPromotionResult;
+import org.rx.crawler.task.common.PromotionUrlRequest;
+import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RpcClientConfig;
 
@@ -363,11 +377,11 @@ public class JdUnionGetPromotionUrlClient {
                 CustomCrawlRemotingContract.class,
                 RpcClientConfig.statefulMode("127.0.0.1:1221", 0));
         try {
-            JdUnionPromotionRequest request = new JdUnionPromotionRequest();
-            request.setSkuId("100341910908");
+            PromotionUrlRequest request = new PromotionUrlRequest();
+            request.setKeyword("100341910908");
             request.setAdSiteName("5");
 
-            JdUnionPromotionResult result = client.getPromotionUrl(request);
+            PromotionUrlResult result = client.getPromotionUrl(request);
             System.out.println(result.getStatus());
             System.out.println(result.getPromotionUrl());
             System.out.println(result.getMessage());
@@ -381,7 +395,7 @@ public class JdUnionGetPromotionUrlClient {
 统一推荐调用：
 
 ```java
-JdUnionPromotionResult result = client.getPromotionUrl(request);
+PromotionUrlResult result = client.getPromotionUrl(request);
 ```
 
 ## HTTP 调用入口
@@ -397,7 +411,7 @@ Content-Type: application/json
 
 ```json
 {
-  "skuId": "100341910908",
+  "keyword": "100341910908",
   "adSiteName": "5"
 }
 ```
@@ -412,14 +426,14 @@ Content-Type: application/json
   "data": {
     "status": "SUCCESS",
     "taskType": "getPromotionUrl",
-    "skuId": "100341910908",
+    "keyword": "100341910908",
     "adSiteName": "5",
     "productInfo": {
       "imageUrl": "https://...",
       "productName": "...",
       "productLink": "https://...",
       "commissionRate": "4.8%",
-      "finalPrice": "480.95",
+      "price": "480.95",
       "storeName": "..."
     },
     "promotionUrl": "https://u.jd.com/f6FcZZw",
@@ -488,14 +502,14 @@ Content-Type: application/json
 验证命令使用 JDK 21、本机 Chrome profile：
 
 ```powershell
-mvn -pl crawler-bootstrap -am "-Dmaven.test.skip=false" "-DskipTests=false" "-Dtest=JdUnionPromotionTaskTests#jdUnionAuthorizedIntegration" "-Djd.union.integration=true" "-Djd.union.skuId=100341910908" "-Djd.union.adSiteName=5" test
+mvn -pl crawler-bootstrap -am "-Dmaven.test.skip=false" "-DskipTests=false" "-Dtest=JdUnionPromotionTaskTests#jdUnionAuthorizedIntegration" "-Djd.union.integration=true" "-Djd.union.keyword=100341910908" "-Djd.union.adSiteName=5" test
 ```
 
 验证结果：
 
 ```text
 Sannysoft: passed
-JD skuId: 100341910908
+JD keyword: 100341910908
 adSiteName: 5
 status: SUCCESS
 promotionUrl: https://u.jd.com/f6FcZZw

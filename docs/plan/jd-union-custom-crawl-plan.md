@@ -159,8 +159,8 @@ crawler-bootstrap/src/main/java/org/rx/crawler/task/
     ResultWriter.java
   jd/
     JdUnionPromotionTask.java
-    JdUnionPromotionRequest.java
-    JdUnionPromotionResult.java
+    PromotionUrlRequest.java
+    PromotionUrlResult.java
     JdUnionConfig.java
   controller/
     CustomCrawlController.java
@@ -205,11 +205,10 @@ public interface CustomCrawlTask<TRequest, TResult> {
 
 ## JD 联盟请求模型
 
-建议 `JdUnionPromotionRequest` 字段：
+建议 `PromotionUrlRequest` 字段：
 
 - `skuId`：商品 ID，例如 `100059484008`。
 - `adSiteName`：广告位名称，例如 `5`。
-- `mediaType`：默认 `导购媒体推广`。
 - `mediaName`：默认 `微信`。
 - `profileName`：默认 `jd-union`。
 - `forcePreflight`：默认 `true`，是否每次先跑 Sannysoft 基线。
@@ -226,7 +225,7 @@ public interface CustomCrawlTask<TRequest, TResult> {
 
 ## JD 联盟返回模型
 
-建议 `JdUnionPromotionResult` 字段：
+建议 `PromotionUrlResult` 字段：
 
 - `skuId`
 - `adSiteName`

@@ -1,4 +1,4 @@
-package org.rx.crawler.task.tb;
+package org.rx.crawler.task.common;
 
 import lombok.Data;
 
@@ -7,11 +7,11 @@ import jakarta.validation.constraints.Pattern;
 import java.io.Serializable;
 
 @Data
-public class TbPromotionUrlRequest implements Serializable {
-    private static final long serialVersionUID = 1641528783140379143L;
+public class PromotionUrlRequest implements Serializable {
+    private static final long serialVersionUID = 7661573515710373020L;
 
     @NotBlank
-    private String productInfo;
+    private String keyword;
     @NotBlank
     @Pattern(regexp = "\\d+", message = "adSiteName must be digits")
     private String adSiteName;

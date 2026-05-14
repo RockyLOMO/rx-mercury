@@ -2,6 +2,7 @@ package org.rx.crawler.task.tb;
 
 import lombok.Data;
 import org.rx.crawler.task.common.CustomCrawlStatus;
+import org.rx.crawler.task.common.PromotionOrderItem;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -24,6 +25,6 @@ public class TbPromotionOrdersResult implements Serializable {
     private boolean fingerprintPassed;
     private String message;
     private Date createdAt = new Date();
-    private List<TbPromotionOrderItem> orders = new ArrayList<TbPromotionOrderItem>();
+    private List<PromotionOrderItem> orders = new ArrayList<PromotionOrderItem>();
     private Map<String, Object> diagnostics = new HashMap<String, Object>();
 }

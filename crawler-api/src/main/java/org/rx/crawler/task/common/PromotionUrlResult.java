@@ -1,7 +1,6 @@
-package org.rx.crawler.task.jd;
+package org.rx.crawler.task.common;
 
 import lombok.Data;
-import org.rx.crawler.task.common.CustomCrawlStatus;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -9,17 +8,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Data
-public class JdUnionPromotionResult implements Serializable {
-    private static final long serialVersionUID = 8789408467263205601L;
+public class PromotionUrlResult implements Serializable {
+    private static final long serialVersionUID = 6813060541670472936L;
 
     private CustomCrawlStatus status;
     private String taskType;
-    private String skuId;
+    private String keyword;
     private String adSiteName;
-    private String mediaType;
     private String mediaName;
     private String profileName;
-    private JdUnionProductInfoDto productInfo;
+    private ProductInfoDto productInfo;
     private String promotionUrl;
     private String currentUrl;
     private boolean loginRequired;

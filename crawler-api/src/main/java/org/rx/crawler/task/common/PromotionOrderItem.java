@@ -1,16 +1,18 @@
-package org.rx.crawler.task.jd;
+package org.rx.crawler.task.common;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.io.Serializable;
 
 @Data
-public class JdUnionPromotionOrderItem implements Serializable {
+public class PromotionOrderItem implements Serializable {
     private static final long serialVersionUID = -5338651386297968923L;
 
     /**
      * 商品名称。
      */
+    @NotBlank
     private String productName;
     /**
      * 商品超链接；页面 DOM 未提供时为空。
@@ -23,10 +25,12 @@ public class JdUnionPromotionOrderItem implements Serializable {
     /**
      * 店铺名。
      */
+    @NotBlank
     private String storeName;
     /**
      * 订单号。
      */
+    @NotBlank
     private String orderNo;
     /**
      * 主单号。
@@ -35,6 +39,7 @@ public class JdUnionPromotionOrderItem implements Serializable {
     /**
      * 订单状态。
      */
+    @NotBlank
     private String orderStatus;
     /**
      * 时间原始文本，包含下单、完成、结算等时间信息。
@@ -100,8 +105,4 @@ public class JdUnionPromotionOrderItem implements Serializable {
      * 推广位。
      */
     private String promotionPosition;
-    /**
-     * 订单类型。
-     */
-    private String orderType;
 }

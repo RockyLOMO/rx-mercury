@@ -18,10 +18,12 @@ import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryOptions;
 import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
+import org.rx.crawler.task.common.CrawlResultValidator;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
 import org.rx.crawler.task.common.KeepAliveUrlStore;
 import org.rx.crawler.task.common.LoginNotificationContext;
+import org.rx.crawler.task.common.PromotionOrderItem;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
 import org.rx.util.BeanMapper;
@@ -262,16 +264,16 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         waitOrderRowsSettled(browser, config);
         debug.snapshot(browser, "04-search-clicked");
 
-        LinkedHashMap<String, TbPromotionOrderItem> orders = new LinkedHashMap<String, TbPromotionOrderItem>();
+        LinkedHashMap<String, PromotionOrderItem> orders = new LinkedHashMap<String, PromotionOrderItem>();
         int pageNo = 1;
         while (pageNo <= 100) {
             ensureTaskDeadline("getTbPromotionOrders.pageLoop");
             // 读取订单前检测滑块
             checkAndHandleSliderVerify(browser, config, result, debug, String.format("05-page-%03d-pre-read-slider", pageNo));
-            List<TbPromotionOrderItem> pageOrders = readOrderRows(browser);
+            List<PromotionOrderItem> pageOrders = readOrderRows(browser);
             result.getDiagnostics().put("lastPageNo", pageNo);
             result.getDiagnostics().put("lastPageRows", pageOrders.size());
-            for (TbPromotionOrderItem item : pageOrders) {
+            for (PromotionOrderItem item : pageOrders) {
                 orders.put(rowKey(item), item);
             }
             debug.snapshot(browser, String.format("05-page-%03d-collected", pageNo));
@@ -298,9 +300,15 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             pageNo++;
         }
 
-        result.setOrders(new ArrayList<TbPromotionOrderItem>(orders.values()));
+        result.setOrders(new ArrayList<PromotionOrderItem>(orders.values()));
         result.getDiagnostics().put("pages", pageNo);
         result.getDiagnostics().put("orderCount", result.getOrders().size());
+        List<String> validationErrors = CrawlResultValidator.validateItems("orders", result.getOrders());
+        if (!validationErrors.isEmpty()) {
+            fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB order item validation failed");
+            result.getDiagnostics().put("validationErrors", validationErrors);
+            return;
+        }
         result.setStatus(CustomCrawlStatus.SUCCESS);
         keepAliveUrlStore.collect("tb", browser, result.getDiagnostics());
     }
@@ -967,7 +975,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         }
     }
 
-    private List<TbPromotionOrderItem> readOrderRows(Browser browser) {
+    private List<PromotionOrderItem> readOrderRows(Browser browser) {
         List<Map<String, Object>> rows = browser
                 .executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
                         "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}"
@@ -1010,9 +1018,9 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                         +
                         "var out=[],seen={};for(var i=0;i<raw.length;i++){var rt=text(raw[i]);if(!rt||rt.indexOf('暂无')>=0||rt.indexOf('无数据')>=0){continue;}if((rt.indexOf('订单信息')>=0&&rt.indexOf('订单状态')>=0&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))||(rt.indexOf('订单状态')>=0&&(rt.indexOf('佣金比例')>=0||rt.indexOf('总提成率')>=0)&&!/\\d{4}-\\d{2}-\\d{2}/.test(rt))){continue;}if(rt.indexOf('订单')<0&&rt.indexOf('￥')<0&&rt.indexOf('¥')<0){continue;}var item=parse(raw[i]);if(!item||(!item.orderNo&&!item.mainOrderNo)){continue;}var key=(item.orderNo||'')+'|'+(item.mainOrderNo||'')+'|'+(item.orderTime||'')+'|'+(item.estimatedCommission||'');if(seen[key]){continue;}seen[key]=true;out.push(item);}return out;");
         if (rows != null && !rows.isEmpty()) {
-            List<TbPromotionOrderItem> items = new ArrayList<TbPromotionOrderItem>();
+            List<PromotionOrderItem> items = new ArrayList<PromotionOrderItem>();
             for (Map<String, Object> row : rows) {
-                items.add(objectMapper.convertValue(row, TbPromotionOrderItem.class));
+                items.add(objectMapper.convertValue(row, PromotionOrderItem.class));
             }
             return items;
         }
@@ -1033,14 +1041,14 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         return html == null ? "" : html;
     }
 
-    private List<TbPromotionOrderItem> parseOrderRowsFromHtml(String html) {
+    private List<PromotionOrderItem> parseOrderRowsFromHtml(String html) {
         if (Strings.isEmpty(html)) {
-            return new ArrayList<TbPromotionOrderItem>();
+            return new ArrayList<PromotionOrderItem>();
         }
         try {
             Document document = Jsoup.parse(html);
             Elements rows = document.select("tbody tr, .next-table-row, [class*=table-row], [class*=TableRow]");
-            List<TbPromotionOrderItem> items = new ArrayList<TbPromotionOrderItem>();
+            List<PromotionOrderItem> items = new ArrayList<PromotionOrderItem>();
             for (Element row : rows) {
                 String rowText = normalizeText(row.text());
                 if (Strings.isEmpty(rowText) || containsAny(rowText, "暂无", "无数据", "没有")) {
@@ -1055,7 +1063,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 if (cells.size() < 5) {
                     continue;
                 }
-                TbPromotionOrderItem item = parseOrderCells(cells);
+                PromotionOrderItem item = parseOrderCells(cells);
                 if (Strings.isEmpty(item.getOrderNo()) && Strings.isEmpty(item.getMainOrderNo())) {
                     continue;
                 }
@@ -1064,7 +1072,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             return items;
         } catch (Exception e) {
             log.debug("Parse TB promotion order rows from html fail, error={}", e.getMessage());
-            return new ArrayList<TbPromotionOrderItem>();
+            return new ArrayList<PromotionOrderItem>();
         }
     }
 
@@ -1083,8 +1091,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         return cells;
     }
 
-    private TbPromotionOrderItem parseOrderCells(Elements cells) {
-        TbPromotionOrderItem item = new TbPromotionOrderItem();
+    private PromotionOrderItem parseOrderCells(Elements cells) {
+        PromotionOrderItem item = new PromotionOrderItem();
         Element first = cells.get(0);
         String firstText = normalizeText(first.text());
         fillProductInfo(item, first);
@@ -1100,7 +1108,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         return item;
     }
 
-    private void fillProductInfo(TbPromotionOrderItem item, Element cell) {
+    private void fillProductInfo(PromotionOrderItem item, Element cell) {
         String productName = "";
         String productLink = "";
         int bestScore = -1;
@@ -1135,7 +1143,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         }
     }
 
-    private void fillOrderNumbers(TbPromotionOrderItem item, String text) {
+    private void fillOrderNumbers(PromotionOrderItem item, String text) {
         item.setMainOrderNo(firstLabeled(text, "(?:父订单编号|父订单号|主单号|主订单号|主订单编号)[:：\\s]*([A-Za-z0-9_-]{8,})"));
         item.setOrderNo(firstLabeled(text, "(?:子订单编号|子订单号)[:：\\s]*([A-Za-z0-9_-]{8,})"));
         if (Strings.isEmpty(item.getOrderNo())) {
@@ -1317,7 +1325,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         return containsAny(body, QUICK_ENTER_TEXT, QUICK_LOGIN_TEXT);
     }
 
-    private String rowKey(TbPromotionOrderItem row) {
+    private String rowKey(PromotionOrderItem row) {
         return String.valueOf(row.getOrderNo()) + "|" + row.getMainOrderNo() + "|" + row.getOrderTime() + "|"
                 + row.getEstimatedBillingAmount() + "|" + row.getEstimatedCommission() + "|"
                 + row.getActualCommission();

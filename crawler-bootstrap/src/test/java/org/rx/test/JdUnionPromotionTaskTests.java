@@ -3,14 +3,18 @@ package org.rx.test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.rx.crawler.config.AppConfig;
+import org.rx.crawler.service.Browser;
 import org.rx.crawler.task.common.BrowserPreflightService;
 import org.rx.crawler.task.common.BrowserProfileManager;
+import org.rx.crawler.task.common.CrawlResultValidator;
 import org.rx.crawler.task.common.CrawlEntryService;
+import org.rx.crawler.task.common.ProductInfoDto;
 import org.rx.crawler.task.common.ResultWriter;
-import org.rx.crawler.task.jd.JdUnionPromotionRequest;
+import org.rx.crawler.task.common.PromotionUrlRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
-import org.rx.crawler.task.jd.JdUnionPromotionResult;
+import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 
@@ -21,6 +25,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class JdUnionPromotionTaskTests {
     @TempDir
@@ -47,8 +56,8 @@ public class JdUnionPromotionTaskTests {
     @Test
     public void resultWriterShouldAppendJsonLine() throws Exception {
         ResultWriter writer = new ResultWriter(new ObjectMapper());
-        JdUnionPromotionResult result = new JdUnionPromotionResult();
-        result.setSkuId("100059484008");
+        PromotionUrlResult result = new PromotionUrlResult();
+        result.setKeyword("100059484008");
         result.setAdSiteName("5");
 
         Path output = tempDir.resolve("output.jsonl");
@@ -108,6 +117,51 @@ public class JdUnionPromotionTaskTests {
     }
 
     @Test
+    public void productInfoValidationShouldRejectBlankRequiredFields() {
+        ProductInfoDto dto = new ProductInfoDto();
+        dto.setProductName("测试商品");
+        dto.setProductLink("");
+        dto.setCommissionRate("1.50%");
+        dto.setStoreName("测试店铺");
+
+        List<String> errors = CrawlResultValidator.validateRequired("productInfo", dto);
+
+        assertFalse(errors.isEmpty());
+        assertTrue(errors.toString().contains("productLink"));
+    }
+
+    @Test
+    public void jdProductInfoShouldPreferCardTitleAnchorName() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig config = new AppConfig();
+        JdUnionPromotionTask task = new JdUnionPromotionTask(config, new BrowserProfileManager(config),
+                new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
+
+        Map<String, Object> raw = new LinkedHashMap<String, Object>();
+        raw.put("productName", "韩束白蛮腰美白防晒霜京东自营防紫外线防晒隔离三合一520礼物30ml");
+        raw.put("productLink", "https://item.jd.com/100059484008.html");
+        raw.put("commissionRate", "4.1%");
+        raw.put("storeName", "KANS韩束京东自营旗舰店");
+        raw.put("price", "35.91");
+        raw.put("imageUrl", "https://img14.360buyimg.com/demo.jpg");
+
+        Browser browser = mock(Browser.class);
+        ArgumentCaptor<String> scriptCaptor = ArgumentCaptor.forClass(String.class);
+        when(browser.<Map<String, Object>>executeScript(scriptCaptor.capture())).thenReturn(raw);
+
+        Method method = JdUnionPromotionTask.class.getDeclaredMethod("readProductInfo", Browser.class);
+        method.setAccessible(true);
+        ProductInfoDto dto = (ProductInfoDto) method.invoke(task, browser);
+
+        assertEquals(raw.get("productName"), dto.getProductName());
+        assertEquals(raw.get("productLink"), dto.getProductLink());
+        String script = scriptCaptor.getValue();
+        assertTrue(script.contains("p.two a[href][title]"));
+        assertTrue(script.contains("anchorName"));
+        assertTrue(script.contains("奖励活动|去报名"));
+    }
+
+    @Test
     public void jdUnionAuthorizedIntegration() throws Exception {
         assumeTrue(Boolean.parseBoolean(System.getProperty("jd.union.integration", "false")));
 
@@ -121,14 +175,21 @@ public class JdUnionPromotionTaskTests {
                 Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.forcePreflight", "true")));
         config.getCustom().getJdUnion().setPreflightEnabled(
                 Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.preflightEnabled", "true")));
+        config.getCustom().getJdUnion().setLoginWaitSeconds(
+                Integer.parseInt(System.getProperty("jd.union.loginWaitSeconds", "180")));
+        config.getCustom().getJdUnion().setKeepBrowserOpenOnLoginRequired(
+                Boolean.parseBoolean(System.getProperty("jd.union.keepBrowserOpenOnLoginRequired", "true")));
+        config.getCustom().getJdUnion().setKeepBrowserOpenSecondsOnLoginRequired(
+                Integer.parseInt(System.getProperty("jd.union.keepBrowserOpenSecondsOnLoginRequired", "180")));
 
         JdUnionPromotionTask task = new JdUnionPromotionTask(config, new BrowserProfileManager(config),
                 new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
-        JdUnionPromotionRequest request = new JdUnionPromotionRequest();
-        request.setSkuId(System.getProperty("jd.union.skuId", "100059484008"));
+        PromotionUrlRequest request = new PromotionUrlRequest();
+        request.setKeyword(System.getProperty("jd.union.keyword",
+                System.getProperty("jd.union.skuId", "100059484008")));
         request.setAdSiteName(System.getProperty("jd.union.adSiteName", "5"));
 
-        JdUnionPromotionResult result = task.getPromotionUrl(request);
+        PromotionUrlResult result = task.getPromotionUrl(request);
         System.out.println("JD_UNION_RESULT=" + objectMapper.writeValueAsString(result));
         assertNotNull(result.getStatus());
         if (result.getStatus() == CustomCrawlStatus.LOGIN_REQUIRED) {

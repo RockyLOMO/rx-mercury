@@ -7,16 +7,12 @@ import org.rx.core.Extends;
 import org.rx.core.Strings;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.task.jd.JdUnionBatchRequest;
-import org.rx.crawler.task.jd.JdUnionPromotionRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
-import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersTask;
-import org.rx.crawler.task.tb.TbPromotionUrlRequest;
-import org.rx.crawler.task.tb.TbPromotionUrlResult;
 import org.rx.crawler.task.tb.TbPromotionUrlTask;
 import org.rx.io.EntityDatabase;
 import org.springframework.stereotype.Service;
@@ -81,7 +77,7 @@ public class CustomCrawlQueueService {
         dispatch();
     }
 
-    public JdUnionPromotionResult submitAndWait(String action, JdUnionPromotionRequest request, Class<JdUnionPromotionResult> resultType) {
+    public PromotionUrlResult submitAndWait(String action, PromotionUrlRequest request, Class<PromotionUrlResult> resultType) {
         long taskId = enqueue(action, request, 0);
         return waitResult(taskId, resultType);
     }
@@ -96,19 +92,19 @@ public class CustomCrawlQueueService {
         return waitResult(taskId, TbPromotionOrdersResult.class);
     }
 
-    public TbPromotionUrlResult submitAndWaitTbPromotionUrl(String action, TbPromotionUrlRequest request) {
+    public PromotionUrlResult submitAndWaitTbPromotionUrl(String action, PromotionUrlRequest request) {
         long taskId = enqueue(action, request, 0);
-        return waitResult(taskId, TbPromotionUrlResult.class);
+        return waitResult(taskId, PromotionUrlResult.class);
     }
 
-    public List<JdUnionPromotionResult> batch(JdUnionBatchRequest request) {
-        List<JdUnionPromotionRequest> items = loadBatchItems(request);
-        List<JdUnionPromotionResult> results = new ArrayList<JdUnionPromotionResult>();
-        for (JdUnionPromotionRequest item : items) {
+    public List<PromotionUrlResult> batch(JdUnionBatchRequest request) {
+        List<PromotionUrlRequest> items = loadBatchItems(request);
+        List<PromotionUrlResult> results = new ArrayList<PromotionUrlResult>();
+        for (PromotionUrlRequest item : items) {
             if (Strings.isEmpty(item.getOutputPath()) && !Strings.isEmpty(request.getOutputPath())) {
                 item.setOutputPath(request.getOutputPath());
             }
-            results.add(submitAndWait("getPromotionUrl", item, JdUnionPromotionResult.class));
+            results.add(submitAndWait("getPromotionUrl", item, PromotionUrlResult.class));
         }
         return results;
     }
@@ -168,14 +164,14 @@ public class CustomCrawlQueueService {
             result.setMessage(snapshot.errorMessage);
             return resultType.cast(result);
         }
-        if (TbPromotionUrlResult.class.equals(resultType)) {
-            TbPromotionUrlResult result = new TbPromotionUrlResult();
+        if (PromotionUrlResult.class.equals(resultType)) {
+            PromotionUrlResult result = new PromotionUrlResult();
             result.setTaskType(snapshot.action);
             result.setStatus(CustomCrawlStatus.FAILED);
             result.setMessage(snapshot.errorMessage);
             return resultType.cast(result);
         }
-        JdUnionPromotionResult result = new JdUnionPromotionResult();
+        PromotionUrlResult result = new PromotionUrlResult();
         result.setTaskType(snapshot.action);
         result.setStatus(CustomCrawlStatus.FAILED);
         result.setMessage(snapshot.errorMessage);
@@ -223,7 +219,7 @@ public class CustomCrawlQueueService {
         try {
             Object result;
             if ("loginCheck".equals(snapshot.action)) {
-                JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
+                PromotionUrlRequest request = objectMapper.readValue(snapshot.requestJson, PromotionUrlRequest.class);
                 result = jdUnionPromotionTask.loginCheck(request);
             } else if ("getPromotionOrders".equals(snapshot.action)) {
                 JdUnionPromotionOrdersRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionOrdersRequest.class);
@@ -232,10 +228,10 @@ public class CustomCrawlQueueService {
                 TbPromotionOrdersRequest request = objectMapper.readValue(snapshot.requestJson, TbPromotionOrdersRequest.class);
                 result = tbPromotionOrdersTask.getPromotionOrders(request);
             } else if ("getTbPromotionUrl".equals(snapshot.action)) {
-                TbPromotionUrlRequest request = objectMapper.readValue(snapshot.requestJson, TbPromotionUrlRequest.class);
+                PromotionUrlRequest request = objectMapper.readValue(snapshot.requestJson, PromotionUrlRequest.class);
                 result = tbPromotionUrlTask.getPromotionUrl(request);
             } else {
-                JdUnionPromotionRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionRequest.class);
+                PromotionUrlRequest request = objectMapper.readValue(snapshot.requestJson, PromotionUrlRequest.class);
                 result = jdUnionPromotionTask.getPromotionUrl(request);
             }
             update("update " + TABLE_NAME + " set status=?, result_json=?, error_message=null, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
@@ -247,9 +243,9 @@ public class CustomCrawlQueueService {
         }
     }
 
-    private List<JdUnionPromotionRequest> loadBatchItems(JdUnionBatchRequest request) {
-        List<JdUnionPromotionRequest> items = request.getItems();
-        return items == null ? new ArrayList<JdUnionPromotionRequest>() : items;
+    private List<PromotionUrlRequest> loadBatchItems(JdUnionBatchRequest request) {
+        List<PromotionUrlRequest> items = request.getItems();
+        return items == null ? new ArrayList<PromotionUrlRequest>() : items;
     }
 
     private static class TaskSnapshot {

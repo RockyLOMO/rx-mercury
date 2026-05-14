@@ -11,7 +11,7 @@ import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.ResultWriter;
-import org.rx.crawler.task.tb.TbPromotionOrderItem;
+import org.rx.crawler.task.common.PromotionOrderItem;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersTask;
@@ -156,7 +156,7 @@ public class TbPromotionOrdersTaskTests {
 
         Method method = TbPromotionOrdersTask.class.getDeclaredMethod("parseOrderRowsFromHtml", String.class);
         method.setAccessible(true);
-        List<TbPromotionOrderItem> items = (List<TbPromotionOrderItem>) method.invoke(task, html);
+        List<PromotionOrderItem> items = (List<PromotionOrderItem>) method.invoke(task, html);
 
         assertEquals(2, items.size());
         assertEquals("测试商品A", items.get(0).getProductName());

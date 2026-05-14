@@ -6,14 +6,10 @@ import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
-import org.rx.crawler.task.jd.JdUnionPromotionRequest;
-import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersTask;
-import org.rx.crawler.task.tb.TbPromotionUrlRequest;
-import org.rx.crawler.task.tb.TbPromotionUrlResult;
 import org.rx.crawler.task.tb.TbPromotionUrlTask;
 import org.rx.net.rpc.Remoting;
 import org.rx.net.rpc.RemotingEventArgs;
@@ -56,8 +52,8 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     }
 
     @Override
-    public JdUnionPromotionResult getPromotionUrl(JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = jdUnionPromotionTask.getPromotionUrl(request);
+    public PromotionUrlResult getPromotionUrl(PromotionUrlRequest request) {
+        PromotionUrlResult result = jdUnionPromotionTask.getPromotionUrl(request);
         publishDirect(EVENT_PROMOTION_RESULT, result);
         return result;
     }
@@ -77,21 +73,21 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     }
 
     @Override
-    public TbPromotionUrlResult getTbPromotionUrl(TbPromotionUrlRequest request) {
-        TbPromotionUrlResult result = tbPromotionUrlTask.getPromotionUrl(request);
+    public PromotionUrlResult getTbPromotionUrl(PromotionUrlRequest request) {
+        PromotionUrlResult result = tbPromotionUrlTask.getPromotionUrl(request);
         publishDirect(EVENT_TB_PROMOTION_URL_RESULT, result);
         return result;
     }
 
     @Override
-    public JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = jdUnionPromotionTask.loginCheck(request);
+    public PromotionUrlResult loginCheck(PromotionUrlRequest request) {
+        PromotionUrlResult result = jdUnionPromotionTask.loginCheck(request);
         publishDirect(EVENT_PROMOTION_RESULT, result);
         return result;
     }
 
     @Override
-    public List<JdUnionPromotionResult> batch(JdUnionBatchRequest request) {
+    public List<PromotionUrlResult> batch(JdUnionBatchRequest request) {
         return jdUnionPromotionTask.batch(request);
     }
 

@@ -8,14 +8,12 @@ import org.rx.crawler.task.common.CustomCrawlQueueService;
 import org.rx.crawler.task.common.LoginKeepAliveResult;
 import org.rx.crawler.task.common.LoginKeepAliveService;
 import org.rx.crawler.task.jd.JdUnionBatchRequest;
-import org.rx.crawler.task.jd.JdUnionPromotionRequest;
+import org.rx.crawler.task.common.PromotionUrlRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
-import org.rx.crawler.task.jd.JdUnionPromotionResult;
+import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
-import org.rx.crawler.task.tb.TbPromotionUrlRequest;
-import org.rx.crawler.task.tb.TbPromotionUrlResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,8 +33,8 @@ public class CustomCrawlController {
     private final LoginKeepAliveService loginKeepAliveService;
 
     @PostMapping("/jd-union/getPromotionUrl")
-    public Result<JdUnionPromotionResult> getPromotionUrl(@Valid @RequestBody JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = taskQueueService.submitAndWait("getPromotionUrl", request, JdUnionPromotionResult.class);
+    public Result<PromotionUrlResult> getPromotionUrl(@Valid @RequestBody PromotionUrlRequest request) {
+        PromotionUrlResult result = taskQueueService.submitAndWait("getPromotionUrl", request, PromotionUrlResult.class);
         return wrap(result);
     }
 
@@ -53,14 +51,14 @@ public class CustomCrawlController {
     }
 
     @PostMapping("/tb/getPromotionUrl")
-    public Result<TbPromotionUrlResult> getTbPromotionUrl(@Valid @RequestBody TbPromotionUrlRequest request) {
-        TbPromotionUrlResult result = taskQueueService.submitAndWaitTbPromotionUrl("getTbPromotionUrl", request);
+    public Result<PromotionUrlResult> getTbPromotionUrl(@Valid @RequestBody PromotionUrlRequest request) {
+        PromotionUrlResult result = taskQueueService.submitAndWaitTbPromotionUrl("getTbPromotionUrl", request);
         return wrap(result);
     }
 
     @PostMapping("/jd-union/login/check")
-    public Result<JdUnionPromotionResult> loginCheck(@RequestBody(required = false) JdUnionPromotionRequest request) {
-        JdUnionPromotionResult result = taskQueueService.submitAndWait("loginCheck", request, JdUnionPromotionResult.class);
+    public Result<PromotionUrlResult> loginCheck(@RequestBody(required = false) PromotionUrlRequest request) {
+        PromotionUrlResult result = taskQueueService.submitAndWait("loginCheck", request, PromotionUrlResult.class);
         return wrap(result);
     }
 
@@ -77,8 +75,8 @@ public class CustomCrawlController {
     }
 
     @PostMapping("/jd-union/promotion/batch")
-    public Result<List<JdUnionPromotionResult>> batch(@RequestBody JdUnionBatchRequest request) {
-        List<JdUnionPromotionResult> results = taskQueueService.batch(request);
+    public Result<List<PromotionUrlResult>> batch(@RequestBody JdUnionBatchRequest request) {
+        List<PromotionUrlResult> results = taskQueueService.batch(request);
         return Result.success(results);
     }
 
@@ -88,7 +86,7 @@ public class CustomCrawlController {
         return Result.success(closed);
     }
 
-    private Result<JdUnionPromotionResult> wrap(JdUnionPromotionResult result) {
+    private Result<PromotionUrlResult> wrap(PromotionUrlResult result) {
         if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
             return Result.success(result);
         }
@@ -103,13 +101,6 @@ public class CustomCrawlController {
     }
 
     private Result<TbPromotionOrdersResult> wrap(TbPromotionOrdersResult result) {
-        if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
-            return Result.success(result);
-        }
-        return Result.fail(result.getStatus().name(), result.getMessage(), result);
-    }
-
-    private Result<TbPromotionUrlResult> wrap(TbPromotionUrlResult result) {
         if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
             return Result.success(result);
         }

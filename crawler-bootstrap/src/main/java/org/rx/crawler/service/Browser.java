@@ -113,6 +113,27 @@ public interface Browser extends AutoCloseable {
     }
 
     /**
+     * 按拟人滚轮动作滚动页面。优先由具体浏览器实现使用原生滚轮 API，必要时兜底 JS。
+     */
+    default void scrollPage(double deltaY) {
+        scrollPage(0, deltaY);
+    }
+
+    /**
+     * 按拟人滚轮动作滚动页面。deltaY 大于 0 表示向下滚动。
+     */
+    default void scrollPage(double deltaX, double deltaY) {
+        // 默认空实现
+    }
+
+    /**
+     * 将元素滚动到视口内的相对位置，viewportRatio 取值 0~1，0.5 表示视口中部。
+     */
+    default boolean scrollToElement(String selector, double viewportRatio) {
+        return false;
+    }
+
+    /**
      * 使用 Playwright 原生 Mouse API 模拟人工拖拽，从 (startX, startY) 缓慢拖动到 (endX, endY)。
      * 默认空实现，仅 WebBrowser 支持。
      *

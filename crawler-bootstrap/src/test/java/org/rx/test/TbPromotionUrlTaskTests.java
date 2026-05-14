@@ -11,10 +11,10 @@ import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.ResultWriter;
-import org.rx.crawler.task.jd.JdUnionProductInfoDto;
+import org.rx.crawler.task.common.ProductInfoDto;
 import org.rx.crawler.task.tb.TbPromotionConfig;
-import org.rx.crawler.task.tb.TbPromotionUrlRequest;
-import org.rx.crawler.task.tb.TbPromotionUrlResult;
+import org.rx.crawler.task.common.PromotionUrlRequest;
+import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.crawler.task.tb.TbPromotionUrlTask;
 
 import java.lang.reflect.Method;
@@ -94,14 +94,14 @@ public class TbPromotionUrlTaskTests {
         TbPromotionUrlTask task = new TbPromotionUrlTask(config, new BrowserProfileManager(config),
                 new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
 
-        TbPromotionUrlRequest request = new TbPromotionUrlRequest();
-        request.setProductInfo("西麦纯燕麦片3kg");
+        PromotionUrlRequest request = new PromotionUrlRequest();
+        request.setKeyword("西麦纯燕麦片3kg");
         request.setAdSiteName("5");
 
         Method method = TbPromotionUrlTask.class.getDeclaredMethod("normalizeRequest",
-                TbPromotionUrlRequest.class, TbPromotionConfig.class);
+                PromotionUrlRequest.class, TbPromotionConfig.class);
         method.setAccessible(true);
-        TbPromotionUrlRequest normalized = (TbPromotionUrlRequest) method.invoke(task, request,
+        PromotionUrlRequest normalized = (PromotionUrlRequest) method.invoke(task, request,
                 config.getCustom().getTbPromotion());
 
         assertEquals("common", normalized.getProfileName());
@@ -121,7 +121,7 @@ public class TbPromotionUrlTaskTests {
         raw.put("productName", "西麦纯燕麦片3kg高蛋白质0添加蔗糖即食谷物速食懒人代餐冲饮早餐");
         raw.put("productLink", "https://pub.alimama.com/portal/v2/pages/promo/goods/detail.htm?itemId=ygoRdzTAC2R2dpPWOFrD9tvtA-ZdDBpWPUGDgXBd5JfN");
         raw.put("commissionRate", "1.80%");
-        raw.put("finalPrice", "44.90");
+        raw.put("price", "44.90");
         raw.put("storeName", "seamild西麦旗舰店");
 
         Browser browser = mock(Browser.class);
@@ -130,7 +130,7 @@ public class TbPromotionUrlTaskTests {
 
         Method method = TbPromotionUrlTask.class.getDeclaredMethod("readProductInfo", Browser.class);
         method.setAccessible(true);
-        JdUnionProductInfoDto dto = (JdUnionProductInfoDto) method.invoke(task, browser);
+        ProductInfoDto dto = (ProductInfoDto) method.invoke(task, browser);
 
         assertEquals(raw.get("productLink"), dto.getProductLink());
         String script = scriptCaptor.getValue();
@@ -158,12 +158,12 @@ public class TbPromotionUrlTaskTests {
 
         TbPromotionUrlTask task = new TbPromotionUrlTask(config, new BrowserProfileManager(config),
                 new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
-        TbPromotionUrlRequest request = new TbPromotionUrlRequest();
-        request.setProductInfo(System.getProperty("tb.promotion.url.productInfo",
+        PromotionUrlRequest request = new PromotionUrlRequest();
+        request.setKeyword(System.getProperty("tb.promotion.url.productInfo",
                 "西麦纯燕麦片3kg高蛋白质0添加蔗糖即食谷物速食懒人代餐冲饮早餐"));
         request.setAdSiteName(System.getProperty("tb.promotion.url.adSiteName", "5"));
 
-        TbPromotionUrlResult result = task.getPromotionUrl(request);
+        PromotionUrlResult result = task.getPromotionUrl(request);
         System.out.println("TB_PROMOTION_URL_RESULT=" + objectMapper.writeValueAsString(result));
         if (result.getProductInfo() != null) {
             System.out.println("TB_PROMOTION_URL_SUMMARY status=" + result.getStatus()
@@ -171,7 +171,7 @@ public class TbPromotionUrlTaskTests {
                     + ", productName=" + result.getProductInfo().getProductName()
                     + ", productLink=" + result.getProductInfo().getProductLink()
                     + ", commissionRate=" + result.getProductInfo().getCommissionRate()
-                    + ", finalPrice=" + result.getProductInfo().getFinalPrice()
+                    + ", price=" + result.getProductInfo().getPrice()
                     + ", storeName=" + result.getProductInfo().getStoreName());
         }
         assertNotNull(result.getStatus());

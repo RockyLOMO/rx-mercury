@@ -4,12 +4,8 @@ import org.rx.core.EventPublisher;
 import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
-import org.rx.crawler.task.jd.JdUnionPromotionRequest;
-import org.rx.crawler.task.jd.JdUnionPromotionResult;
 import org.rx.crawler.task.tb.TbPromotionOrdersRequest;
 import org.rx.crawler.task.tb.TbPromotionOrdersResult;
-import org.rx.crawler.task.tb.TbPromotionUrlRequest;
-import org.rx.crawler.task.tb.TbPromotionUrlResult;
 
 import java.util.List;
 
@@ -19,17 +15,17 @@ public interface CustomCrawlRemotingContract extends EventPublisher<CustomCrawlR
     String EVENT_TB_PROMOTION_ORDERS_RESULT = "getTbPromotionOrdersResult";
     String EVENT_TB_PROMOTION_URL_RESULT = "getTbPromotionUrlResult";
 
-    JdUnionPromotionResult getPromotionUrl(JdUnionPromotionRequest request);
+    PromotionUrlResult getPromotionUrl(PromotionUrlRequest request);
 
     JdUnionPromotionOrdersResult getPromotionOrders(JdUnionPromotionOrdersRequest request);
 
+    PromotionUrlResult getTbPromotionUrl(PromotionUrlRequest request);
+
     TbPromotionOrdersResult getTbPromotionOrders(TbPromotionOrdersRequest request);
 
-    TbPromotionUrlResult getTbPromotionUrl(TbPromotionUrlRequest request);
+    PromotionUrlResult loginCheck(PromotionUrlRequest request);
 
-    JdUnionPromotionResult loginCheck(JdUnionPromotionRequest request);
-
-    List<JdUnionPromotionResult> batch(JdUnionBatchRequest request);
+    List<PromotionUrlResult> batch(JdUnionBatchRequest request);
 
     boolean closeProfile(String profileName);
 

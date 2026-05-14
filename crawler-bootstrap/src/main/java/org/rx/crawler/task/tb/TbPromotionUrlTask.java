@@ -14,12 +14,15 @@ import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryOptions;
 import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
+import org.rx.crawler.task.common.CrawlResultValidator;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
 import org.rx.crawler.task.common.KeepAliveUrlStore;
 import org.rx.crawler.task.common.LoginNotificationContext;
 import org.rx.crawler.task.common.ResultWriter;
-import org.rx.crawler.task.jd.JdUnionProductInfoDto;
+import org.rx.crawler.task.common.ProductInfoDto;
+import org.rx.crawler.task.common.PromotionUrlRequest;
+import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.exception.InvalidException;
 import org.rx.util.BeanMapper;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -42,7 +46,7 @@ import static org.rx.core.Extends.tryClose;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest, TbPromotionUrlResult> {
+public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, PromotionUrlResult> {
     private static final String TASK_TYPE = "getTbPromotionUrl";
     private static final DateTimeFormatter DEBUG_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS");
     private static final String QUICK_ENTER_TEXT = "快速进入";
@@ -68,11 +72,11 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     @Override
-    public TbPromotionUrlResult execute(TbPromotionUrlRequest request) {
+    public PromotionUrlResult execute(PromotionUrlRequest request) {
         return getPromotionUrl(request);
     }
 
-    public TbPromotionUrlResult getPromotionUrl(TbPromotionUrlRequest request) {
+    public PromotionUrlResult getPromotionUrl(PromotionUrlRequest request) {
         return executeInternal(request);
     }
 
@@ -80,10 +84,10 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         return profileManager.closeSession(profileName);
     }
 
-    private TbPromotionUrlResult executeInternal(TbPromotionUrlRequest rawRequest) {
+    private PromotionUrlResult executeInternal(PromotionUrlRequest rawRequest) {
         TbPromotionConfig tbConfig = appConfig.getCustom().getTbPromotion();
-        TbPromotionUrlRequest request = normalizeRequest(rawRequest, tbConfig);
-        TbPromotionUrlResult result = createResult(request);
+        PromotionUrlRequest request = normalizeRequest(rawRequest, tbConfig);
+        PromotionUrlResult result = createResult(request);
         DebugRecorder debug = new DebugRecorder(request, tbConfig);
         if (debug.enabled()) {
             result.getDiagnostics().put("debugEnabled", true);
@@ -113,7 +117,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
             return result;
         } catch (Exception e) {
             log.warn("TB promotion url fail, productInfo={}, adSiteName={}, profile={}, error={}",
-                    request.getProductInfo(), request.getAdSiteName(), request.getProfileName(), e.getMessage(), e);
+                    request.getKeyword(), request.getAdSiteName(), request.getProfileName(), e.getMessage(), e);
             fail(result, CustomCrawlStatus.FAILED, e.getMessage());
             debug.snapshotText("99-failed", result.getMessage());
             return result;
@@ -124,7 +128,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         }
     }
 
-    private CrawlEntryOptions createEntryOptions(TbPromotionUrlRequest request, TbPromotionConfig config) {
+    private CrawlEntryOptions createEntryOptions(PromotionUrlRequest request, TbPromotionConfig config) {
         CrawlEntryOptions options = new CrawlEntryOptions();
         options.setTaskType(TASK_TYPE);
         options.setProfileName(request.getProfileName());
@@ -151,8 +155,8 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         return options;
     }
 
-    private void runPromotionFlow(Browser browser, TbPromotionUrlRequest request, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
+    private void runPromotionFlow(Browser browser, PromotionUrlRequest request, TbPromotionConfig config,
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         browser.maximize();
         if (completeForwardLanding(browser, config)) {
             debug.snapshot(browser, "02-forward-landing-entered");
@@ -193,7 +197,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         }
         debug.snapshot(browser, "02-goods-page-ready");
 
-        if (!nativeSetSearchValue(browser, request.getProductInfo())) {
+        if (!nativeSetSearchValue(browser, request.getKeyword())) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion search input not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "03-search-input-missing");
@@ -220,8 +224,8 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
             debug.snapshot(browser, "04-search-slider-not-cleared");
             return;
         }
-        if (!waitSearchSubmitted(browser, config, result, debug, request.getProductInfo(), 8)) {
-            navigateGoodsSearch(browser, request.getProductInfo(), config);
+        if (!waitSearchSubmitted(browser, config, result, debug, request.getKeyword(), 8)) {
+            navigateGoodsSearch(browser, request.getKeyword(), config);
             debug.snapshot(browser, "04-search-url-fallback");
             if (!checkAndWaitSliderVerify(browser, config, result, debug, "04-search-url-slider")) {
                 fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion slider verify not cleared after search fallback");
@@ -231,7 +235,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
             }
         }
 
-        waitSearchSettled(browser, config, result, debug, request.getProductInfo());
+        waitSearchSettled(browser, config, result, debug, request.getKeyword());
         scrollToFirstProductCard(browser, config);
         if (!checkAndWaitSliderVerify(browser, config, result, debug, "05-before-card-slider")) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion slider verify not cleared before product card");
@@ -254,7 +258,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         Extends.sleep(config.nextStepDelayMillis());
         debug.snapshot(browser, "05-product-card-hovered");
 
-        JdUnionProductInfoDto productInfo = readProductInfo(browser);
+        ProductInfoDto productInfo = readProductInfo(browser);
         if (productInfo != null) {
             result.setProductInfo(productInfo);
         } else {
@@ -360,6 +364,14 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
             debug.snapshot(browser, "15-promotion-url-missing");
             return;
         }
+        List<String> validationErrors = CrawlResultValidator.validateRequired("productInfo", result.getProductInfo());
+        if (!validationErrors.isEmpty()) {
+            fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB product info validation failed");
+            result.getDiagnostics().put("validationErrors", validationErrors);
+            result.getDiagnostics().put("body", bodySnippet(browser));
+            debug.snapshot(browser, "15-product-info-invalid");
+            return;
+        }
 
         result.setPromotionUrl(promotionUrl);
         result.setStatus(CustomCrawlStatus.SUCCESS);
@@ -450,7 +462,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private boolean waitGoodsPageReady(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         long deadline = System.currentTimeMillis() + Math.max(1, config.getInitialPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionUrl.waitGoodsPageReady");
@@ -468,7 +480,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private boolean checkAndWaitSliderVerify(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
+            PromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
         if (!isSliderVerifyPage(browser)) {
             return true;
         }
@@ -482,7 +494,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private boolean handleSliderVerify(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
+            PromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
         boolean handled = onSliderVerifyDetected(browser, config, result, debug, stepTag);
         result.getDiagnostics().put(stepTag + "SliderVerifyAction", handled ? "hook" : "manual");
         return handled;
@@ -492,7 +504,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
      * 滑动验证处理钩子。优先委托 SliderVerifyHandler 自动处理，失败后进入人工兜底等待。
      */
     private boolean onSliderVerifyDetected(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
+            PromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
         ensureTaskDeadline("getTbPromotionUrl.onSliderVerifyDetected." + stepTag);
         result.getDiagnostics().put("sliderVerifyAt", stepTag);
         boolean passed = sliderVerifyHandler.checkAndHandle(browser, stepTag, 3,
@@ -583,7 +595,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private boolean waitSearchSubmitted(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug, String productInfo, int maxSeconds)
+            PromotionUrlResult result, DebugRecorder debug, String productInfo, int maxSeconds)
             throws TimeoutException {
         long deadline = System.currentTimeMillis() + Math.max(1, maxSeconds) * 1000L;
         while (System.currentTimeMillis() < deadline) {
@@ -613,7 +625,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private void waitSearchSettled(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug, String productInfo) throws TimeoutException {
+            PromotionUrlResult result, DebugRecorder debug, String productInfo) throws TimeoutException {
         long deadline = System.currentTimeMillis() + Math.max(1, config.getPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionUrl.waitSearchSettled");
@@ -794,7 +806,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         return Boolean.TRUE.equals(marked);
     }
 
-    private JdUnionProductInfoDto readProductInfo(Browser browser) {
+    private ProductInfoDto readProductInfo(Browser browser) {
         Map<String, Object> raw = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
                 "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
@@ -829,16 +841,16 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
                 "var store=extract(full,/店铺名称[:：]\\s*([^\\n\\r]+?)(?:类目[:：]|2小时推广销量|月推广销量|券量|更多信息|$)/);" +
                 "if(!store){var ns=Array.prototype.slice.call(card.querySelectorAll('a,span,div'));for(var j=0;j<ns.length;j++){var st=text(ns[j]);if(visible(ns[j])&&/店$|旗舰店|专卖店|店铺/.test(st)&&st.length<=50){store=st;break;}}}" +
                 "return {imageUrl:normalizeUrl(pickImage(card)),productName:name,productLink:normalizeUrl(link)," +
-                "commissionRate:extract(full,/(?:佣金率|佣金比例)[:：]?\\s*([0-9.]+%)/),finalPrice:extract(full,/到手价\\s*[￥¥]?\\s*([0-9.]+(?:\\.[0-9]+)?)/),storeName:store};");
+                "commissionRate:extract(full,/(?:佣金率|佣金比例)[:：]?\\s*([0-9.]+%)/),price:extract(full,/到手价\\s*[￥¥]?\\s*([0-9.]+(?:\\.[0-9]+)?)/),storeName:store};");
         if (raw == null || raw.isEmpty()) {
             return null;
         }
-        JdUnionProductInfoDto dto = objectMapper.convertValue(raw, JdUnionProductInfoDto.class);
+        ProductInfoDto dto = objectMapper.convertValue(raw, ProductInfoDto.class);
         trimProductInfo(dto);
         return dto;
     }
 
-    private void trimProductInfo(JdUnionProductInfoDto dto) {
+    private void trimProductInfo(ProductInfoDto dto) {
         if (dto == null) {
             return;
         }
@@ -846,7 +858,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         dto.setProductName(trim(dto.getProductName()));
         dto.setProductLink(trim(dto.getProductLink()));
         dto.setCommissionRate(trim(dto.getCommissionRate()));
-        dto.setFinalPrice(trim(dto.getFinalPrice()));
+        dto.setPrice(trim(dto.getPrice()));
         dto.setStoreName(trim(dto.getStoreName()));
     }
 
@@ -855,7 +867,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private boolean waitPromotionDialogReady(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         long deadline = System.currentTimeMillis() + Math.max(1, config.getPageTimeoutSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionUrl.waitPromotionDialogReady");
@@ -1091,7 +1103,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private String waitPromotionUrl(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug, int maxSeconds) throws TimeoutException {
+            PromotionUrlResult result, DebugRecorder debug, int maxSeconds) throws TimeoutException {
         long deadline = System.currentTimeMillis() + Math.max(1, maxSeconds) * 1000L;
         String promotionUrl = "";
         while (System.currentTimeMillis() < deadline) {
@@ -1157,7 +1169,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     @SneakyThrows
-    private WebBrowserConfig createBrowserConfig(TbPromotionUrlRequest request, TbPromotionConfig tbConfig) {
+    private WebBrowserConfig createBrowserConfig(PromotionUrlRequest request, TbPromotionConfig tbConfig) {
         WebBrowserConfig config = BeanMapper.DEFAULT.map(appConfig.getBrowser(), WebBrowserConfig.class);
         config.setProfileDataPath(profileManager.resolveProfileDataPath(request.getProfileName()));
         config.setHeadless(tbConfig.isHeadless());
@@ -1169,11 +1181,11 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         return config;
     }
 
-    private TbPromotionUrlRequest normalizeRequest(TbPromotionUrlRequest request, TbPromotionConfig config) {
+    private PromotionUrlRequest normalizeRequest(PromotionUrlRequest request, TbPromotionConfig config) {
         if (request == null) {
-            request = new TbPromotionUrlRequest();
+            request = new PromotionUrlRequest();
         }
-        if (Strings.isEmpty(request.getProductInfo())) {
+        if (Strings.isEmpty(request.getKeyword())) {
             throw new InvalidException("productInfo is required");
         }
         if (Strings.isEmpty(request.getAdSiteName())) {
@@ -1193,18 +1205,18 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         return request;
     }
 
-    private TbPromotionUrlResult createResult(TbPromotionUrlRequest request) {
-        TbPromotionUrlResult result = new TbPromotionUrlResult();
+    private PromotionUrlResult createResult(PromotionUrlRequest request) {
+        PromotionUrlResult result = new PromotionUrlResult();
         result.setTaskType(TASK_TYPE);
         result.setStatus(CustomCrawlStatus.FAILED);
-        result.setProductInfoText(request.getProductInfo());
+        result.setKeyword(request.getKeyword());
         result.setAdSiteName(request.getAdSiteName());
         result.setMediaName(request.getMediaName());
         result.setProfileName(request.getProfileName());
         return result;
     }
 
-    private void applyEntryResult(TbPromotionUrlResult result, CrawlEntryResult entry) {
+    private void applyEntryResult(PromotionUrlResult result, CrawlEntryResult entry) {
         result.setFingerprintPassed(entry.isFingerprintPassed());
         result.setCurrentUrl(entry.getCurrentUrl());
         result.setLoginRequired(entry.isLoginRequired());
@@ -1258,7 +1270,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         return containsAny(body, QUICK_ENTER_TEXT, QUICK_LOGIN_TEXT);
     }
 
-    private void fail(TbPromotionUrlResult result, CustomCrawlStatus status, String message) {
+    private void fail(PromotionUrlResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
         if (status == CustomCrawlStatus.LOGIN_REQUIRED) {
@@ -1267,7 +1279,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         }
     }
 
-    private void notifyLoginRequired(TbPromotionUrlResult result) {
+    private void notifyLoginRequired(PromotionUrlResult result) {
         if (Boolean.TRUE.equals(result.getDiagnostics().get("loginNotificationAttempted"))) {
             return;
         }
@@ -1344,14 +1356,14 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         }
     }
 
-    private boolean isDebugEnabled(TbPromotionUrlRequest request) {
+    private boolean isDebugEnabled(PromotionUrlRequest request) {
         if (request != null && request.getDebugEnabled() != null) {
             return request.getDebugEnabled();
         }
         return appConfig.getCustom().isDebugEnabled();
     }
 
-    private String resolveDebugOutputDir(TbPromotionUrlRequest request, TbPromotionConfig config) {
+    private String resolveDebugOutputDir(PromotionUrlRequest request, TbPromotionConfig config) {
         if (request != null && !Strings.isEmpty(request.getDebugOutputDir())) {
             return request.getDebugOutputDir();
         }
@@ -1370,7 +1382,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         private final Path taskDir;
         private int stepIndex;
 
-        private DebugRecorder(TbPromotionUrlRequest request, TbPromotionConfig config) {
+        private DebugRecorder(PromotionUrlRequest request, TbPromotionConfig config) {
             this.enabled = isDebugEnabled(request);
             if (!enabled) {
                 this.taskDir = null;
@@ -1378,7 +1390,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
             }
             String baseDir = resolveDebugOutputDir(request, config);
             String profileName = Strings.isEmpty(request.getProfileName()) ? "common" : request.getProfileName();
-            String product = safePathPart(request.getProductInfo());
+            String product = safePathPart(request.getKeyword());
             String time = LocalDateTime.now().format(DEBUG_TIME_FORMATTER);
             this.taskDir = Paths.get(baseDir, profileName, product + "-" + time);
             try {
@@ -1386,7 +1398,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
                 Files.writeString(this.taskDir.resolve("_task.txt"),
                         "taskType=" + TASK_TYPE + System.lineSeparator()
                                 + "profileName=" + profileName + System.lineSeparator()
-                                + "productInfo=" + request.getProductInfo() + System.lineSeparator()
+                                + "productInfo=" + request.getKeyword() + System.lineSeparator()
                                 + "adSiteName=" + request.getAdSiteName() + System.lineSeparator(),
                         StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
                         StandardOpenOption.WRITE);

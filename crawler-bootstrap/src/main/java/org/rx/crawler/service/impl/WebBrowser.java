@@ -886,6 +886,68 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         mouseY = y;
     }
 
+    @Override
+    public synchronized void scrollPage(double deltaX, double deltaY) {
+        checkNotClosed();
+        humanOperationPause();
+        if (Math.abs(deltaX) < 0.01 && Math.abs(deltaY) < 0.01) {
+            return;
+        }
+
+        try {
+            double targetX = randomBetween(page.viewportSize().width * 0.35, page.viewportSize().width * 0.65);
+            double targetY;
+            if (deltaY > 0) {
+                targetY = randomBetween(page.viewportSize().height * 0.72, page.viewportSize().height * 0.86);
+            } else if (deltaY < 0) {
+                targetY = randomBetween(page.viewportSize().height * 0.16, page.viewportSize().height * 0.28);
+            } else {
+                targetY = randomBetween(page.viewportSize().height * 0.35, page.viewportSize().height * 0.65);
+            }
+            moveMouseLikeHuman(targetX, targetY);
+            int steps = Math.max(2, Math.min(9, (int) Math.ceil(Math.abs(deltaY) / 180D)));
+            double usedX = 0, usedY = 0;
+            for (int i = 1; i <= steps; i++) {
+                double nextX = deltaX * i / steps;
+                double nextY = deltaY * i / steps;
+                double wheelX = nextX - usedX + randomBetween(-2, 2);
+                double wheelY = nextY - usedY + randomBetween(-8, 8);
+                page.mouse().wheel(wheelX, wheelY);
+                usedX = nextX;
+                usedY = nextY;
+                humanPause(70, 180);
+            }
+            mouseX = targetX;
+            mouseY = targetY;
+        } catch (Exception e) {
+            log.debug("Playwright wheel scroll fallback to JS, deltaX={}, deltaY={}, error={}", deltaX, deltaY, e.getMessage());
+            jsScrollPage(deltaX, deltaY);
+        }
+    }
+
+    @Override
+    public synchronized boolean scrollToElement(String selector, double viewportRatio) {
+        checkNotClosed();
+        if (Strings.isEmpty(selector)) {
+            return false;
+        }
+        double ratio = Math.max(0.1, Math.min(0.9, viewportRatio));
+        try {
+            Locator locator = findElement(selector, false);
+            if (locator == null) {
+                return false;
+            }
+            locator.scrollIntoViewIfNeeded();
+            humanPause(120, 260);
+            if (scrollToElementByWheel(selector, ratio)) {
+                return true;
+            }
+        } catch (Exception e) {
+            log.debug("Playwright scroll to element fallback to JS, selector={}, error={}", selector, e.getMessage());
+        }
+        return jsScrollToElement(selector, ratio);
+    }
+
     /**
      * 使用 Playwright 原生 Mouse API 模拟人工拖拽滑块。
      * 先贝塞尔曲线移动到起点 → mousedown → 分多步缓慢向终点移动 → mouseup。
@@ -1058,6 +1120,107 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             return activeFrame;
         }
         return page.mainFrame();
+    }
+
+    private void jsScrollPage(double deltaX, double deltaY) {
+        currentFrame().evaluate("(args) => {" +
+                "var dx=args[0],dy=args[1];" +
+                "var root=document.scrollingElement||document.documentElement||document.body;" +
+                "if(root){root.scrollLeft+=dx;root.scrollTop+=dy;}" +
+                "window.scrollBy(dx,dy);" +
+                "}", java.util.Arrays.asList(deltaX, deltaY));
+    }
+
+    private boolean jsScrollToElement(String selector, double viewportRatio) {
+        Object ok = currentFrame().evaluate("(args) => {" +
+                "var selector=args[0],ratio=args[1],el=document.querySelector(selector);" +
+                "if(!el){return false;}" +
+                "function vh(){return window.innerHeight||document.documentElement.clientHeight||800;}" +
+                "function inView(){var r=el.getBoundingClientRect();return r.top>=40&&r.bottom<=vh()-30;}" +
+                "function delta(){var r=el.getBoundingClientRect();return r.top+r.height/2-vh()*ratio;}" +
+                "function dispatchWheel(node, dy){try{node.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:dy,deltaMode:0,clientX:Math.max(1,Math.min(window.innerWidth-2,window.innerWidth/2)),clientY:Math.max(1,Math.min(vh()-2,vh()*0.75))}));}catch(e){}}" +
+                "function scrollOne(node, dy){if(!node){return 0;}var beforeTop=el.getBoundingClientRect().top,before=node.scrollTop||0;" +
+                "try{node.scrollTop=before+dy;}catch(e){}dispatchWheel(node,dy);" +
+                "return Math.abs(el.getBoundingClientRect().top-beforeTop)+(before!==(node.scrollTop||0)?1:0);}" +
+                "function candidates(){var all=Array.prototype.slice.call(document.querySelectorAll('*'));" +
+                "var list=[];for(var i=0;i<all.length;i++){var n=all[i];if(n.scrollHeight>n.clientHeight+20){list.push(n);}}" +
+                "var root=document.scrollingElement||document.documentElement||document.body;if(root){list.push(root);}return list;}" +
+                "try{el.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});}catch(e){}" +
+                "for(var n=0;n<8;n++){if(inView()){return true;}var dy=delta();if(Math.abs(dy)<20){return inView();}" +
+                "var beforeElTop=el.getBoundingClientRect().top,bestMoved=0,nodes=candidates();" +
+                "for(var i=0;i<nodes.length;i++){bestMoved=Math.max(bestMoved,scrollOne(nodes[i],dy));}" +
+                "window.scrollBy(0,dy);dispatchWheel(el,dy);dispatchWheel(document,dy);dispatchWheel(document.body||document.documentElement,dy);" +
+                "if(inView()){return true;}if(Math.abs(el.getBoundingClientRect().top-beforeElTop)<2&&bestMoved<2){break;}}" +
+                "return inView();" +
+                "}", java.util.Arrays.asList(selector, viewportRatio));
+        return Boolean.TRUE.equals(ok);
+    }
+
+    private boolean scrollToElementByWheel(String selector, double viewportRatio) {
+        for (int i = 0; i < 10; i++) {
+            Map<String, Object> before = readScrollMetrics(selector, viewportRatio);
+            if (before == null || !Boolean.TRUE.equals(before.get("exists"))) {
+                return false;
+            }
+            if (Boolean.TRUE.equals(before.get("inView")) && Math.abs(numberValue(before.get("centerDiff"))) < 90D) {
+                return true;
+            }
+            double delta = numberValue(before.get("delta"));
+            if (Math.abs(delta) < 20D) {
+                return Boolean.TRUE.equals(before.get("inView"));
+            }
+            double wheelDelta = Math.max(-760D, Math.min(760D, delta));
+            double wheelX = numberValue(before.get("wheelX"));
+            double wheelY = numberValue(before.get("wheelY"));
+            moveMouseLikeHuman(wheelX, wheelY);
+            humanPause(80, 180);
+            page.mouse().wheel(randomBetween(-3, 3), wheelDelta + randomBetween(-10, 10));
+            mouseX = wheelX;
+            mouseY = wheelY;
+            humanPause(130, 280);
+
+            Map<String, Object> after = readScrollMetrics(selector, viewportRatio);
+            if (after != null && Boolean.TRUE.equals(after.get("inView"))
+                    && Math.abs(numberValue(after.get("centerDiff"))) < 90D) {
+                return true;
+            }
+            if (after != null && Math.abs(numberValue(after.get("top")) - numberValue(before.get("top"))) < 2D) {
+                jsScrollToElement(selector, viewportRatio);
+                humanPause(120, 240);
+            }
+        }
+        Map<String, Object> metrics = readScrollMetrics(selector, viewportRatio);
+        return metrics != null && Boolean.TRUE.equals(metrics.get("inView"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readScrollMetrics(String selector, double viewportRatio) {
+        Object value = currentFrame().evaluate("(args) => {" +
+                "var selector=args[0],ratio=args[1],el=document.querySelector(selector);" +
+                "if(!el){return {exists:false};}" +
+                "function clamp(v,min,max){return Math.max(min,Math.min(max,v));}" +
+                "function scrollable(n){return n&&n.scrollHeight>n.clientHeight+20;}" +
+                "var vw=window.innerWidth||document.documentElement.clientWidth||1200;" +
+                "var vh=window.innerHeight||document.documentElement.clientHeight||800;" +
+                "var container=null;" +
+                "for(var p=el.parentElement;p;p=p.parentElement){if(scrollable(p)){container=p;break;}}" +
+                "var cr=container?container.getBoundingClientRect():{left:0,top:0,right:vw,bottom:vh,width:vw,height:vh};" +
+                "var visibleTop=clamp(Math.max(cr.top,0),0,vh),visibleBottom=clamp(Math.min(cr.bottom,vh),0,vh);" +
+                "if(visibleBottom-visibleTop<80){visibleTop=0;visibleBottom=vh;}" +
+                "var visibleLeft=clamp(Math.max(cr.left,0),0,vw),visibleRight=clamp(Math.min(cr.right,vw),0,vw);" +
+                "if(visibleRight-visibleLeft<80){visibleLeft=0;visibleRight=vw;}" +
+                "var r=el.getBoundingClientRect(),center=r.top+r.height/2,target=visibleTop+(visibleBottom-visibleTop)*ratio;" +
+                "var desiredWheelY=center>target?visibleBottom-70:visibleTop+70;" +
+                "return {exists:true,top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height," +
+                "inView:r.top>=40&&r.bottom<=vh-30&&r.left>=0&&r.right<=vw,centerDiff:center-target,delta:center-target," +
+                "wheelX:clamp(r.left+r.width/2,visibleLeft+40,visibleRight-40),wheelY:clamp(desiredWheelY,40,vh-40)," +
+                "containerTop:cr.top,containerBottom:cr.bottom,containerScrollTop:container?container.scrollTop:((document.scrollingElement||document.documentElement).scrollTop||0)};" +
+                "}", java.util.Arrays.asList(selector, viewportRatio));
+        return value instanceof Map ? (Map<String, Object>) value : null;
+    }
+
+    private double numberValue(Object value) {
+        return value instanceof Number ? ((Number) value).doubleValue() : 0D;
     }
 
     private String toPlaywrightSelector(String selector) {

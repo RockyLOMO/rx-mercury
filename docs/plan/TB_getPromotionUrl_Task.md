@@ -17,9 +17,11 @@
 
 ## 入参
 
+请求对象：`PromotionUrlRequest`
+
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `productInfo` | 是 | 商品 id、商品名或商品链接 |
+| `keyword` | 是 | 商品 id、商品名或商品链接 |
 | `adSiteName` | 是 | 推广位数字，例如 `5` |
 | `mediaName` | 否 | 媒体名称；不传时使用页面当前默认值 |
 | `profileName` | 否 | Chrome profile 名称，默认 `common` |
@@ -29,10 +31,12 @@
 
 ## 出参
 
+返回对象：`PromotionUrlResult`
+
 | 字段 | 说明 |
 | --- | --- |
 | `taskType` | 固定为 `getTbPromotionUrl` |
-| `productInfo` | 复用 `JdUnionProductInfoDto`，包含商品图、名称、链接、佣金率、到手价、店铺名 |
+| `productInfo` | 复用 `ProductInfoDto`，包含商品图、名称、链接、佣金率、到手价、店铺名 |
 | `promotionUrl` | 推广链接，优先从输入框/文本区读取，点击一键复制后再兜底读取页面内容 |
 | `fingerprintPassed` | Sannysoft 是否通过 |
 | `loginRequired` | 是否需要人工登录 |
@@ -42,14 +46,14 @@
 
 1. 进入阿里妈妈初始页，执行 Sannysoft 与登录接管；`login_jump` 跳转页按登录接管状态处理，不提前进入推广链接流程。
 2. 打开选品推广业务页。
-3. 在 placeholder 为“请输入你要搜索的商品/类目/商品链接”的输入框输入 `productInfo`。
+3. 在 placeholder 为“请输入你要搜索的商品/类目/商品链接”的输入框输入 `keyword`。
 4. 点击“智能搜索”。
 5. 若搜索点击未进入搜索态，使用带 `fn=search&q=` 的业务 URL 兜底进入搜索结果页。
 6. 下拉页面，若没有商品则返回 `NOT_FOUND`。
 7. 取第一条商品卡片，先用原生鼠标移动 hover，再抓取商品信息：
    - `imageUrl`
    - `productName` + `productLink`：优先取商品标题外层的 `a[href][data-spm-click*=d_good_select_list_title_click]`，也就是标题区域的详情页超链接。
-   - `finalPrice`
+   - `price`
    - `commissionRate`
    - `storeName`
 8. 点击第一条商品的“立即推广”。
@@ -66,7 +70,7 @@
 
 ```json
 {
-  "productInfo": "西麦纯燕麦片3kg高蛋白质0添加蔗糖即食谷物速食懒人代餐冲饮早餐",
+  "keyword": "西麦纯燕麦片3kg高蛋白质0添加蔗糖即食谷物速食懒人代餐冲饮早餐",
   "adSiteName": "5",
   "debugEnabled": true
 }

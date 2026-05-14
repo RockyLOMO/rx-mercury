@@ -1,17 +1,22 @@
-package org.rx.crawler.task.jd;
+package org.rx.crawler.task.common;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.io.Serializable;
 
 @Data
-public class JdUnionProductInfoDto implements Serializable {
+public class ProductInfoDto implements Serializable {
     private static final long serialVersionUID = -8128369459494691492L;
 
-    private String imageUrl;
+    @NotBlank
     private String productName;
+    @NotBlank
     private String productLink;
+    @NotBlank
     private String commissionRate;
-    private String finalPrice;
+    @NotBlank
     private String storeName;
+    private String price;
+    private String imageUrl;
 }

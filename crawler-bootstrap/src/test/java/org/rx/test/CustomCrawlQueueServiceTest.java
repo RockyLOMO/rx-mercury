@@ -5,12 +5,10 @@ import org.junit.jupiter.api.Test;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.task.common.CustomCrawlQueueService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
-import org.rx.crawler.task.jd.JdUnionPromotionRequest;
-import org.rx.crawler.task.jd.JdUnionPromotionResult;
+import org.rx.crawler.task.common.PromotionUrlRequest;
+import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
 import org.rx.crawler.task.tb.TbPromotionOrdersTask;
-import org.rx.crawler.task.tb.TbPromotionUrlRequest;
-import org.rx.crawler.task.tb.TbPromotionUrlResult;
 import org.rx.crawler.task.tb.TbPromotionUrlTask;
 import org.rx.io.EntityDatabase;
 import org.rx.io.EntityDatabaseImpl;
@@ -34,7 +32,7 @@ public class CustomCrawlQueueServiceTest {
 
         JdUnionPromotionTask task = mock(JdUnionPromotionTask.class);
         when(task.getPromotionUrl(any())).thenAnswer(invocation -> {
-            JdUnionPromotionResult result = new JdUnionPromotionResult();
+            PromotionUrlResult result = new PromotionUrlResult();
             result.setStatus(CustomCrawlStatus.SUCCESS);
             result.setMessage("");
             return result;
@@ -45,10 +43,10 @@ public class CustomCrawlQueueServiceTest {
         try {
             service.init();
 
-            JdUnionPromotionRequest request = new JdUnionPromotionRequest();
-            request.setSkuId("1001");
+            PromotionUrlRequest request = new PromotionUrlRequest();
+            request.setKeyword("1001");
             request.setAdSiteName("2002");
-            JdUnionPromotionResult result = service.submitAndWait("getPromotionUrl", request, JdUnionPromotionResult.class);
+            PromotionUrlResult result = service.submitAndWait("getPromotionUrl", request, PromotionUrlResult.class);
 
             assertEquals(CustomCrawlStatus.SUCCESS, result.getStatus());
             verify(task).getPromotionUrl(any());
@@ -76,10 +74,10 @@ public class CustomCrawlQueueServiceTest {
         try {
             service.init();
 
-            JdUnionPromotionRequest request = new JdUnionPromotionRequest();
-            request.setSkuId("1001");
+            PromotionUrlRequest request = new PromotionUrlRequest();
+            request.setKeyword("1001");
             request.setAdSiteName("2002");
-            JdUnionPromotionResult result = service.submitAndWait("getPromotionUrl", request, JdUnionPromotionResult.class);
+            PromotionUrlResult result = service.submitAndWait("getPromotionUrl", request, PromotionUrlResult.class);
 
             assertEquals(CustomCrawlStatus.FAILED, result.getStatus());
         } finally {
@@ -100,7 +98,7 @@ public class CustomCrawlQueueServiceTest {
 
         TbPromotionUrlTask tbPromotionUrlTask = mock(TbPromotionUrlTask.class);
         when(tbPromotionUrlTask.getPromotionUrl(any())).thenAnswer(invocation -> {
-            TbPromotionUrlResult result = new TbPromotionUrlResult();
+            PromotionUrlResult result = new PromotionUrlResult();
             result.setStatus(CustomCrawlStatus.SUCCESS);
             result.setMessage("");
             return result;
@@ -111,10 +109,10 @@ public class CustomCrawlQueueServiceTest {
         try {
             service.init();
 
-            TbPromotionUrlRequest request = new TbPromotionUrlRequest();
-            request.setProductInfo("西麦纯燕麦片3kg");
+            PromotionUrlRequest request = new PromotionUrlRequest();
+            request.setKeyword("西麦纯燕麦片3kg");
             request.setAdSiteName("5");
-            TbPromotionUrlResult result = service.submitAndWaitTbPromotionUrl("getTbPromotionUrl", request);
+            PromotionUrlResult result = service.submitAndWaitTbPromotionUrl("getTbPromotionUrl", request);
 
             assertEquals(CustomCrawlStatus.SUCCESS, result.getStatus());
             verify(tbPromotionUrlTask).getPromotionUrl(any());
