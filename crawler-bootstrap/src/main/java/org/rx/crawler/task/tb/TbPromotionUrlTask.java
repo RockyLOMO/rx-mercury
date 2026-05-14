@@ -51,6 +51,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     private final CrawlEntryService entryService;
     private final ResultWriter resultWriter;
     private final ObjectMapper objectMapper;
+    private final SliderVerifyHandler sliderVerifyHandler = new SliderVerifyHandler();
     private final ThreadLocal<Long> taskDeadlineHolder = new ThreadLocal<Long>();
 
     @Override
@@ -471,19 +472,26 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     }
 
     private boolean handleSliderVerify(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, DebugRecorder debug, String stepTag) {
-        boolean handled = onSliderVerifyDetected(browser, config, result, stepTag);
+            TbPromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
+        boolean handled = onSliderVerifyDetected(browser, config, result, debug, stepTag);
         result.getDiagnostics().put(stepTag + "SliderVerifyAction", handled ? "hook" : "manual");
         return handled;
     }
 
     /**
-     * 滑动验证处理钩子。默认空实现，返回 false 后进入人工兜底等待。
-     * 如需接入内部处理逻辑，重写/替换此方法并在处理成功后返回 true。
+     * 滑动验证处理钩子。优先委托 SliderVerifyHandler 自动处理，失败后进入人工兜底等待。
      */
-    protected boolean onSliderVerifyDetected(Browser browser, TbPromotionConfig config,
-            TbPromotionUrlResult result, String stepTag) {
-        return false;
+    private boolean onSliderVerifyDetected(Browser browser, TbPromotionConfig config,
+            TbPromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
+        ensureTaskDeadline("getTbPromotionUrl.onSliderVerifyDetected." + stepTag);
+        result.getDiagnostics().put("sliderVerifyAt", stepTag);
+        boolean passed = sliderVerifyHandler.checkAndHandle(browser, stepTag, 3,
+                config.nextStepDelayMillis(), (b, name) -> debug.snapshot(b, name));
+        if (passed) {
+            result.getDiagnostics().put("sliderVerifyPassed", true);
+            Extends.sleep(config.nextStepDelayMillis() * 2L);
+        }
+        return passed;
     }
 
     private boolean waitSliderVerifyCleared(Browser browser, TbPromotionConfig config, String stepTag)

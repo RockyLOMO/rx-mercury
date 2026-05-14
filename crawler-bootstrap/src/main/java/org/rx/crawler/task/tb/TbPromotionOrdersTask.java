@@ -329,10 +329,14 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
      */
     private boolean checkAndHandleSliderVerify(Browser browser, TbPromotionConfig config,
             TbPromotionOrdersResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
-        if (!sliderVerifyHandler.isSliderVerifyPage(browser)) {
+        if (!isSliderVerifyPage(browser)) {
             return true;
         }
         return onSliderVerifyDetected(browser, config, result, debug, stepTag);
+    }
+
+    private boolean isSliderVerifyPage(Browser browser) {
+        return sliderVerifyHandler.isSliderVerifyPage(browser);
     }
 
     private boolean waitSliderVerifyCleared(Browser browser, TbPromotionConfig config, String stepTag)
@@ -342,7 +346,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(waitSeconds);
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("waitSliderVerifyCleared." + stepTag);
-            if (!sliderVerifyHandler.isSliderVerifyPage(browser)) {
+            if (!isSliderVerifyPage(browser)) {
                 return true;
             }
             Extends.sleep(Math.max(1000L, config.nextStepDelayMillis()));
