@@ -205,22 +205,34 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         // 等待订单页就绪前检测滑块
         checkAndHandleSliderVerify(browser, config, result, debug, "02-page-ready-slider");
         if (!waitOrderPageReady(browser, config)) {
-            fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order page not ready");
-            result.getDiagnostics().put("body", bodySnippet(browser));
-            debug.snapshot(browser, "02-order-page-not-ready");
-            return;
+            // 操作失败后检测是否因滑块弹出导致，处理后重试
+            if (checkAndHandleSliderVerify(browser, config, result, debug, "02-page-ready-retry-slider")
+                    && waitOrderPageReady(browser, config)) {
+                log.info("TB promotion order page ready after slider retry");
+            } else {
+                fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order page not ready");
+                result.getDiagnostics().put("body", bodySnippet(browser));
+                debug.snapshot(browser, "02-order-page-not-ready");
+                return;
+            }
         }
         debug.snapshot(browser, "02-order-page-ready");
 
-        // 选日期前检测滑块
-        checkAndHandleSliderVerify(browser, config, result, debug, "03-date-range-slider");
         LocalDate startDate = LocalDate.parse(request.getStartTime(), DATE_FORMATTER);
         LocalDate endDate = LocalDate.parse(request.getEndTime(), DATE_FORMATTER);
+        // 选日期前检测滑块
+        checkAndHandleSliderVerify(browser, config, result, debug, "03-date-range-slider");
         if (!selectPaymentDateRange(browser, startDate, endDate, config, debug)) {
-            fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order date range picker not found");
-            result.getDiagnostics().put("body", bodySnippet(browser));
-            debug.snapshot(browser, "03-date-range-missing");
-            return;
+            // 操作失败后检测是否因滑块弹出导致，处理后重试
+            if (checkAndHandleSliderVerify(browser, config, result, debug, "03-date-range-retry-slider")
+                    && selectPaymentDateRange(browser, startDate, endDate, config, debug)) {
+                log.info("TB promotion date range selected after slider retry");
+            } else {
+                fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order date range picker not found");
+                result.getDiagnostics().put("body", bodySnippet(browser));
+                debug.snapshot(browser, "03-date-range-missing");
+                return;
+            }
         }
         debug.snapshot(browser, "03-date-range-selected");
 
@@ -310,12 +322,24 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             result.getDiagnostics().put("sliderVerifyPassed", true);
             // 滑块通过后页面可能发生导航/刷新，等待页面稳定
             Extends.sleep(config.nextStepDelayMillis() * 2L);
-            // 如果验证后页面跳转离开了订单页，重新导航
+            // 滑块通过后可能跳到「确认登录/快速进入」页面或其他中转页，需要重新走完前置流程
             String currentUrl = browser.getCurrentUrl();
-            if (currentUrl != null && !currentUrl.contains("overviewOrder") && !currentUrl.contains("order")) {
-                log.info("TB promotion slider passed but page navigated away, re-navigating to order page, currentUrl={}", currentUrl);
+            if (currentUrl != null && !currentUrl.contains("overviewOrder")) {
+                log.info("TB promotion slider passed but page navigated away, currentUrl={}", currentUrl);
+                debug.snapshot(browser, stepTag + "-post-slider-landing");
+                // 处理「快速进入」中转页
+                completeForwardLanding(browser, config);
+                Extends.sleep(config.nextStepDelayMillis());
+                // 重新导航到订单页
                 browser.navigateUrl(config.getOrderUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
                 Extends.sleep(config.nextStepDelayMillis());
+                // 导航后可能再次弹出滑块
+                if (sliderVerifyHandler.isSliderVerifyPage(browser)) {
+                    log.info("TB promotion slider appeared again after re-navigation, step={}", stepTag);
+                    sliderVerifyHandler.checkAndHandle(browser, stepTag + "-re-nav", 3,
+                            config.nextStepDelayMillis(), (b, name) -> debug.snapshot(b, name));
+                    Extends.sleep(config.nextStepDelayMillis());
+                }
             }
             return true;
         }
