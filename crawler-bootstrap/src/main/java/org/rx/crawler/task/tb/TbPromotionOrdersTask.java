@@ -70,6 +70,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private final CrawlEntryService entryService;
     private final ResultWriter resultWriter;
     private final ObjectMapper objectMapper;
+    private final SliderVerifyHandler sliderVerifyHandler = new SliderVerifyHandler();
     private final ThreadLocal<Long> taskDeadlineHolder = new ThreadLocal<Long>();
 
     @Override
@@ -192,6 +193,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             debug.snapshot(browser, "02-order-login-required");
             return;
         }
+        // 等待订单页就绪前检测滑块
+        checkAndHandleSliderVerify(browser, config, result, debug, "02-page-ready-slider");
         if (!waitOrderPageReady(browser, config)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order page not ready");
             result.getDiagnostics().put("body", bodySnippet(browser));
@@ -200,6 +203,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         }
         debug.snapshot(browser, "02-order-page-ready");
 
+        // 选日期前检测滑块
+        checkAndHandleSliderVerify(browser, config, result, debug, "03-date-range-slider");
         LocalDate startDate = LocalDate.parse(request.getStartTime(), DATE_FORMATTER);
         LocalDate endDate = LocalDate.parse(request.getEndTime(), DATE_FORMATTER);
         if (!selectPaymentDateRange(browser, startDate, endDate, config, debug)) {
@@ -210,6 +215,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         }
         debug.snapshot(browser, "03-date-range-selected");
 
+        // 搜索前检测滑块
+        checkAndHandleSliderVerify(browser, config, result, debug, "04-search-pre-slider");
         if (!nativeClickOrderSearchButton(browser)) {
             Extends.sleep(config.nextStepDelayMillis());
             waitOrderRowsSettled(browser, config);
@@ -238,6 +245,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         int pageNo = 1;
         while (pageNo <= 100) {
             ensureTaskDeadline("getTbPromotionOrders.pageLoop");
+            // 读取订单前检测滑块
+            checkAndHandleSliderVerify(browser, config, result, debug, String.format("05-page-%03d-pre-read-slider", pageNo));
             List<TbPromotionOrderItem> pageOrders = readOrderRows(browser);
             result.getDiagnostics().put("lastPageNo", pageNo);
             result.getDiagnostics().put("lastPageRows", pageOrders.size());
@@ -247,6 +256,8 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             debug.snapshot(browser, String.format("05-page-%03d-collected", pageNo));
 
             scrollOrderPageBottom(browser, config);
+            // 翻页前检测滑块
+            checkAndHandleSliderVerify(browser, config, result, debug, String.format("05-page-%03d-pre-next-slider", pageNo));
             if (!hasNextOrderPage(browser)) {
                 break;
             }
@@ -273,40 +284,33 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     }
 
     /**
-     * 检测页面是否出现阿里妈妈滑块验证，若出现则模拟人工缓慢拖拽滑块到最右侧完成验证。
-     * 每次遇到验证最多重试 3 次，每次失败后等待一段时间再重试。
-     * 验证成功或无验证时正常返回；自动验证失败后等待人工接管，仍未通过时仅记录诊断信息。
+     * 私有入口：委托 SliderVerifyHandler 检测并处理滑块验证。
+     * 自动重试 3 次，全部失败后等待人工接管。
      */
-    private boolean checkAndHandleSliderVerify(Browser browser, TbPromotionConfig config,
+    private boolean onSliderVerifyDetected(Browser browser, TbPromotionConfig config,
             TbPromotionOrdersResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
-        for (int attempt = 0; attempt < 3; attempt++) {
-            ensureTaskDeadline("checkAndHandleSliderVerify." + stepTag);
-            if (!isSliderVerifyPage(browser)) {
-                return true;
+        ensureTaskDeadline("onSliderVerifyDetected." + stepTag);
+        result.getDiagnostics().put("sliderVerifyAt", stepTag);
+
+        // 委托公共处理器执行滑块验证（含拟人拖拽、验证失败重试点击）
+        boolean passed = sliderVerifyHandler.checkAndHandle(browser, stepTag, 3,
+                config.nextStepDelayMillis(), (b, name) -> debug.snapshot(b, name));
+
+        if (passed) {
+            result.getDiagnostics().put("sliderVerifyPassed", true);
+            // 滑块通过后页面可能发生导航/刷新，等待页面稳定
+            Extends.sleep(config.nextStepDelayMillis() * 2L);
+            // 如果验证后页面跳转离开了订单页，重新导航
+            String currentUrl = browser.getCurrentUrl();
+            if (currentUrl != null && !currentUrl.contains("overviewOrder") && !currentUrl.contains("order")) {
+                log.info("TB promotion slider passed but page navigated away, re-navigating to order page, currentUrl={}", currentUrl);
+                browser.navigateUrl(config.getOrderUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
+                Extends.sleep(config.nextStepDelayMillis());
             }
-            // 发现验证页，记录快照
-            log.info("TB promotion slider verify detected, step={}, attempt={}", stepTag, attempt + 1);
-            debug.snapshot(browser, stepTag + "-before-slide-" + (attempt + 1));
-            result.getDiagnostics().put("sliderVerifyAt", stepTag);
-
-            boolean slid = simulateSlideDrag(browser, config, debug, stepTag, attempt + 1);
-            Extends.sleep(Math.max(1500, config.nextStepDelayMillis() * 2L));
-            debug.snapshot(browser, stepTag + "-after-slide-" + (attempt + 1));
-
-            if (slid && !isSliderVerifyPage(browser)) {
-                log.info("TB promotion slider verify passed, step={}, attempt={}", stepTag, attempt + 1);
-                result.getDiagnostics().put("sliderVerifyPassed", true);
-                return true;
-            }
-            log.warn("TB promotion slider verify not resolved, step={}, attempt={}, slid={}", stepTag, attempt + 1,
-                    slid);
-
-            // 检测"验证失败，点击框体重试"文案，先点击框体触发重置
-            clickRetryContainerIfPresent(browser, debug, stepTag, attempt + 1);
-
-            // 等待一段时间再重试
-            Extends.sleep(Math.max(2000, config.nextStepDelayMillis() * 3L));
+            return true;
         }
+
+        // 自动验证 3 次失败，等待人工接管
         log.warn("TB promotion slider verify failed after 3 attempts, step={}", stepTag);
         debug.snapshot(browser, stepTag + "-manual-wait");
         if (waitSliderVerifyCleared(browser, config, stepTag)) {
@@ -319,6 +323,18 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         return false;
     }
 
+    /**
+     * 检测页面是否出现阿里妈妈滑块验证，若出现则委托 onSliderVerifyDetected 处理。
+     * 验证成功或无验证时返回 true。
+     */
+    private boolean checkAndHandleSliderVerify(Browser browser, TbPromotionConfig config,
+            TbPromotionOrdersResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
+        if (!sliderVerifyHandler.isSliderVerifyPage(browser)) {
+            return true;
+        }
+        return onSliderVerifyDetected(browser, config, result, debug, stepTag);
+    }
+
     private boolean waitSliderVerifyCleared(Browser browser, TbPromotionConfig config, String stepTag)
             throws TimeoutException {
         int waitSeconds = Math.max(10, config.getLoginWaitSeconds());
@@ -326,7 +342,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(waitSeconds);
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("waitSliderVerifyCleared." + stepTag);
-            if (!isSliderVerifyPage(browser)) {
+            if (!sliderVerifyHandler.isSliderVerifyPage(browser)) {
                 return true;
             }
             Extends.sleep(Math.max(1000L, config.nextStepDelayMillis()));
@@ -343,193 +359,6 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         if (current < minDeadline) {
             taskDeadlineHolder.set(minDeadline);
         }
-    }
-
-    /**
-     * 检测当前页面是否为阿里妈妈滑块验证页（通过页面文字特征或 URL 判断）。
-     */
-    private boolean isSliderVerifyPage(Browser browser) {
-        try {
-            // punish 惩罚页 URL 也包含滑块验证
-            String url = browser.getCurrentUrl();
-            if (!Strings.isEmpty(url) && url.contains("punish")) {
-                return true;
-            }
-            String body = bodySnippet(browser);
-            return containsAny(body, "请拖动下方滑块完成验证", "拖动滑块", "拖到最右边", "按住滑块", "验证失败");
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 检测页面是否出现"验证失败，点击框体重试"提示，若有则点击 NC 验证框体触发重置。
-     * 阿里云 NC 滑块验证失败后，需要点击容器区域重新加载滑块。
-     */
-    private void clickRetryContainerIfPresent(Browser browser, DebugRecorder debug, String stepTag, int attempt) {
-        try {
-            String body = bodySnippet(browser);
-            if (!containsAny(body, "验证失败", "点击框体重试")) {
-                return;
-            }
-            log.info(
-                    "TB promotion slider verify failed hint detected, clicking container to retry, step={}, attempt={}",
-                    stepTag, attempt);
-            debug.snapshot(browser, stepTag + "-verify-failed-" + attempt);
-
-            // 通过 JS 找到 NC 验证容器框体坐标（.nc-container 或 .nc_wrapper 或含"验证失败"文字的父级区域）
-            Map<String, Object> containerInfo = browser.executeScript(
-                    "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                            "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                            // 优先找 NC 容器
-                            "var c=document.querySelector('.nc-container,.nc_wrapper,.sm-pop-inner');" +
-                            "if(c&&visible(c)){var r=c.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}"
-                            +
-                            // 兜底：找含"验证失败"文字的可见元素
-                            "var all=Array.prototype.slice.call(document.querySelectorAll('div,span,p'));" +
-                            "for(var i=0;i<all.length;i++){" +
-                            "  var t=(all[i].innerText||all[i].textContent||'').trim();" +
-                            "  if(t.indexOf('验证失败')>=0&&visible(all[i])){" +
-                            "    var r=all[i].getBoundingClientRect();" +
-                            "    if(r.width>50&&r.height>20){return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}"
-                            +
-                            "  }" +
-                            "}" +
-                            "return null;");
-
-            if (containerInfo == null) {
-                log.warn("TB promotion verify-failed container not found, step={}, attempt={}", stepTag, attempt);
-                return;
-            }
-
-            double cx = toDouble(containerInfo.get("x"));
-            double cy = toDouble(containerInfo.get("y"));
-            if (cx < 1 || cy < 1) {
-                log.warn("TB promotion verify-failed container coordinates invalid, x={}, y={}", cx, cy);
-                return;
-            }
-
-            log.info("TB promotion clicking verify-failed container at ({}, {}), step={}, attempt={}", cx, cy, stepTag,
-                    attempt);
-            // 用 mouseDrag 原地点击（起点终点相同 = 点击效果），比 elementClick 更自然
-            browser.mouseDrag(cx, cy, cx, cy, 1);
-            Extends.sleep(1500);
-            debug.snapshot(browser, stepTag + "-verify-retry-clicked-" + attempt);
-        } catch (Exception e) {
-            log.warn("TB promotion click retry container error, step={}, attempt={}, error={}", stepTag, attempt,
-                    e.getMessage());
-        }
-    }
-
-    /**
-     * 模拟人工缓慢向右拖拽阿里妈妈滑块验证的滑块按钮。
-     * 通过 JS 找到滑块元素坐标，再用 Playwright 原生 Mouse API 模拟拖拽。
-     * 返回 true 表示已成功模拟拖拽（不代表验证通过），false 表示未找到滑块。
-     * 失败时保存当前页面 HTML 快照，便于 debug。
-     */
-    private boolean simulateSlideDrag(Browser browser, TbPromotionConfig config,
-            DebugRecorder debug, String stepTag, int attempt) {
-        // 找到滑块按钮，返回 {x, y, width, height, trackWidth}，用于计算拖拽距离
-        Map<String, Object> sliderInfo = browser.executeScript(
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                        "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                        "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                        // 1) 首先精确匹配阿里云 NoCaptcha (NC) 滑块把手: class 含 btn_slide
-                        "var handles=Array.prototype.slice.call(document.querySelectorAll('.btn_slide,[class*=btn_slide]')).filter(visible);"
-                        +
-                        // 2) NC 轨道: .nc_scale
-                        "var tracks=Array.prototype.slice.call(document.querySelectorAll('.nc_scale,[class*=nc_scale],[class*=nc_wrapper]')).filter(function(e){"
-                        +
-                        "  if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
-                        "});" +
-                        // 3) 通用备选: class 含 slider/handle/drag 且宽度 <= 80
-                        "if(handles.length===0){" +
-                        "  handles=Array.prototype.slice.call(document.querySelectorAll(" +
-                        "    '[class*=slider],[class*=Slider],[class*=handle],[class*=Handle],[class*=drag],[class*=Drag]'"
-                        +
-                        "  )).filter(function(e){" +
-                        "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();" +
-                        "    return r.width>0&&r.width<=80&&r.height>0&&r.height<=80;" +
-                        "  });" +
-                        "}" +
-                        // 4) 轨道备选: 宽度较大且 class 含 track/rail/groove
-                        "if(tracks.length===0){" +
-                        "  tracks=Array.prototype.slice.call(document.querySelectorAll(" +
-                        "    '[class*=track],[class*=Track],[class*=rail],[class*=Rail],[class*=groove],[class*=Groove]'"
-                        +
-                        "  )).filter(function(e){" +
-                        "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
-                        "  });" +
-                        "}" +
-                        // 5) 最终兑底: 找到文字含'拖'的父容器内第一个小方块
-                        "if(handles.length===0){" +
-                        "  var verifyBox=null;" +
-                        "  var allDivs=Array.prototype.slice.call(document.querySelectorAll('div,span,section'));" +
-                        "  for(var i=0;i<allDivs.length;i++){" +
-                        "    var t=norm(allDivs[i].innerText||allDivs[i].textContent||'');" +
-                        "    if(t.indexOf('\u62d6')>=0&&t.indexOf('\u6ed1\u5757')>=0){verifyBox=allDivs[i];break;}" +
-                        "  }" +
-                        "  if(verifyBox){" +
-                        "    var kids=Array.prototype.slice.call(verifyBox.querySelectorAll('*'));" +
-                        "    for(var j=0;j<kids.length;j++){" +
-                        "      var kr=kids[j].getBoundingClientRect();" +
-                        "      if(visible(kids[j])&&kr.width>10&&kr.width<=80&&kr.height>10&&kr.height<=80){" +
-                        "        handles.push(kids[j]);break;" +
-                        "      }" +
-                        "    }" +
-                        "  }" +
-                        "}" +
-                        "if(handles.length===0){return null;}" +
-                        "var handle=handles[0];" +
-                        "var hr=handle.getBoundingClientRect();" +
-                        "var trackWidth=hr.width;" + // 默认以 handle 宽度兜底
-                        "if(tracks.length>0){" +
-                        "  var tr=tracks[0].getBoundingClientRect();" +
-                        "  trackWidth=tr.width;" +
-                        "}" +
-                        "return {x:hr.left+hr.width/2,y:hr.top+hr.height/2,width:hr.width,height:hr.height,trackWidth:trackWidth};");
-
-        if (sliderInfo == null) {
-            log.warn("TB promotion slider handle not found, cannot simulate drag, step={}, attempt={}", stepTag,
-                    attempt);
-            // 保存当前页 HTML 便于 debug 排查滑块元素结构
-            debug.snapshot(browser, stepTag + "-slide-no-handle-" + attempt);
-            return false;
-        }
-
-        double startX = toDouble(sliderInfo.get("x"));
-        double startY = toDouble(sliderInfo.get("y"));
-        double handleWidth = toDouble(sliderInfo.get("width"));
-        double trackWidth = toDouble(sliderInfo.get("trackWidth"));
-
-        // 坐标合法性校验：NaN/Infinity 会导致 Playwright Mouse API 异常；(0,0) 也是非法滑块位置
-        if (!Double.isFinite(startX) || !Double.isFinite(startY) || startX < 1 || startY < 1) {
-            log.warn(
-                    "TB promotion slider handle coordinates invalid, startX={}, startY={}, step={}, attempt={}, skip drag",
-                    startX, startY, stepTag, attempt);
-            // 保存当前页 HTML 便于 debug 排查坐标问题
-            debug.snapshot(browser, stepTag + "-slide-invalid-coord-" + attempt);
-            return false;
-        }
-
-        // 拖拽距离 = 轨道宽 - 滑块宽，兜底用视口宽度的 70%
-        double dragDistance;
-        if (trackWidth > handleWidth + 10) {
-            dragDistance = trackWidth - handleWidth - 2;
-        } else {
-            // 轨道宽未找到或异常，用视口宽度兜底
-            double viewportWidth = toDouble(browser.executeScript("return window.innerWidth || 800;"));
-            dragDistance = Math.max(200, viewportWidth * 0.70 - handleWidth);
-        }
-
-        log.info(
-                "TB promotion simulate slide drag, startX={}, startY={}, handleWidth={}, trackWidth={}, dragDistance={}",
-                startX, startY, handleWidth, trackWidth, dragDistance);
-
-        // 使用 Playwright 原生 Mouse API 模拟拖拽（真实浏览器输入事件，比 JS dispatchEvent 更难被检测）
-        double endX = startX + dragDistance;
-        browser.mouseDrag(startX, startY, endX, startY, 30);
-        return true;
     }
 
     /** Object -> double 工具方法，兼容 Integer / Long / Double / String */
