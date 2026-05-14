@@ -255,6 +255,57 @@ Content-Type: application/json
 - 每个快照文件名包含步骤序号，便于按执行顺序排查。
 - 默认关闭，不影响正常抓取流程。
 
+## 登录接管通知
+
+- 公共前置流程检测到登录页时，会触发 `LoginNotificationService` 通知人工接管；任务内部二次跳到登录页时也会补发通知。
+- 当前通知实现为邮件提醒，默认关闭；开启后需要同时配置 `spring.mail.*` SMTP 参数和 `app.custom.loginNotification.mail` 收发件人。
+- 同一 `taskType + profileName + currentUrl` 默认 300 秒内只提醒一次，避免轮询或重试时重复发邮件。
+- 定时登录保活由 `LoginKeepAliveService` 负责，JD 两个任务共用 `jdLoginKeepAlive`，TB 两个任务共用 `tbLoginKeepAlive`。
+- 保活逻辑会随机访问一个平台业务页；如果 URL 或页面内容显示返回登录页，结果标记为 `LOGIN_REQUIRED`，保留浏览器并触发人工通知。
+- 保活默认关闭，避免发布后未经配置就周期性打开 Chrome；开启后可通过 HTTP 手动触发检查。
+
+配置示例：
+
+```yaml
+spring:
+  mail:
+    host: smtp.example.com
+    port: 465
+    username: robot@example.com
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.ssl.enable: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+app:
+  custom:
+    loginNotification:
+      enabled: true
+      minIntervalSeconds: 300
+      mail:
+        enabled: true
+        from: robot@example.com
+        to:
+          - ops@example.com
+        subjectPrefix: "[rx-mercury]"
+    loginKeepAlive:
+      enabled: true
+      jdEnabled: true
+      tbEnabled: true
+      initialDelayMillis: 60000
+      fixedDelayMillis: 1800000
+      pageTimeoutSeconds: 60
+```
+
+手动检查入口：
+
+```http
+POST /custom/jd-union/login/keepAlive
+POST /custom/tb/login/keepAlive
+```
+
 ## 当前项目 Server 交互
 
 当前项目作为 server 时，由 Spring Boot 启动 `crawler-bootstrap`。配置项：

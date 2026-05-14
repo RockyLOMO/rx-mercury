@@ -21,6 +21,7 @@ import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
+import org.rx.crawler.task.common.LoginNotificationContext;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
 import org.rx.util.BeanMapper;
@@ -121,7 +122,8 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             lease = profileManager.acquire(request.getProfileName(), createBrowserConfig(debugRequest, jdConfig));
             Browser browser = lease.getBrowser();
 
-            CrawlEntryResult entry = entryService.enter(browser, lease, createEntryOptions(debugRequest, jdConfig, jdConfig.getEntireUrl()));
+            CrawlEntryResult entry = entryService.enter(browser, lease,
+                    createEntryOptions(debugRequest, jdConfig, jdConfig.getEntireUrl(), ORDERS_TASK_TYPE));
             applyEntryResult(result, entry);
             debug.snapshot(browser, "01-entry");
             if (!entry.isPassed()) {
@@ -195,11 +197,17 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     }
 
     private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config) {
-        return createEntryOptions(request, config, config.getOverviewUrl());
+        return createEntryOptions(request, config, config.getOverviewUrl(), TASK_TYPE);
     }
 
     private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config, String initialUrl) {
+        return createEntryOptions(request, config, initialUrl, TASK_TYPE);
+    }
+
+    private CrawlEntryOptions createEntryOptions(JdUnionPromotionRequest request, JdUnionConfig config, String initialUrl,
+            String taskType) {
         CrawlEntryOptions options = new CrawlEntryOptions();
+        options.setTaskType(taskType);
         options.setProfileName(request.getProfileName());
         options.setPreflightEnabled(config.isPreflightEnabled());
         options.setPreflightUrl(config.getPreflightUrl());
@@ -1206,11 +1214,38 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     private void fail(JdUnionPromotionResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
+        if (status == CustomCrawlStatus.LOGIN_REQUIRED) {
+            result.setLoginRequired(true);
+            notifyLoginRequired(result.getDiagnostics(), TASK_TYPE, result.getProfileName(), result.getCurrentUrl(),
+                    result.getMessage());
+        }
     }
 
     private void fail(JdUnionPromotionOrdersResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
+        if (status == CustomCrawlStatus.LOGIN_REQUIRED) {
+            result.setLoginRequired(true);
+            notifyLoginRequired(result.getDiagnostics(), ORDERS_TASK_TYPE, result.getProfileName(),
+                    result.getCurrentUrl(), result.getMessage());
+        }
+    }
+
+    private void notifyLoginRequired(Map<String, Object> diagnostics, String taskType, String profileName,
+            String currentUrl, String message) {
+        if (Boolean.TRUE.equals(diagnostics.get("loginNotificationAttempted"))) {
+            return;
+        }
+        diagnostics.put("loginNotificationAttempted", true);
+        LoginNotificationContext context = new LoginNotificationContext();
+        context.setTaskType(taskType);
+        context.setProfileName(profileName);
+        context.setInitialUrl(appConfig.getCustom().getJdUnion().getOverviewUrl());
+        context.setCurrentUrl(currentUrl);
+        context.setMessage(message);
+        context.setLoginWaitSeconds(appConfig.getCustom().getJdUnion().getLoginWaitSeconds());
+        context.setKeepBrowserOpenSeconds(appConfig.getCustom().getJdUnion().getKeepBrowserOpenSecondsOnLoginRequired());
+        entryService.notifyLoginRequired(context);
     }
 
     private List<JdUnionPromotionRequest> loadBatchItems(JdUnionBatchRequest request) {

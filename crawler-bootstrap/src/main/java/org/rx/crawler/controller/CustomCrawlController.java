@@ -5,6 +5,8 @@ import org.rx.core.Strings;
 import org.rx.crawler.dto.Result;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlQueueService;
+import org.rx.crawler.task.common.LoginKeepAliveResult;
+import org.rx.crawler.task.common.LoginKeepAliveService;
 import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
@@ -30,6 +32,7 @@ import java.util.List;
 @RequestMapping("/custom")
 public class CustomCrawlController {
     private final CustomCrawlQueueService taskQueueService;
+    private final LoginKeepAliveService loginKeepAliveService;
 
     @PostMapping("/jd-union/getPromotionUrl")
     public Result<JdUnionPromotionResult> getPromotionUrl(@Valid @RequestBody JdUnionPromotionRequest request) {
@@ -58,6 +61,18 @@ public class CustomCrawlController {
     @PostMapping("/jd-union/login/check")
     public Result<JdUnionPromotionResult> loginCheck(@RequestBody(required = false) JdUnionPromotionRequest request) {
         JdUnionPromotionResult result = taskQueueService.submitAndWait("loginCheck", request, JdUnionPromotionResult.class);
+        return wrap(result);
+    }
+
+    @PostMapping("/jd-union/login/keepAlive")
+    public Result<LoginKeepAliveResult> jdLoginKeepAlive() {
+        LoginKeepAliveResult result = loginKeepAliveService.checkJd();
+        return wrap(result);
+    }
+
+    @PostMapping("/tb/login/keepAlive")
+    public Result<LoginKeepAliveResult> tbLoginKeepAlive() {
+        LoginKeepAliveResult result = loginKeepAliveService.checkTb();
         return wrap(result);
     }
 
@@ -95,6 +110,13 @@ public class CustomCrawlController {
     }
 
     private Result<TbPromotionUrlResult> wrap(TbPromotionUrlResult result) {
+        if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
+            return Result.success(result);
+        }
+        return Result.fail(result.getStatus().name(), result.getMessage(), result);
+    }
+
+    private Result<LoginKeepAliveResult> wrap(LoginKeepAliveResult result) {
         if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
             return Result.success(result);
         }

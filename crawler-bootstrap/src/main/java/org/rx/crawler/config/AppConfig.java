@@ -20,6 +20,7 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.rx.core.Sys.fromJson;
@@ -81,9 +82,37 @@ public class AppConfig {
         private int queueTimeoutSeconds = 600;
         private boolean debugEnabled = false;
         private int maxTaskMinutes = 4;
+        private LoginNotificationConfig loginNotification = new LoginNotificationConfig();
+        private LoginKeepAliveConfig loginKeepAlive = new LoginKeepAliveConfig();
         private ChromeProfileConfig chrome = new ChromeProfileConfig();
         private JdUnionConfig jdUnion = new JdUnionConfig();
         private TbPromotionConfig tbPromotion = new TbPromotionConfig();
+    }
+
+    @Data
+    public static class LoginNotificationConfig {
+        private boolean enabled = false;
+        private long minIntervalSeconds = 300;
+        private MailNotificationConfig mail = new MailNotificationConfig();
+    }
+
+    @Data
+    public static class MailNotificationConfig {
+        private boolean enabled = true;
+        private String from = "";
+        private List<String> to = new ArrayList<String>();
+        private List<String> cc = new ArrayList<String>();
+        private String subjectPrefix = "[rx-mercury]";
+    }
+
+    @Data
+    public static class LoginKeepAliveConfig {
+        private boolean enabled = false;
+        private boolean jdEnabled = true;
+        private boolean tbEnabled = true;
+        private long initialDelayMillis = 60000;
+        private long fixedDelayMillis = 1800000;
+        private int pageTimeoutSeconds = 60;
     }
 
     private BrowserPoolConfig browser = new BrowserPoolConfig();

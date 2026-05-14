@@ -13,6 +13,11 @@ import java.util.concurrent.TimeoutException;
 @RequiredArgsConstructor
 public class CrawlEntryService {
     private final BrowserPreflightService preflightService;
+    private final LoginNotificationService loginNotificationService;
+
+    public CrawlEntryService(BrowserPreflightService preflightService) {
+        this(preflightService, LoginNotificationService.NOOP);
+    }
 
     public CrawlEntryResult enter(Browser browser, BrowserProfileManager.ProfileLease lease, CrawlEntryOptions options)
             throws TimeoutException {
@@ -30,6 +35,9 @@ public class CrawlEntryService {
         }
 
         result.setLoginRequired(true);
+        notifyLoginRequired(options, result.getCurrentUrl(),
+                "Login required. Finish login in the opened Chrome profile, then retry.");
+        result.getDiagnostics().put("loginNotificationAttempted", true);
         if (options.isKeepBrowserOpenOnLoginRequired() && waitLoginCompleted(browser, options, result)) {
             result.setLoginRequired(false);
             result.setCurrentUrl(browser.getCurrentUrl());
@@ -44,6 +52,22 @@ public class CrawlEntryService {
             lease.keepOpen(options.getKeepBrowserOpenSecondsOnLoginRequired());
         }
         return result;
+    }
+
+    public void notifyLoginRequired(LoginNotificationContext context) {
+        loginNotificationService.notifyLoginRequired(context);
+    }
+
+    public void notifyLoginRequired(CrawlEntryOptions options, String currentUrl, String message) {
+        LoginNotificationContext context = new LoginNotificationContext();
+        context.setTaskType(options.getTaskType());
+        context.setProfileName(options.getProfileName());
+        context.setInitialUrl(options.getInitialUrl());
+        context.setCurrentUrl(currentUrl);
+        context.setMessage(message);
+        context.setLoginWaitSeconds(options.getLoginWaitSeconds());
+        context.setKeepBrowserOpenSeconds(options.getKeepBrowserOpenSecondsOnLoginRequired());
+        notifyLoginRequired(context);
     }
 
     private boolean runPreflight(Browser browser, CrawlEntryOptions options, CrawlEntryResult result) {

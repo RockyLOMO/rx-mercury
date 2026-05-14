@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 
 @Data
 public class CrawlEntryOptions implements StepDelayConfig {
+    private String taskType;
     private String profileName = "common";
     private boolean preflightEnabled = true;
     private String preflightUrl = "https://bot.sannysoft.com/";

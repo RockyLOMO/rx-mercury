@@ -55,6 +55,22 @@ app:
     queueTimeoutSeconds: 600
     debugEnabled: false
     maxTaskMinutes: 4
+    loginNotification:
+      enabled: false
+      minIntervalSeconds: 300
+      mail:
+        enabled: true
+        from:
+        to: []
+        cc: []
+        subjectPrefix: "[rx-mercury]"
+    loginKeepAlive:
+      enabled: false
+      jdEnabled: true
+      tbEnabled: true
+      initialDelayMillis: 60000
+      fixedDelayMillis: 1800000
+      pageTimeoutSeconds: 60
     chrome:
       profileBasePath: D:/app-crawler/data/chrome
       defaultProfileName: common

@@ -16,6 +16,7 @@ import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
+import org.rx.crawler.task.common.LoginNotificationContext;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.crawler.task.jd.JdUnionProductInfoDto;
 import org.rx.exception.InvalidException;
@@ -118,6 +119,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
 
     private CrawlEntryOptions createEntryOptions(TbPromotionUrlRequest request, TbPromotionConfig config) {
         CrawlEntryOptions options = new CrawlEntryOptions();
+        options.setTaskType(TASK_TYPE);
         options.setProfileName(request.getProfileName());
         options.setPreflightEnabled(config.isPreflightEnabled());
         options.setPreflightUrl(config.getPreflightUrl());
@@ -1250,6 +1252,26 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     private void fail(TbPromotionUrlResult result, CustomCrawlStatus status, String message) {
         result.setStatus(status);
         result.setMessage(message == null ? "" : message);
+        if (status == CustomCrawlStatus.LOGIN_REQUIRED) {
+            result.setLoginRequired(true);
+            notifyLoginRequired(result);
+        }
+    }
+
+    private void notifyLoginRequired(TbPromotionUrlResult result) {
+        if (Boolean.TRUE.equals(result.getDiagnostics().get("loginNotificationAttempted"))) {
+            return;
+        }
+        result.getDiagnostics().put("loginNotificationAttempted", true);
+        LoginNotificationContext context = new LoginNotificationContext();
+        context.setTaskType(TASK_TYPE);
+        context.setProfileName(result.getProfileName());
+        context.setInitialUrl(appConfig.getCustom().getTbPromotion().getHomeUrl());
+        context.setCurrentUrl(result.getCurrentUrl());
+        context.setMessage(result.getMessage());
+        context.setLoginWaitSeconds(appConfig.getCustom().getTbPromotion().getLoginWaitSeconds());
+        context.setKeepBrowserOpenSeconds(appConfig.getCustom().getTbPromotion().getKeepBrowserOpenSecondsOnLoginRequired());
+        entryService.notifyLoginRequired(context);
     }
 
     private String bodySnippet(Browser browser) {
