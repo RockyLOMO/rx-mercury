@@ -21,6 +21,7 @@ import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
+import org.rx.crawler.task.common.KeepAliveUrlStore;
 import org.rx.crawler.task.common.LoginNotificationContext;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
@@ -65,7 +66,13 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
     private final CrawlEntryService entryService;
     private final ResultWriter resultWriter;
     private final ObjectMapper objectMapper;
+    private final KeepAliveUrlStore keepAliveUrlStore;
     private final ThreadLocal<Long> taskDeadlineHolder = new ThreadLocal<Long>();
+
+    public JdUnionPromotionTask(AppConfig appConfig, BrowserProfileManager profileManager, CrawlEntryService entryService,
+            ResultWriter resultWriter, ObjectMapper objectMapper) {
+        this(appConfig, profileManager, entryService, resultWriter, objectMapper, KeepAliveUrlStore.NOOP);
+    }
 
     @Override
     public String taskType() {
@@ -175,6 +182,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
             if (!doPromotion) {
                 result.setStatus(CustomCrawlStatus.SUCCESS);
                 result.setMessage("JD Union login state is valid");
+                keepAliveUrlStore.collect("jd", browser, result.getDiagnostics());
                 return result;
             }
             runPromotionFlow(browser, request, jdConfig, result, debug);
@@ -388,6 +396,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         } catch (Exception e) {
             log.warn("save promotion cookies fail, error={}", e.getMessage());
         }
+        keepAliveUrlStore.collect("jd", browser, result.getDiagnostics());
         debug.snapshot(browser, "14-promotion-link-ready");
     }
 
@@ -464,6 +473,7 @@ public class JdUnionPromotionTask implements CustomCrawlTask<JdUnionPromotionReq
         } catch (Exception e) {
             log.warn("save promotion orders cookies fail, error={}", e.getMessage());
         }
+        keepAliveUrlStore.collect("jd", browser, result.getDiagnostics());
     }
 
     private List<JdUnionPromotionOrderItem> readOrderRowsByScrolling(Browser browser, JdUnionConfig config) throws TimeoutException {

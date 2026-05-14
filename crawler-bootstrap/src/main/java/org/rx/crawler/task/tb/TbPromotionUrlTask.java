@@ -16,6 +16,7 @@ import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
+import org.rx.crawler.task.common.KeepAliveUrlStore;
 import org.rx.crawler.task.common.LoginNotificationContext;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.crawler.task.jd.JdUnionProductInfoDto;
@@ -52,8 +53,14 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
     private final CrawlEntryService entryService;
     private final ResultWriter resultWriter;
     private final ObjectMapper objectMapper;
+    private final KeepAliveUrlStore keepAliveUrlStore;
     private final SliderVerifyHandler sliderVerifyHandler = new SliderVerifyHandler();
     private final ThreadLocal<Long> taskDeadlineHolder = new ThreadLocal<Long>();
+
+    public TbPromotionUrlTask(AppConfig appConfig, BrowserProfileManager profileManager, CrawlEntryService entryService,
+            ResultWriter resultWriter, ObjectMapper objectMapper) {
+        this(appConfig, profileManager, entryService, resultWriter, objectMapper, KeepAliveUrlStore.NOOP);
+    }
 
     @Override
     public String taskType() {
@@ -362,6 +369,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<TbPromotionUrlRequest
         } catch (Exception e) {
             log.warn("save TB promotion cookies fail, error={}", e.getMessage());
         }
+        keepAliveUrlStore.collect("tb", browser, result.getDiagnostics());
         debug.snapshot(browser, "15-promotion-url-ready");
     }
 

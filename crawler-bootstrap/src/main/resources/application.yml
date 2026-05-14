@@ -20,6 +20,16 @@ apollo:
     namespaces: application,middleware
 app:
   id: svc-mercury
+  smtp:
+    host:
+    port:
+    ssl:
+    startTls:
+    timeoutMillis:
+    username:
+    password:
+    from:
+    to:
   net:
     connectTimeoutMillis: 40000
     ntp:
@@ -60,9 +70,6 @@ app:
       minIntervalSeconds: 300
       mail:
         enabled: true
-        from:
-        to: []
-        cc: []
         subjectPrefix: "[rx-mercury]"
     loginKeepAlive:
       enabled: false
@@ -71,6 +78,10 @@ app:
       initialDelayMillis: 60000
       fixedDelayMillis: 1800000
       pageTimeoutSeconds: 60
+      harvestEnabled: true
+      harvestPerRunCount: 5
+      maxUrlsPerPlatform: 50
+      urlStorePath: D:/app-crawler/data/keepalive/urls.json
     chrome:
       profileBasePath: D:/app-crawler/data/chrome
       defaultProfileName: common

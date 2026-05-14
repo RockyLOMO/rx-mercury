@@ -4,14 +4,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Strings;
 import org.rx.crawler.config.AppConfig;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.rx.util.Helper;
 import org.springframework.stereotype.Service;
+import org.springframework.service.MiddlewareConfig;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -21,7 +19,7 @@ public class MailLoginNotificationService implements LoginNotificationService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final AppConfig appConfig;
-    private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final MiddlewareConfig middlewareConfig;
     private final ConcurrentHashMap<String, Long> sentAtMillisMap = new ConcurrentHashMap<String, Long>();
 
     @Override
@@ -32,9 +30,11 @@ public class MailLoginNotificationService implements LoginNotificationService {
             return;
         }
         AppConfig.MailNotificationConfig mailConfig = config.getMail();
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null || Strings.isEmpty(mailConfig.getFrom()) || isEmpty(mailConfig.getTo())) {
-            log.warn("Login notification skipped, mail sender/from/to is not configured");
+        if (middlewareConfig == null || middlewareConfig.getSmtp() == null
+                || Strings.isEmpty(middlewareConfig.getSmtp().getUsername())
+                || Strings.isEmpty(middlewareConfig.getSmtp().getPassword())
+                || Strings.isEmpty(middlewareConfig.getSmtp().getTo())) {
+            log.warn("Login notification skipped, middleware smtp config is not configured");
             return;
         }
 
@@ -49,15 +49,7 @@ public class MailLoginNotificationService implements LoginNotificationService {
         sentAtMillisMap.put(key, now);
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(mailConfig.getFrom());
-            message.setTo(mailConfig.getTo().toArray(new String[0]));
-            if (!isEmpty(mailConfig.getCc())) {
-                message.setCc(mailConfig.getCc().toArray(new String[0]));
-            }
-            message.setSubject(subject(mailConfig, context));
-            message.setText(body(context));
-            mailSender.send(message);
+            Helper.sendEmail(body(mailConfig, context));
             log.info("Login notification mail sent, taskType={}, profile={}", context.getTaskType(),
                     context.getProfileName());
         } catch (Exception e) {
@@ -65,10 +57,6 @@ public class MailLoginNotificationService implements LoginNotificationService {
             log.warn("Send login notification mail fail, taskType={}, profile={}, error={}",
                     context.getTaskType(), context.getProfileName(), e.getMessage(), e);
         }
-    }
-
-    private boolean isEmpty(List<String> list) {
-        return list == null || list.isEmpty();
     }
 
     private String dedupeKey(LoginNotificationContext context) {
@@ -81,9 +69,10 @@ public class MailLoginNotificationService implements LoginNotificationService {
         return prefix + " 任务需要人工登录: " + value(context.getTaskType());
     }
 
-    private String body(LoginNotificationContext context) {
+    private String body(AppConfig.MailNotificationConfig mailConfig, LoginNotificationContext context) {
         StringBuilder builder = new StringBuilder();
-        builder.append("任务需要人工登录接管，请在已打开的 Chrome profile 中完成登录。").append(System.lineSeparator())
+        builder.append(subject(mailConfig, context)).append(System.lineSeparator())
+                .append("任务需要人工登录接管，请在已打开的 Chrome profile 中完成登录。").append(System.lineSeparator())
                 .append(System.lineSeparator())
                 .append("任务类型: ").append(value(context.getTaskType())).append(System.lineSeparator())
                 .append("Chrome profile: ").append(value(context.getProfileName())).append(System.lineSeparator())

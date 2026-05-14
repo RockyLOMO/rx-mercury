@@ -1,19 +1,19 @@
 package org.rx.test;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.ArgumentCaptor;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.task.common.LoginNotificationContext;
 import org.rx.crawler.task.common.MailLoginNotificationService;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.rx.util.Helper;
+import org.springframework.service.MiddlewareConfig;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @SuppressWarnings("unchecked")
 public class LoginNotificationServiceTest {
@@ -22,14 +22,14 @@ public class LoginNotificationServiceTest {
         AppConfig appConfig = new AppConfig();
         appConfig.getCustom().getLoginNotification().setEnabled(true);
         appConfig.getCustom().getLoginNotification().setMinIntervalSeconds(300);
-        appConfig.getCustom().getLoginNotification().getMail().setFrom("robot@example.com");
-        appConfig.getCustom().getLoginNotification().getMail().getTo().add("ops@example.com");
+        MiddlewareConfig middlewareConfig = new MiddlewareConfig();
+        MiddlewareConfig.SmtpConfig smtp = new MiddlewareConfig.SmtpConfig();
+        smtp.setUsername("robot@example.com");
+        smtp.setPassword("pwd");
+        smtp.setTo("ops@example.com");
+        middlewareConfig.setSmtp(smtp);
 
-        JavaMailSender mailSender = mock(JavaMailSender.class);
-        ObjectProvider<JavaMailSender> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(mailSender);
-
-        MailLoginNotificationService service = new MailLoginNotificationService(appConfig, provider);
+        MailLoginNotificationService service = new MailLoginNotificationService(appConfig, middlewareConfig);
         LoginNotificationContext context = new LoginNotificationContext();
         context.setTaskType("getPromotionUrl");
         context.setProfileName("common");
@@ -39,27 +39,27 @@ public class LoginNotificationServiceTest {
         context.setLoginWaitSeconds(180);
         context.setKeepBrowserOpenSeconds(180);
 
-        service.notifyLoginRequired(context);
-        service.notifyLoginRequired(context);
+        try (MockedStatic<Helper> helper = org.mockito.Mockito.mockStatic(Helper.class)) {
+            service.notifyLoginRequired(context);
+            service.notifyLoginRequired(context);
 
-        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender).send(captor.capture());
-        SimpleMailMessage message = captor.getValue();
-        assertTrue(message.getSubject().contains("getPromotionUrl"));
-        assertTrue(message.getText().contains("任务需要人工登录接管"));
-        assertTrue(message.getText().contains("common"));
+            helper.verify(() -> Helper.sendEmail(anyString()));
+            ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+            helper.verify(() -> Helper.sendEmail(body.capture()));
+            assertTrue(body.getValue().contains("getPromotionUrl"));
+            assertTrue(body.getValue().contains("任务需要人工登录接管"));
+            assertTrue(body.getValue().contains("common"));
+        }
     }
 
     @Test
     public void notifyLoginRequiredShouldSkipWhenDisabled() {
         AppConfig appConfig = new AppConfig();
-        JavaMailSender mailSender = mock(JavaMailSender.class);
-        ObjectProvider<JavaMailSender> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(mailSender);
-
-        MailLoginNotificationService service = new MailLoginNotificationService(appConfig, provider);
-        service.notifyLoginRequired(new LoginNotificationContext());
-
-        verify(mailSender, never()).send(org.mockito.ArgumentMatchers.any(SimpleMailMessage.class));
+        MiddlewareConfig middlewareConfig = mock(MiddlewareConfig.class);
+        MailLoginNotificationService service = new MailLoginNotificationService(appConfig, middlewareConfig);
+        try (MockedStatic<Helper> helper = org.mockito.Mockito.mockStatic(Helper.class)) {
+            service.notifyLoginRequired(new LoginNotificationContext());
+            helper.verify(() -> Helper.sendEmail(anyString()), never());
+        }
     }
 }

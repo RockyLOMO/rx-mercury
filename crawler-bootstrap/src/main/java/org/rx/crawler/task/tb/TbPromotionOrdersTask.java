@@ -20,6 +20,7 @@ import org.rx.crawler.task.common.CrawlEntryResult;
 import org.rx.crawler.task.common.CrawlEntryService;
 import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlTask;
+import org.rx.crawler.task.common.KeepAliveUrlStore;
 import org.rx.crawler.task.common.LoginNotificationContext;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
@@ -71,8 +72,14 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     private final CrawlEntryService entryService;
     private final ResultWriter resultWriter;
     private final ObjectMapper objectMapper;
+    private final KeepAliveUrlStore keepAliveUrlStore;
     private final SliderVerifyHandler sliderVerifyHandler = new SliderVerifyHandler();
     private final ThreadLocal<Long> taskDeadlineHolder = new ThreadLocal<Long>();
+
+    public TbPromotionOrdersTask(AppConfig appConfig, BrowserProfileManager profileManager, CrawlEntryService entryService,
+            ResultWriter resultWriter, ObjectMapper objectMapper) {
+        this(appConfig, profileManager, entryService, resultWriter, objectMapper, KeepAliveUrlStore.NOOP);
+    }
 
     @Override
     public String taskType() {
@@ -283,6 +290,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         result.getDiagnostics().put("pages", pageNo);
         result.getDiagnostics().put("orderCount", result.getOrders().size());
         result.setStatus(CustomCrawlStatus.SUCCESS);
+        keepAliveUrlStore.collect("tb", browser, result.getDiagnostics());
     }
 
     /**

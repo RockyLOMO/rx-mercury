@@ -99,9 +99,6 @@ public class AppConfig {
     @Data
     public static class MailNotificationConfig {
         private boolean enabled = true;
-        private String from = "";
-        private List<String> to = new ArrayList<String>();
-        private List<String> cc = new ArrayList<String>();
         private String subjectPrefix = "[rx-mercury]";
     }
 
@@ -113,6 +110,10 @@ public class AppConfig {
         private long initialDelayMillis = 60000;
         private long fixedDelayMillis = 1800000;
         private int pageTimeoutSeconds = 60;
+        private boolean harvestEnabled = true;
+        private int harvestPerRunCount = 5;
+        private int maxUrlsPerPlatform = 50;
+        private String urlStorePath = "D:/app-crawler/data/keepalive/urls.json";
     }
 
     private BrowserPoolConfig browser = new BrowserPoolConfig();

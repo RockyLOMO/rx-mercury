@@ -35,7 +35,13 @@ public class LoginKeepAliveService {
     private final AppConfig appConfig;
     private final BrowserProfileManager profileManager;
     private final CrawlEntryService entryService;
+    private final KeepAliveUrlStore keepAliveUrlStore;
     private final AtomicBoolean running = new AtomicBoolean(false);
+
+    public LoginKeepAliveService(AppConfig appConfig, BrowserProfileManager profileManager,
+            CrawlEntryService entryService) {
+        this(appConfig, profileManager, entryService, KeepAliveUrlStore.NOOP);
+    }
 
     @Scheduled(initialDelayString = "${app.custom.loginKeepAlive.initialDelayMillis:60000}",
             fixedDelayString = "${app.custom.loginKeepAlive.fixedDelayMillis:1800000}")
@@ -65,6 +71,7 @@ public class LoginKeepAliveService {
         addUrl(urls, config.getEntireUrl());
         addUrl(urls, config.getOrderUrl());
         addUrl(urls, config.getWorkbenchUrl());
+        urls = keepAliveUrlStore.getCandidateUrls(JD_PLATFORM, urls);
         return check(JD_PLATFORM, JD_TASK_TYPE, profileName, pickUrl(urls), config.getLoginWaitSeconds(),
                 config.getKeepBrowserOpenSecondsOnLoginRequired(), config.isHeadless(), config.isFingerprintEnabled());
     }
@@ -77,6 +84,7 @@ public class LoginKeepAliveService {
         addUrl(urls, config.getHomeUrl());
         addUrl(urls, config.getPromotionGoodsUrl());
         addUrl(urls, config.getOrderUrl());
+        urls = keepAliveUrlStore.getCandidateUrls(TB_PLATFORM, urls);
         return check(TB_PLATFORM, TB_TASK_TYPE, profileName, pickUrl(urls), config.getLoginWaitSeconds(),
                 config.getKeepBrowserOpenSecondsOnLoginRequired(), config.isHeadless(), config.isFingerprintEnabled());
     }
@@ -105,6 +113,7 @@ public class LoginKeepAliveService {
         result.setTaskType(taskType);
         result.setProfileName(profileName);
         result.setCheckedUrl(url);
+        result.getDiagnostics().put("candidateUrlSource", "harvested+default");
         BrowserProfileManager.ProfileLease lease = null;
         try {
             lease = profileManager.acquire(profileName, createBrowserConfig(profileName, headless, fingerprintEnabled));

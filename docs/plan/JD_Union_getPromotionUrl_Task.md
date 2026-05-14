@@ -258,37 +258,33 @@ Content-Type: application/json
 ## 登录接管通知
 
 - 公共前置流程检测到登录页时，会触发 `LoginNotificationService` 通知人工接管；任务内部二次跳到登录页时也会补发通知。
-- 当前通知实现为邮件提醒，默认关闭；开启后需要同时配置 `spring.mail.*` SMTP 参数和 `app.custom.loginNotification.mail` 收发件人。
+- 当前通知实现为邮件提醒，默认关闭；开启后通过 `rxlib-x` 的 `Helper.sendEmail(...)` 发送，SMTP 配置来自 `MiddlewareConfig.smtp.*`。
 - 同一 `taskType + profileName + currentUrl` 默认 300 秒内只提醒一次，避免轮询或重试时重复发邮件。
 - 定时登录保活由 `LoginKeepAliveService` 负责，JD 两个任务共用 `jdLoginKeepAlive`，TB 两个任务共用 `tbLoginKeepAlive`。
 - 保活逻辑会随机访问一个平台业务页；如果 URL 或页面内容显示返回登录页，结果标记为 `LOGIN_REQUIRED`，保留浏览器并触发人工通知。
+- 每次任务成功后，会从当前页面随机提取几个同域名链接，持久化到本地 URL 仓库；后续保活优先从这些动态 URL 中随机挑选。
 - 保活默认关闭，避免发布后未经配置就周期性打开 Chrome；开启后可通过 HTTP 手动触发检查。
 
 配置示例：
 
 ```yaml
 spring:
-  mail:
-    host: smtp.example.com
-    port: 465
+app:
+  smtp:
+    host: smtp.gmail.com
+    port: 587
+    startTls: true
+    timeoutMillis: 15000
     username: robot@example.com
     password: ${MAIL_PASSWORD}
-    properties:
-      mail.smtp.auth: true
-      mail.smtp.ssl.enable: true
-      mail.smtp.connectiontimeout: 5000
-      mail.smtp.timeout: 5000
-      mail.smtp.writetimeout: 5000
-app:
+    from: robot@example.com
+    to: ops@example.com
   custom:
     loginNotification:
       enabled: true
       minIntervalSeconds: 300
       mail:
         enabled: true
-        from: robot@example.com
-        to:
-          - ops@example.com
         subjectPrefix: "[rx-mercury]"
     loginKeepAlive:
       enabled: true
@@ -297,6 +293,10 @@ app:
       initialDelayMillis: 60000
       fixedDelayMillis: 1800000
       pageTimeoutSeconds: 60
+      harvestEnabled: true
+      harvestPerRunCount: 5
+      maxUrlsPerPlatform: 50
+      urlStorePath: D:/app-crawler/data/keepalive/urls.json
 ```
 
 手动检查入口：
