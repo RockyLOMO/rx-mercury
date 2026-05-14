@@ -3,7 +3,6 @@ package org.rx.crawler.task.common;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.crawler.config.AppConfig;
-import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
@@ -59,6 +58,13 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     }
 
     @Override
+    public List<PromotionUrlResult> getPromotionUrls(List<String> keywords) {
+        List<PromotionUrlResult> results = jdUnionPromotionTask.getPromotionUrls(keywords);
+        publishDirect(EVENT_PROMOTION_URLS_RESULT, results);
+        return results;
+    }
+
+    @Override
     public JdUnionPromotionOrdersResult getPromotionOrders(JdUnionPromotionOrdersRequest request) {
         JdUnionPromotionOrdersResult result = jdUnionPromotionTask.getPromotionOrders(request);
         publishDirect(EVENT_PROMOTION_ORDERS_RESULT, result);
@@ -80,15 +86,17 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     }
 
     @Override
+    public List<PromotionUrlResult> getTbPromotionUrls(List<String> keywords) {
+        List<PromotionUrlResult> results = tbPromotionUrlTask.getPromotionUrls(keywords);
+        publishDirect(EVENT_TB_PROMOTION_URLS_RESULT, results);
+        return results;
+    }
+
+    @Override
     public PromotionUrlResult loginCheck(PromotionUrlRequest request) {
         PromotionUrlResult result = jdUnionPromotionTask.loginCheck(request);
         publishDirect(EVENT_PROMOTION_RESULT, result);
         return result;
-    }
-
-    @Override
-    public List<PromotionUrlResult> batch(JdUnionBatchRequest request) {
-        return jdUnionPromotionTask.batch(request);
     }
 
     @Override

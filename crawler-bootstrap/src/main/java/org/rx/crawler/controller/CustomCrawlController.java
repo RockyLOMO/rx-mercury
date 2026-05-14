@@ -7,7 +7,6 @@ import org.rx.crawler.task.common.CustomCrawlStatus;
 import org.rx.crawler.task.common.CustomCrawlQueueService;
 import org.rx.crawler.task.common.LoginKeepAliveResult;
 import org.rx.crawler.task.common.LoginKeepAliveService;
-import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.common.PromotionUrlRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
@@ -38,6 +37,12 @@ public class CustomCrawlController {
         return wrap(result);
     }
 
+    @PostMapping("/jd-union/getPromotionUrls")
+    public Result<List<PromotionUrlResult>> getPromotionUrls(@RequestBody List<String> keywords) {
+        List<PromotionUrlResult> results = taskQueueService.submitAndWaitJdPromotionUrls(keywords);
+        return Result.success(results);
+    }
+
     @PostMapping("/jd-union/getPromotionOrders")
     public Result<JdUnionPromotionOrdersResult> getPromotionOrders(@Valid @RequestBody JdUnionPromotionOrdersRequest request) {
         JdUnionPromotionOrdersResult result = taskQueueService.submitAndWaitOrders("getPromotionOrders", request);
@@ -56,6 +61,12 @@ public class CustomCrawlController {
         return wrap(result);
     }
 
+    @PostMapping("/tb/getPromotionUrls")
+    public Result<List<PromotionUrlResult>> getTbPromotionUrls(@RequestBody List<String> keywords) {
+        List<PromotionUrlResult> results = taskQueueService.submitAndWaitTbPromotionUrls(keywords);
+        return Result.success(results);
+    }
+
     @PostMapping("/jd-union/login/check")
     public Result<PromotionUrlResult> loginCheck(@RequestBody(required = false) PromotionUrlRequest request) {
         PromotionUrlResult result = taskQueueService.submitAndWait("loginCheck", request, PromotionUrlResult.class);
@@ -72,12 +83,6 @@ public class CustomCrawlController {
     public Result<LoginKeepAliveResult> tbLoginKeepAlive() {
         LoginKeepAliveResult result = loginKeepAliveService.checkTb();
         return wrap(result);
-    }
-
-    @PostMapping("/jd-union/promotion/batch")
-    public Result<List<PromotionUrlResult>> batch(@RequestBody JdUnionBatchRequest request) {
-        List<PromotionUrlResult> results = taskQueueService.batch(request);
-        return Result.success(results);
     }
 
     @PostMapping("/profile/close")

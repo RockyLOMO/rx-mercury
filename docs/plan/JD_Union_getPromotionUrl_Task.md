@@ -350,7 +350,6 @@ Remoting.register(this, appConfig.getCustom().getRemotingListenPort(), false);
 - `org.rx.crawler.task.common.PromotionUrlResult`
 - `org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest`
 - `org.rx.crawler.task.jd.JdUnionPromotionOrdersResult`
-- `org.rx.crawler.task.jd.JdUnionBatchRequest`
 
 外部项目可直接依赖：
 
@@ -398,6 +397,14 @@ public class JdUnionGetPromotionUrlClient {
 PromotionUrlResult result = client.getPromotionUrl(request);
 ```
 
+批量推广链接调用：
+
+```java
+List<PromotionUrlResult> results = client.getPromotionUrls(Arrays.asList("100059484008", "100002715968"));
+```
+
+`getPromotionUrls(List<String> keywords)` 只接收商品关键词列表，任务会复用单条 `getPromotionUrl` 的抓取逻辑；Sannysoft、登录接管、进入京东联盟商品推广工作台只执行一次，从输入 `keyword` 开始循环抓取每个商品，返回 `List<PromotionUrlResult>`。批量模式默认使用配置项 `app.custom.jdUnion.defaultAdSiteName` 作为推广位。
+
 ## HTTP 调用入口
 
 除 remoting 外，当前项目也暴露 HTTP 入口：
@@ -415,6 +422,21 @@ Content-Type: application/json
   "adSiteName": "5"
 }
 ```
+
+批量入口：
+
+```http
+POST /custom/jd-union/getPromotionUrls
+Content-Type: application/json
+```
+
+请求体是字符串数组：
+
+```json
+["100059484008", "100002715968"]
+```
+
+响应外层为 `Result<List<PromotionUrlResult>>`。
 
 响应外层为统一 `Result<T>`：
 

@@ -35,6 +35,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,6 +79,10 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
 
     public PromotionUrlResult getPromotionUrl(PromotionUrlRequest request) {
         return executeInternal(request);
+    }
+
+    public List<PromotionUrlResult> getPromotionUrls(List<String> keywords) {
+        return executeBatchInternal(keywords);
     }
 
     public boolean closeProfile(String profileName) {
@@ -128,6 +133,139 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
         }
     }
 
+    private List<PromotionUrlResult> executeBatchInternal(List<String> keywords) {
+        TbPromotionConfig tbConfig = appConfig.getCustom().getTbPromotion();
+        List<PromotionUrlRequest> requests = createBatchRequests(keywords, tbConfig);
+        List<PromotionUrlResult> results = new ArrayList<PromotionUrlResult>();
+        List<DebugRecorder> debugs = new ArrayList<DebugRecorder>();
+        for (PromotionUrlRequest request : requests) {
+            PromotionUrlResult result = createResult(request);
+            DebugRecorder debug = new DebugRecorder(request, tbConfig);
+            if (debug.enabled()) {
+                result.getDiagnostics().put("debugEnabled", true);
+                result.getDiagnostics().put("debugOutputDir", debug.getTaskDir().toString());
+            }
+            results.add(result);
+            debugs.add(debug);
+        }
+        if (requests.isEmpty()) {
+            return results;
+        }
+
+        BrowserProfileManager.ProfileLease lease = null;
+        boolean[] written = new boolean[results.size()];
+        taskDeadlineHolder.set(System.currentTimeMillis()
+                + TimeUnit.MINUTES.toMillis(Math.max(1, appConfig.getCustom().getMaxTaskMinutes())
+                * Math.max(1, requests.size())));
+        try {
+            lease = profileManager.acquire(requests.get(0).getProfileName(), createBrowserConfig(requests.get(0), tbConfig));
+            Browser browser = lease.getBrowser();
+
+            CrawlEntryResult entry = entryService.enter(browser, lease, createEntryOptions(requests.get(0), tbConfig));
+            for (PromotionUrlResult result : results) {
+                applyEntryResult(result, entry);
+            }
+            debugs.get(0).snapshot(browser, "01-entry");
+            if (!entry.isPassed()) {
+                for (DebugRecorder debug : debugs) {
+                    debug.snapshotText("01-entry-failed", entry.getMessage());
+                }
+                return results;
+            }
+
+            if (!preparePromotionGoodsPage(browser, tbConfig, results.get(0), debugs.get(0))) {
+                copyFailureToRemaining(results);
+                return results;
+            }
+
+            for (int i = 0; i < requests.size(); i++) {
+                PromotionUrlRequest request = requests.get(i);
+                PromotionUrlResult result = results.get(i);
+                DebugRecorder debug = debugs.get(i);
+                try {
+                    if (i > 0 && !ensurePromotionGoodsPageForNextTbKeyword(browser, tbConfig, result, debug)) {
+                        continue;
+                    }
+                    runPromotionKeywordFlow(browser, request, tbConfig, result, debug);
+                } catch (TimeoutException e) {
+                    fail(result, CustomCrawlStatus.TIMEOUT, e.getMessage());
+                    debug.snapshotText("99-timeout", result.getMessage());
+                    failRemaining(results, i + 1, CustomCrawlStatus.TIMEOUT, e.getMessage());
+                    return results;
+                } catch (Exception e) {
+                    log.warn("TB batch promotion url fail, productInfo={}, adSiteName={}, profile={}, error={}",
+                            request.getKeyword(), request.getAdSiteName(), request.getProfileName(), e.getMessage(), e);
+                    fail(result, CustomCrawlStatus.FAILED, e.getMessage());
+                    debug.snapshotText("99-failed", result.getMessage());
+                } finally {
+                    resultWriter.appendJsonLine(request.getOutputPath(), result);
+                    written[i] = true;
+                }
+            }
+            return results;
+        } catch (TimeoutException e) {
+            failRemaining(results, 0, CustomCrawlStatus.TIMEOUT, e.getMessage());
+            debugs.get(0).snapshotText("99-timeout", e.getMessage());
+            return results;
+        } catch (Exception e) {
+            log.warn("TB batch promotion url fail, profile={}, error={}",
+                    requests.get(0).getProfileName(), e.getMessage(), e);
+            failRemaining(results, 0, CustomCrawlStatus.FAILED, e.getMessage());
+            debugs.get(0).snapshotText("99-failed", e.getMessage());
+            return results;
+        } finally {
+            for (int i = 0; i < results.size(); i++) {
+                if (!written[i]) {
+                    resultWriter.appendJsonLine(requests.get(i).getOutputPath(), results.get(i));
+                }
+            }
+            tryClose(lease);
+            taskDeadlineHolder.remove();
+        }
+    }
+
+    private List<PromotionUrlRequest> createBatchRequests(List<String> keywords, TbPromotionConfig config) {
+        List<PromotionUrlRequest> requests = new ArrayList<PromotionUrlRequest>();
+        if (keywords == null) {
+            return requests;
+        }
+        for (String keyword : keywords) {
+            if (Strings.isEmpty(keyword)) {
+                throw new InvalidException("productInfo is required");
+            }
+            PromotionUrlRequest request = new PromotionUrlRequest();
+            request.setKeyword(keyword);
+            request.setAdSiteName(config.getDefaultAdSiteName());
+            requests.add(normalizeRequest(request, config));
+        }
+        return requests;
+    }
+
+    private void copyFailureToRemaining(List<PromotionUrlResult> results) {
+        if (results.isEmpty()) {
+            return;
+        }
+        PromotionUrlResult source = results.get(0);
+        for (int i = 1; i < results.size(); i++) {
+            PromotionUrlResult result = results.get(i);
+            result.setCurrentUrl(source.getCurrentUrl());
+            result.setLoginRequired(source.isLoginRequired());
+            result.setFingerprintPassed(source.isFingerprintPassed());
+            result.getDiagnostics().putAll(source.getDiagnostics());
+            fail(result, source.getStatus(), source.getMessage());
+        }
+    }
+
+    private void failRemaining(List<PromotionUrlResult> results, int startIndex, CustomCrawlStatus status, String message) {
+        for (int i = Math.max(0, startIndex); i < results.size(); i++) {
+            PromotionUrlResult result = results.get(i);
+            if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
+                continue;
+            }
+            fail(result, status, message);
+        }
+    }
+
     private CrawlEntryOptions createEntryOptions(PromotionUrlRequest request, TbPromotionConfig config) {
         CrawlEntryOptions options = new CrawlEntryOptions();
         options.setTaskType(TASK_TYPE);
@@ -157,6 +295,14 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
 
     private void runPromotionFlow(Browser browser, PromotionUrlRequest request, TbPromotionConfig config,
             PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
+        if (!preparePromotionGoodsPage(browser, config, result, debug)) {
+            return;
+        }
+        runPromotionKeywordFlow(browser, request, config, result, debug);
+    }
+
+    private boolean preparePromotionGoodsPage(Browser browser, TbPromotionConfig config,
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         browser.maximize();
         if (completeForwardLanding(browser, config)) {
             debug.snapshot(browser, "02-forward-landing-entered");
@@ -166,7 +312,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
             result.getDiagnostics().put("currentUrl", browser.getCurrentUrl());
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "02-forward-landing-incomplete");
-            return;
+            return false;
         }
 
         browser.navigateUrl(config.getPromotionGoodsUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
@@ -178,7 +324,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
                     "TB promotion login expired before entering goods page. Finish login in the opened common Chrome profile, then retry.");
             result.setLoginRequired(true);
             debug.snapshot(browser, "02-goods-login-required");
-            return;
+            return false;
         }
         if (!waitGoodsPageReady(browser, config, result, debug)) {
             String message = Boolean.TRUE.equals(result.getDiagnostics().get("02-goods-ready-sliderSliderVerify"))
@@ -187,16 +333,20 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
             fail(result, CustomCrawlStatus.PAGE_CHANGED, message);
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "02-goods-page-not-ready");
-            return;
+            return false;
         }
         if (!checkAndWaitSliderVerify(browser, config, result, debug, "02-goods-slider")) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion slider verify not cleared before search");
             result.getDiagnostics().put("body", bodySnippet(browser));
             debug.snapshot(browser, "02-goods-slider-not-cleared");
-            return;
+            return false;
         }
         debug.snapshot(browser, "02-goods-page-ready");
+        return true;
+    }
 
+    private void runPromotionKeywordFlow(Browser browser, PromotionUrlRequest request, TbPromotionConfig config,
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         if (!nativeSetSearchValue(browser, request.getKeyword())) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion search input not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
@@ -383,6 +533,72 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
         }
         keepAliveUrlStore.collect("tb", browser, result.getDiagnostics());
         debug.snapshot(browser, "15-promotion-url-ready");
+    }
+
+    private boolean ensurePromotionGoodsPageForNextTbKeyword(Browser browser, TbPromotionConfig config,
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
+        closeTbPromotionDialogIfNeeded(browser, config);
+        if (hasGoodsSearchInput(browser)) {
+            result.setCurrentUrl(browser.getCurrentUrl());
+            debug.snapshot(browser, "02-goods-page-ready-batch");
+            return true;
+        }
+        browser.navigateUrl(config.getPromotionGoodsUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
+        Extends.sleep(config.nextStepDelayMillis());
+        result.setCurrentUrl(browser.getCurrentUrl());
+        if (isLoginRequired(result.getCurrentUrl(), config)) {
+            fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
+                    "TB promotion login expired before batch keyword search. Finish login in the opened common Chrome profile, then retry.");
+            debug.snapshot(browser, "02-goods-login-required-batch");
+            return false;
+        }
+        if (waitGoodsPageReady(browser, config, result, debug)
+                && checkAndWaitSliderVerify(browser, config, result, debug, "02-goods-slider-batch")) {
+            debug.snapshot(browser, "02-goods-page-ready-batch");
+            return true;
+        }
+        fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion goods page not ready for next keyword");
+        result.getDiagnostics().put("body", bodySnippet(browser));
+        debug.snapshot(browser, "02-goods-page-not-ready-batch");
+        return false;
+    }
+
+    private void closeTbPromotionDialogIfNeeded(Browser browser, TbPromotionConfig config) {
+        for (int i = 0; i < 2; i++) {
+            String selector = "[data-rx-tb-dialog-close='1']";
+            Boolean marked = browser.executeScript("var attr='data-rx-tb-dialog-close';" +
+                    "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                    "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                    "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                    "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
+                    "var dialogs=Array.prototype.slice.call(document.querySelectorAll('[role=\"dialog\"],.next-dialog,.ant-modal,.modal,div'));" +
+                    "var scope=null,bestTop=-999999;for(var d=0;d<dialogs.length;d++){var box=dialogs[d];if(!visible(box)){continue;}var t=text(box);if(t.indexOf('推广位')<0&&t.indexOf('一键复制')<0&&t.indexOf('文案素材')<0){continue;}var r=box.getBoundingClientRect();if(r.top>bestTop){scope=box;bestTop=r.top;}}" +
+                    "if(!scope){return false;}" +
+                    "var nodes=Array.prototype.slice.call(scope.querySelectorAll('button,a,[role=\"button\"],i,span'));" +
+                    "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e),cls=String(e.className||'').toLowerCase();" +
+                    "var closeText=t==='关闭'||t==='取消'||t==='×'||t==='x'||/close|dialog-close|next-dialog-close|icon-close/.test(cls);if(!closeText){continue;}" +
+                    "var target=e.closest('button,a,[role=\"button\"]')||e,r=target.getBoundingClientRect(),score=(t==='关闭'||t==='×'||t==='x'?0:100)+r.width*r.height/1000+Math.abs(r.top-scope.getBoundingClientRect().top);" +
+                    "if(score<bestScore){best=target;bestScore=score;}}" +
+                    "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});return true;");
+            if (!Boolean.TRUE.equals(marked)) {
+                return;
+            }
+            try {
+                browser.elementClick(selector, false);
+                Extends.sleep(Math.max(500, config.nextStepDelayMillis()));
+            } catch (Exception e) {
+                return;
+            }
+        }
+    }
+
+    private boolean hasGoodsSearchInput(Browser browser) {
+        Boolean ok = browser.executeScript("function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}" +
+                "function meta(el){return (el.getAttribute('placeholder')||'')+(el.getAttribute('aria-label')||'')+(el.name||'')+(el.id||'')+(el.className||'');}" +
+                "var nodes=Array.prototype.slice.call(document.querySelectorAll('input,textarea'));" +
+                "for(var i=0;i<nodes.length;i++){var e=nodes[i],m=meta(e);if(visible(e)&&(m.indexOf('请输入你要搜索的商品')>=0||m.indexOf('商品/类目/商品链接')>=0||/商品|类目|链接|搜索/.test(m))){return true;}}" +
+                "return false;");
+        return Boolean.TRUE.equals(ok);
     }
 
     private boolean completeForwardLanding(Browser browser, TbPromotionConfig config) throws TimeoutException {
@@ -1187,6 +1403,9 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
         }
         if (Strings.isEmpty(request.getKeyword())) {
             throw new InvalidException("productInfo is required");
+        }
+        if (Strings.isEmpty(request.getAdSiteName())) {
+            request.setAdSiteName(config.getDefaultAdSiteName());
         }
         if (Strings.isEmpty(request.getAdSiteName())) {
             throw new InvalidException("adSiteName is required");

@@ -1,6 +1,5 @@
 package org.rx.crawler.task.jd;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -33,7 +32,6 @@ import org.rx.exception.InvalidException;
 import org.rx.util.BeanMapper;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,16 +104,8 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
         return profileManager.closeSession(profileName);
     }
 
-    public List<PromotionUrlResult> batch(JdUnionBatchRequest request) {
-        List<PromotionUrlRequest> items = loadBatchItems(request);
-        List<PromotionUrlResult> results = new ArrayList<PromotionUrlResult>();
-        for (PromotionUrlRequest item : items) {
-            if (Strings.isEmpty(item.getOutputPath()) && !Strings.isEmpty(request.getOutputPath())) {
-                item.setOutputPath(request.getOutputPath());
-            }
-            results.add(getPromotionUrl(item));
-        }
-        return results;
+    public List<PromotionUrlResult> getPromotionUrls(List<String> keywords) {
+        return executeBatchInternal(keywords);
     }
 
     private JdUnionPromotionOrdersResult executeOrdersInternal(JdUnionPromotionOrdersRequest rawRequest) {
@@ -165,6 +155,9 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
     private PromotionUrlResult executeInternal(PromotionUrlRequest rawRequest, boolean doPromotion) {
         JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
         PromotionUrlRequest request = normalizeRequest(rawRequest, jdConfig);
+        if (doPromotion && Strings.isEmpty(request.getKeyword())) {
+            throw new InvalidException("keyword is required");
+        }
         PromotionUrlResult result = createResult(request);
         DebugRecorder debug = new DebugRecorder(request, jdConfig, objectMapper);
         if (debug.enabled()) {
@@ -207,6 +200,139 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
             resultWriter.appendJsonLine(request.getOutputPath(), result);
             tryClose(lease);
             taskDeadlineHolder.remove();
+        }
+    }
+
+    private List<PromotionUrlResult> executeBatchInternal(List<String> keywords) {
+        JdUnionConfig jdConfig = appConfig.getCustom().getJdUnion();
+        List<PromotionUrlRequest> requests = createBatchRequests(keywords, jdConfig);
+        List<PromotionUrlResult> results = new ArrayList<PromotionUrlResult>();
+        List<DebugRecorder> debugs = new ArrayList<DebugRecorder>();
+        for (PromotionUrlRequest request : requests) {
+            PromotionUrlResult result = createResult(request);
+            DebugRecorder debug = new DebugRecorder(request, jdConfig, objectMapper);
+            if (debug.enabled()) {
+                result.getDiagnostics().put("debugEnabled", true);
+                result.getDiagnostics().put("debugOutputDir", debug.getTaskDir().toString());
+            }
+            results.add(result);
+            debugs.add(debug);
+        }
+        if (requests.isEmpty()) {
+            return results;
+        }
+
+        BrowserProfileManager.ProfileLease lease = null;
+        boolean[] written = new boolean[results.size()];
+        taskDeadlineHolder.set(System.currentTimeMillis()
+                + TimeUnit.MINUTES.toMillis(Math.max(1, appConfig.getCustom().getMaxTaskMinutes())
+                * Math.max(1, requests.size())));
+        try {
+            lease = profileManager.acquire(requests.get(0).getProfileName(), createBrowserConfig(requests.get(0), jdConfig));
+            Browser browser = lease.getBrowser();
+
+            CrawlEntryResult entry = entryService.enter(browser, lease, createEntryOptions(requests.get(0), jdConfig));
+            for (PromotionUrlResult result : results) {
+                applyEntryResult(result, entry);
+            }
+            debugs.get(0).snapshot(browser, "01-entry");
+            if (!entry.isPassed()) {
+                for (DebugRecorder debug : debugs) {
+                    debug.snapshotText("01-entry-failed", entry.getMessage());
+                }
+                return results;
+            }
+
+            if (!preparePromotionWorkbench(browser, jdConfig, results.get(0), debugs.get(0))) {
+                copyFailureToRemaining(results);
+                return results;
+            }
+
+            for (int i = 0; i < requests.size(); i++) {
+                PromotionUrlRequest request = requests.get(i);
+                PromotionUrlResult result = results.get(i);
+                DebugRecorder debug = debugs.get(i);
+                try {
+                    if (i > 0 && !ensurePromotionWorkbenchForNextJdKeyword(browser, jdConfig, result, debug)) {
+                        continue;
+                    }
+                    runPromotionKeywordFlow(browser, request, jdConfig, result, debug);
+                } catch (TimeoutException e) {
+                    fail(result, CustomCrawlStatus.TIMEOUT, e.getMessage());
+                    debug.snapshotText("99-timeout", result.getMessage());
+                    failRemaining(results, i + 1, CustomCrawlStatus.TIMEOUT, e.getMessage());
+                    return results;
+                } catch (Exception e) {
+                    log.warn("JD union batch promotion fail, keyword={}, profile={}, error={}",
+                            request.getKeyword(), request.getProfileName(), e.getMessage(), e);
+                    fail(result, CustomCrawlStatus.FAILED, e.getMessage());
+                    debug.snapshotText("99-failed", result.getMessage());
+                } finally {
+                    resultWriter.appendJsonLine(request.getOutputPath(), result);
+                    written[i] = true;
+                }
+            }
+            return results;
+        } catch (TimeoutException e) {
+            failRemaining(results, 0, CustomCrawlStatus.TIMEOUT, e.getMessage());
+            debugs.get(0).snapshotText("99-timeout", e.getMessage());
+            return results;
+        } catch (Exception e) {
+            log.warn("JD union batch promotion fail, profile={}, error={}",
+                    requests.get(0).getProfileName(), e.getMessage(), e);
+            failRemaining(results, 0, CustomCrawlStatus.FAILED, e.getMessage());
+            debugs.get(0).snapshotText("99-failed", e.getMessage());
+            return results;
+        } finally {
+            for (int i = 0; i < results.size(); i++) {
+                if (!written[i]) {
+                    resultWriter.appendJsonLine(requests.get(i).getOutputPath(), results.get(i));
+                }
+            }
+            tryClose(lease);
+            taskDeadlineHolder.remove();
+        }
+    }
+
+    private List<PromotionUrlRequest> createBatchRequests(List<String> keywords, JdUnionConfig config) {
+        List<PromotionUrlRequest> requests = new ArrayList<PromotionUrlRequest>();
+        if (keywords == null) {
+            return requests;
+        }
+        for (String keyword : keywords) {
+            if (Strings.isEmpty(keyword)) {
+                throw new InvalidException("keyword is required");
+            }
+            PromotionUrlRequest request = new PromotionUrlRequest();
+            request.setKeyword(keyword);
+            request.setAdSiteName(config.getDefaultAdSiteName());
+            requests.add(normalizeRequest(request, config));
+        }
+        return requests;
+    }
+
+    private void copyFailureToRemaining(List<PromotionUrlResult> results) {
+        if (results.isEmpty()) {
+            return;
+        }
+        PromotionUrlResult source = results.get(0);
+        for (int i = 1; i < results.size(); i++) {
+            PromotionUrlResult result = results.get(i);
+            result.setCurrentUrl(source.getCurrentUrl());
+            result.setLoginRequired(source.isLoginRequired());
+            result.setFingerprintPassed(source.isFingerprintPassed());
+            result.getDiagnostics().putAll(source.getDiagnostics());
+            fail(result, source.getStatus(), source.getMessage());
+        }
+    }
+
+    private void failRemaining(List<PromotionUrlResult> results, int startIndex, CustomCrawlStatus status, String message) {
+        for (int i = Math.max(0, startIndex); i < results.size(); i++) {
+            PromotionUrlResult result = results.get(i);
+            if (result.getStatus() == CustomCrawlStatus.SUCCESS) {
+                continue;
+            }
+            fail(result, status, message);
         }
     }
 
@@ -266,12 +392,24 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
 
     private void runPromotionFlow(Browser browser, PromotionUrlRequest request, JdUnionConfig config,
             PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
-        if (!enterPromotionWorkbench(browser, config, result, debug)) {
+        if (!preparePromotionWorkbench(browser, config, result, debug)) {
             return;
+        }
+        runPromotionKeywordFlow(browser, request, config, result, debug);
+    }
+
+    private boolean preparePromotionWorkbench(Browser browser, JdUnionConfig config, PromotionUrlResult result,
+            DebugRecorder debug) throws TimeoutException {
+        if (!enterPromotionWorkbench(browser, config, result, debug)) {
+            return false;
         }
         result.setCurrentUrl(browser.getCurrentUrl());
         debug.snapshot(browser, "02-workbench-ready");
+        return true;
+    }
 
+    private void runPromotionKeywordFlow(Browser browser, PromotionUrlRequest request, JdUnionConfig config,
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         if (!nativeSetSearchValue(browser, request.getKeyword())) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union search input not found");
             result.getDiagnostics().put("body", bodySnippet(browser));
@@ -318,6 +456,12 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
         ProductInfoDto productInfo = readProductInfo(browser);
         if (productInfo != null) {
             result.setProductInfo(productInfo);
+            if (!jdProductMatchesKeyword(productInfo, request.getKeyword())) {
+                fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union search result does not match keyword");
+                result.getDiagnostics().put("body", bodySnippet(browser));
+                debug.snapshot(browser, "06-product-info-not-matched");
+                return;
+            }
         } else {
             result.getDiagnostics().put("productInfoMissing", true);
         }
@@ -1107,6 +1251,57 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
         return false;
     }
 
+    private boolean ensurePromotionWorkbenchForNextJdKeyword(Browser browser, JdUnionConfig config,
+            PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
+        closeJdPromotionDialogIfNeeded(browser, config);
+        browser.navigateUrl(config.getWorkbenchUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
+        Extends.sleep(config.nextStepDelayMillis());
+        result.setCurrentUrl(browser.getCurrentUrl());
+        if (isLoginRequired(result.getCurrentUrl(), config)) {
+            fail(result, CustomCrawlStatus.LOGIN_REQUIRED,
+                    "JD Union login expired before batch keyword search. Finish login in the opened Chrome profile, then retry.");
+            debug.snapshot(browser, "02-workbench-login-required-batch");
+            return false;
+        }
+        if (waitPromotionWorkbenchReady(browser, config, result)) {
+            debug.snapshot(browser, "02-workbench-ready-batch");
+            return true;
+        }
+        fail(result, CustomCrawlStatus.PAGE_CHANGED, "JD Union promotion workbench not ready for next keyword");
+        result.getDiagnostics().put("body", bodySnippet(browser));
+        debug.snapshot(browser, "02-workbench-not-ready-batch");
+        return false;
+    }
+
+    private void closeJdPromotionDialogIfNeeded(Browser browser, JdUnionConfig config) {
+        for (int i = 0; i < 2; i++) {
+            String selector = "[data-rx-jd-dialog-close='1']";
+            Boolean marked = browser.executeScript("var attr='data-rx-jd-dialog-close';" +
+                    "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
+                    "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
+                    "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                    "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
+                    "var dialogs=Array.prototype.slice.call(document.querySelectorAll('[role=\"dialog\"],.el-dialog,.ant-modal,.modal,div'));" +
+                    "var scope=null,bestTop=-999999;for(var d=0;d<dialogs.length;d++){var box=dialogs[d];if(!visible(box)){continue;}var t=text(box);if(t.indexOf('推广链接')<0&&t.indexOf('生成推广')<0&&t.indexOf('获取推广')<0){continue;}var r=box.getBoundingClientRect();if(r.top>bestTop){scope=box;bestTop=r.top;}}" +
+                    "if(!scope){return false;}" +
+                    "var nodes=Array.prototype.slice.call(scope.querySelectorAll('button,a,[role=\"button\"],i,span'));" +
+                    "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e),cls=String(e.className||'').toLowerCase();" +
+                    "var closeText=t==='关闭'||t==='取消'||t==='×'||t==='x'||/close|el-dialog__close|icon-close/.test(cls);if(!closeText){continue;}" +
+                    "var target=e.closest('button,a,[role=\"button\"]')||e,r=target.getBoundingClientRect(),score=(t==='关闭'||t==='×'||t==='x'?0:100)+r.width*r.height/1000+Math.abs(r.top-scope.getBoundingClientRect().top);" +
+                    "if(score<bestScore){best=target;bestScore=score;}}" +
+                    "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});return true;");
+            if (!Boolean.TRUE.equals(marked)) {
+                return;
+            }
+            try {
+                browser.elementClick(selector, false);
+                Extends.sleep(Math.max(500, config.nextStepDelayMillis()));
+            } catch (Exception e) {
+                return;
+            }
+        }
+    }
+
     @SneakyThrows
     private WebBrowserConfig createBrowserConfig(PromotionUrlRequest request, JdUnionConfig jdConfig) {
         WebBrowserConfig config = BeanMapper.DEFAULT.map(appConfig.getBrowser(), WebBrowserConfig.class);
@@ -1123,6 +1318,12 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
     private PromotionUrlRequest normalizeRequest(PromotionUrlRequest request, JdUnionConfig config) {
         if (request == null) {
             request = new PromotionUrlRequest();
+        }
+        if (Strings.isEmpty(request.getAdSiteName())) {
+            request.setAdSiteName(config.getDefaultAdSiteName());
+        }
+        if (Strings.isEmpty(request.getAdSiteName())) {
+            throw new InvalidException("adSiteName is required");
         }
         if (Strings.isEmpty(request.getProfileName())) {
             request.setProfileName(Strings.isEmpty(config.getProfileName()) ? profileManager.defaultProfileName() : config.getProfileName());
@@ -1284,25 +1485,6 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
         entryService.notifyLoginRequired(context);
     }
 
-    private List<PromotionUrlRequest> loadBatchItems(JdUnionBatchRequest request) {
-        if (request == null) {
-            return new ArrayList<PromotionUrlRequest>();
-        }
-        if (request.getItems() != null && !request.getItems().isEmpty()) {
-            return request.getItems();
-        }
-        if (Strings.isEmpty(request.getInputPath())) {
-            return new ArrayList<PromotionUrlRequest>();
-        }
-        try {
-            return objectMapper.readValue(new File(request.getInputPath()),
-                    new TypeReference<List<PromotionUrlRequest>>() {
-                    });
-        } catch (Exception e) {
-            throw new InvalidException("Read JD union batch input fail, path={}", request.getInputPath(), e);
-        }
-    }
-
     private boolean nativeSetSearchValue(Browser browser, String value) {
         String selector = "[data-rx-jd-search-input='1']";
         Boolean marked = browser.executeScript("var attr='data-rx-jd-search-input';" +
@@ -1348,6 +1530,14 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
                 "chosen.dispatchEvent(new Event('change',{bubbles:true}));" +
                 "return true;", value);
         return Boolean.TRUE.equals(ok);
+    }
+
+    private boolean jdProductMatchesKeyword(ProductInfoDto productInfo, String keyword) {
+        if (productInfo == null || Strings.isEmpty(keyword) || !keyword.matches("\\d+")) {
+            return true;
+        }
+        String link = productInfo.getProductLink();
+        return !Strings.isEmpty(link) && link.contains(keyword);
     }
 
     private boolean nativeClickSearchButton(Browser browser) {

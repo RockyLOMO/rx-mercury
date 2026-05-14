@@ -101,6 +101,7 @@ app:
       loginUrlPrefix: https://union.jd.com/index?returnUrl=
       defaultMediaType: 导购媒体推广
       defaultMediaName: 微信
+      defaultAdSiteName: 5
       pageTimeoutSeconds: 60
       initialPageTimeoutSeconds: 60
       stepDelayMillis: 1200
@@ -124,6 +125,7 @@ app:
       orderUrl: https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm
       loginUrlPrefix: https://login.taobao.com/havanaone/login/login.htm
       defaultMediaName:
+      defaultAdSiteName: 5
       pageTimeoutSeconds: 60
       initialPageTimeoutSeconds: 180
       stepDelayMillis: 1200

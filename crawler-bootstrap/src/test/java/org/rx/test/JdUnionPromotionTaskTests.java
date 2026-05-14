@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -204,6 +205,47 @@ public class JdUnionPromotionTaskTests {
             return;
         }
         task.closeProfile(result.getProfileName());
+    }
+
+    @Test
+    public void jdUnionPromotionUrlsIntegrationShouldPrintBatchResults() throws Exception {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("jd.union.batch.integration", "false")));
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig config = new AppConfig();
+        config.getCustom().setRemotingEnabled(false);
+        config.getCustom().setDebugEnabled(true);
+        config.getCustom().getChrome().setProfileBasePath(
+                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+        Path debugDir = Paths.get("target", "jd-union-debug").toAbsolutePath();
+        config.getCustom().getJdUnion().setDebugOutputDir(debugDir.toString());
+        config.getCustom().getJdUnion().setDefaultOutputPath(tempDir.resolve("jd-batch-output.jsonl").toString());
+        config.getCustom().getJdUnion().setForcePreflight(
+                Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.forcePreflight", "true")));
+        config.getCustom().getJdUnion().setPreflightEnabled(
+                Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.preflightEnabled", "true")));
+        config.getCustom().getJdUnion().setLoginWaitSeconds(
+                Integer.parseInt(System.getProperty("jd.union.loginWaitSeconds", "180")));
+        config.getCustom().getJdUnion().setKeepBrowserOpenOnLoginRequired(
+                Boolean.parseBoolean(System.getProperty("jd.union.keepBrowserOpenOnLoginRequired", "true")));
+        config.getCustom().getJdUnion().setKeepBrowserOpenSecondsOnLoginRequired(
+                Integer.parseInt(System.getProperty("jd.union.keepBrowserOpenSecondsOnLoginRequired", "180")));
+
+        JdUnionPromotionTask task = new JdUnionPromotionTask(config, new BrowserProfileManager(config),
+                new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
+        List<String> keywords = Arrays.asList(
+                System.getProperty("jd.union.batch.keyword1", "100059484008"),
+                System.getProperty("jd.union.batch.keyword2", "100002715968"));
+
+        List<PromotionUrlResult> results = task.getPromotionUrls(keywords);
+        System.out.println("JD_UNION_BATCH_RESULT=" + objectMapper.writeValueAsString(results));
+        assertEquals(keywords.size(), results.size());
+        for (PromotionUrlResult result : results) {
+            assertNotNull(result.getStatus());
+        }
+        if (!results.isEmpty()) {
+            task.closeProfile(results.get(0).getProfileName());
+        }
     }
 
     @Test

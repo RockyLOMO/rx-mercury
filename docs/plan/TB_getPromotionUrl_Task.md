@@ -42,6 +42,14 @@
 | `loginRequired` | 是否需要人工登录 |
 | `diagnostics` | 调试诊断信息 |
 
+## 批量入口
+
+- Remoting：`getTbPromotionUrls(List<String> keywords)`
+- HTTP：`POST /custom/tb/getPromotionUrls`
+- 请求体：字符串数组，例如 `["西麦纯燕麦片3kg", "咖啡豆"]`
+
+批量模式复用单条 `getTbPromotionUrl` 的抓取逻辑；Sannysoft、登录接管、进入淘宝联盟选品页只执行一次，从输入 `keyword` 开始循环抓取每个商品，返回 `List<PromotionUrlResult>`。批量模式默认使用配置项 `app.custom.tbPromotion.defaultAdSiteName` 作为推广位。
+
 ## 页面流程
 
 1. 进入阿里妈妈初始页，执行 Sannysoft 与登录接管；`login_jump` 跳转页按登录接管状态处理，不提前进入推广链接流程。

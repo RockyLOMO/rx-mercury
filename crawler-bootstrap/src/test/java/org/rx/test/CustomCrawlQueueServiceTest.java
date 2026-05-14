@@ -13,6 +13,9 @@ import org.rx.crawler.task.tb.TbPromotionUrlTask;
 import org.rx.io.EntityDatabase;
 import org.rx.io.EntityDatabaseImpl;
 
+import java.util.Arrays;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -116,6 +119,78 @@ public class CustomCrawlQueueServiceTest {
 
             assertEquals(CustomCrawlStatus.SUCCESS, result.getStatus());
             verify(tbPromotionUrlTask).getPromotionUrl(any());
+        } finally {
+            service.destroy();
+            entityDatabase.close();
+        }
+    }
+
+    @Test
+    public void submitAndWaitShouldDispatchJdPromotionUrlsTask() throws Exception {
+        EntityDatabase entityDatabase = new EntityDatabaseImpl("jdbc:h2:mem:queue-test-jd-urls;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false", null, 4, true);
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig appConfig = new AppConfig();
+        AppConfig.CustomTaskConfig customTaskConfig = new AppConfig.CustomTaskConfig();
+        customTaskConfig.setQueueMaxConcurrency(1);
+        customTaskConfig.setQueueTimeoutSeconds(5);
+        appConfig.setCustom(customTaskConfig);
+
+        JdUnionPromotionTask task = mock(JdUnionPromotionTask.class);
+        when(task.getPromotionUrls(any())).thenAnswer(invocation -> {
+            PromotionUrlResult first = new PromotionUrlResult();
+            first.setKeyword("100059484008");
+            first.setStatus(CustomCrawlStatus.SUCCESS);
+            PromotionUrlResult second = new PromotionUrlResult();
+            second.setKeyword("100002715968");
+            second.setStatus(CustomCrawlStatus.SUCCESS);
+            return Arrays.asList(first, second);
+        });
+
+        CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig, task,
+                mock(TbPromotionOrdersTask.class), mock(TbPromotionUrlTask.class));
+        try {
+            service.init();
+
+            List<PromotionUrlResult> results = service.submitAndWaitJdPromotionUrls(
+                    Arrays.asList("100059484008", "100002715968"));
+
+            assertEquals(2, results.size());
+            assertEquals("100059484008", results.get(0).getKeyword());
+            verify(task).getPromotionUrls(any());
+        } finally {
+            service.destroy();
+            entityDatabase.close();
+        }
+    }
+
+    @Test
+    public void submitAndWaitShouldDispatchTbPromotionUrlsTask() throws Exception {
+        EntityDatabase entityDatabase = new EntityDatabaseImpl("jdbc:h2:mem:queue-test-tb-urls;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false", null, 4, true);
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig appConfig = new AppConfig();
+        AppConfig.CustomTaskConfig customTaskConfig = new AppConfig.CustomTaskConfig();
+        customTaskConfig.setQueueMaxConcurrency(1);
+        customTaskConfig.setQueueTimeoutSeconds(5);
+        appConfig.setCustom(customTaskConfig);
+
+        TbPromotionUrlTask tbPromotionUrlTask = mock(TbPromotionUrlTask.class);
+        when(tbPromotionUrlTask.getPromotionUrls(any())).thenAnswer(invocation -> {
+            PromotionUrlResult result = new PromotionUrlResult();
+            result.setKeyword("西麦纯燕麦片3kg");
+            result.setStatus(CustomCrawlStatus.SUCCESS);
+            return Arrays.asList(result);
+        });
+
+        CustomCrawlQueueService service = new CustomCrawlQueueService(entityDatabase, objectMapper, appConfig,
+                mock(JdUnionPromotionTask.class), mock(TbPromotionOrdersTask.class), tbPromotionUrlTask);
+        try {
+            service.init();
+
+            List<PromotionUrlResult> results = service.submitAndWaitTbPromotionUrls(Arrays.asList("西麦纯燕麦片3kg"));
+
+            assertEquals(1, results.size());
+            assertEquals("西麦纯燕麦片3kg", results.get(0).getKeyword());
+            verify(tbPromotionUrlTask).getPromotionUrls(any());
         } finally {
             service.destroy();
             entityDatabase.close();

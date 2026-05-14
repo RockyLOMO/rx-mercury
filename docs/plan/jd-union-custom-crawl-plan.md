@@ -378,24 +378,21 @@ POST /custom/jd-union/promotion
 }
 ```
 
-### 批量文件输入
+### 批量关键词输入
 
-建议新增：
+当前批量入口：
 
 ```text
-POST /custom/jd-union/promotion/batch
+POST /custom/jd-union/getPromotionUrls
 ```
 
-支持请求中传 `inputPath` 和 `outputPath`：
+请求体直接传关键词列表：
 
 ```json
-{
-  "inputPath": "D:/app-crawler/data/jd-union/input.json",
-  "outputPath": "D:/app-crawler/data/jd-union/output.jsonl"
-}
+["100059484008", "100002715968"]
 ```
 
-输出 JSONL，每行一个结果，便于断点续跑。
+任务复用单条 `getPromotionUrl` 流程，Sannysoft、登录接管、进入商品推广工作台只执行一次，从输入 `keyword` 开始循环抓取并返回 `List<PromotionUrlResult>`。
 
 ### 文件写出
 

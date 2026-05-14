@@ -1,12 +1,11 @@
 package org.rx.crawler.task.common;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Extends;
-import org.rx.core.Strings;
 import org.rx.crawler.config.AppConfig;
-import org.rx.crawler.task.jd.JdUnionBatchRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersRequest;
 import org.rx.crawler.task.jd.JdUnionPromotionOrdersResult;
 import org.rx.crawler.task.jd.JdUnionPromotionTask;
@@ -97,16 +96,14 @@ public class CustomCrawlQueueService {
         return waitResult(taskId, PromotionUrlResult.class);
     }
 
-    public List<PromotionUrlResult> batch(JdUnionBatchRequest request) {
-        List<PromotionUrlRequest> items = loadBatchItems(request);
-        List<PromotionUrlResult> results = new ArrayList<PromotionUrlResult>();
-        for (PromotionUrlRequest item : items) {
-            if (Strings.isEmpty(item.getOutputPath()) && !Strings.isEmpty(request.getOutputPath())) {
-                item.setOutputPath(request.getOutputPath());
-            }
-            results.add(submitAndWait("getPromotionUrl", item, PromotionUrlResult.class));
-        }
-        return results;
+    public List<PromotionUrlResult> submitAndWaitJdPromotionUrls(List<String> keywords) {
+        long taskId = enqueue("getPromotionUrls", keywords, 0);
+        return waitPromotionUrlResults(taskId);
+    }
+
+    public List<PromotionUrlResult> submitAndWaitTbPromotionUrls(List<String> keywords) {
+        long taskId = enqueue("getTbPromotionUrls", keywords, 0);
+        return waitPromotionUrlResults(taskId);
     }
 
     public boolean closeProfile(String profileName) {
@@ -147,6 +144,30 @@ public class CustomCrawlQueueService {
             dispatch();
         }
         throw new IllegalStateException("Queued custom crawl task timeout, taskId=" + taskId);
+    }
+
+    private List<PromotionUrlResult> waitPromotionUrlResults(long taskId) {
+        long deadline = System.currentTimeMillis() + java.util.concurrent.TimeUnit.SECONDS.toMillis(appConfig.getCustom().getQueueTimeoutSeconds());
+        while (System.currentTimeMillis() <= deadline) {
+            TaskSnapshot snapshot = loadSnapshot(taskId);
+            if (snapshot != null && snapshot.isFinished()) {
+                if (snapshot.status == CustomTaskQueueStatus.FAILED) {
+                    List<PromotionUrlResult> results = new ArrayList<PromotionUrlResult>();
+                    results.add(failedResult(snapshot, PromotionUrlResult.class));
+                    return results;
+                }
+                try {
+                    return objectMapper.readValue(snapshot.resultJson,
+                            new TypeReference<List<PromotionUrlResult>>() {
+                            });
+                } catch (Exception e) {
+                    throw new IllegalStateException("Read queued batch task result failed", e);
+                }
+            }
+            Extends.sleep(300);
+            dispatch();
+        }
+        throw new IllegalStateException("Queued custom crawl batch task timeout, taskId=" + taskId);
     }
 
     private <T> T failedResult(TaskSnapshot snapshot, Class<T> resultType) {
@@ -221,12 +242,22 @@ public class CustomCrawlQueueService {
             if ("loginCheck".equals(snapshot.action)) {
                 PromotionUrlRequest request = objectMapper.readValue(snapshot.requestJson, PromotionUrlRequest.class);
                 result = jdUnionPromotionTask.loginCheck(request);
+            } else if ("getPromotionUrls".equals(snapshot.action)) {
+                List<String> keywords = objectMapper.readValue(snapshot.requestJson,
+                        new TypeReference<List<String>>() {
+                        });
+                result = jdUnionPromotionTask.getPromotionUrls(keywords);
             } else if ("getPromotionOrders".equals(snapshot.action)) {
                 JdUnionPromotionOrdersRequest request = objectMapper.readValue(snapshot.requestJson, JdUnionPromotionOrdersRequest.class);
                 result = jdUnionPromotionTask.getPromotionOrders(request);
             } else if ("getTbPromotionOrders".equals(snapshot.action)) {
                 TbPromotionOrdersRequest request = objectMapper.readValue(snapshot.requestJson, TbPromotionOrdersRequest.class);
                 result = tbPromotionOrdersTask.getPromotionOrders(request);
+            } else if ("getTbPromotionUrls".equals(snapshot.action)) {
+                List<String> keywords = objectMapper.readValue(snapshot.requestJson,
+                        new TypeReference<List<String>>() {
+                        });
+                result = tbPromotionUrlTask.getPromotionUrls(keywords);
             } else if ("getTbPromotionUrl".equals(snapshot.action)) {
                 PromotionUrlRequest request = objectMapper.readValue(snapshot.requestJson, PromotionUrlRequest.class);
                 result = tbPromotionUrlTask.getPromotionUrl(request);
@@ -241,11 +272,6 @@ public class CustomCrawlQueueService {
             update("update " + TABLE_NAME + " set status=?, error_message=?, finished_at=current_timestamp, updated_at=current_timestamp where id=?",
                     CustomTaskQueueStatus.FAILED.name(), truncate(e.getMessage(), 2000), snapshot.id);
         }
-    }
-
-    private List<PromotionUrlRequest> loadBatchItems(JdUnionBatchRequest request) {
-        List<PromotionUrlRequest> items = request.getItems();
-        return items == null ? new ArrayList<PromotionUrlRequest>() : items;
     }
 
     private static class TaskSnapshot {

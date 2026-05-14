@@ -23,6 +23,7 @@ public class JdUnionConfig implements StepDelayConfig {
     private String loginUrlPrefix = "https://union.jd.com/index?returnUrl=";
     private String defaultMediaType = "导购媒体推广";
     private String defaultMediaName = "微信";
+    private String defaultAdSiteName = "5";
 
     private int pageTimeoutSeconds = 60;
     private int initialPageTimeoutSeconds = 60;
