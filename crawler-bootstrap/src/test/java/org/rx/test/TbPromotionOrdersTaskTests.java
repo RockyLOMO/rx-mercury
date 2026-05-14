@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.rx.crawler.config.AppConfig;
+import org.rx.crawler.dto.BrowserWindowRect;
+import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.crawler.task.common.BrowserPreflightService;
 import org.rx.crawler.task.common.BrowserProfileManager;
 import org.rx.crawler.task.common.CrawlEntryService;
@@ -70,7 +72,7 @@ public class TbPromotionOrdersTaskTests {
     }
 
     @Test
-    public void tbLoginJumpUrlShouldNotBeTreatedAsLoginPage() throws Exception {
+    public void tbLoginJumpUrlShouldRequireLogin() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         AppConfig config = new AppConfig();
         TbPromotionOrdersTask task = new TbPromotionOrdersTask(config, new BrowserProfileManager(config),
@@ -83,8 +85,30 @@ public class TbPromotionOrdersTaskTests {
         loginRequired.setAccessible(true);
         loggedIn.setAccessible(true);
         String url = "https://pub.alimama.com/portal/v2/home/plus/index.htm/_____tmd_____/page/login_jump?rand=abc";
-        assertFalse((Boolean) loginRequired.invoke(task, url, config.getCustom().getTbPromotion()));
-        assertTrue((Boolean) loggedIn.invoke(task, url, config.getCustom().getTbPromotion()));
+        assertTrue((Boolean) loginRequired.invoke(task, url, config.getCustom().getTbPromotion()));
+        assertFalse((Boolean) loggedIn.invoke(task, url, config.getCustom().getTbPromotion()));
+    }
+
+    @Test
+    public void tbPromotionOrdersBrowserShouldStartMaximized() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig config = new AppConfig();
+        config.getCustom().getChrome().setProfileBasePath(tempDir.toString());
+        TbPromotionOrdersTask task = new TbPromotionOrdersTask(config, new BrowserProfileManager(config),
+                new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
+        TbPromotionOrdersRequest request = new TbPromotionOrdersRequest();
+        request.setProfileName("common");
+
+        Method method = TbPromotionOrdersTask.class.getDeclaredMethod("createBrowserConfig",
+                TbPromotionOrdersRequest.class, org.rx.crawler.task.tb.TbPromotionConfig.class);
+        method.setAccessible(true);
+        WebBrowserConfig browserConfig = (WebBrowserConfig) method.invoke(task, request,
+                config.getCustom().getTbPromotion());
+        BrowserWindowRect rect = browserConfig.getWindowRectangle();
+
+        assertNotNull(rect);
+        assertTrue(rect.getWidth() <= 0);
+        assertTrue(rect.getHeight() <= 0);
     }
 
     @Test

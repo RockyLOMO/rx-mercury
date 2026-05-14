@@ -49,7 +49,7 @@ public class AppConfig {
         private boolean headless = true;
         private String profileDataPath;
         private String downloadPath = "/app-crawler/temp/";
-        private BrowserWindowRect windowRectangle;
+        private BrowserWindowRect windowRectangle = new BrowserWindowRect(0, 0, -1, -1);
         private String configureScriptExecutorType = "org.rx.crawler.service.impl.ApiConfigureScriptExecutor";
         private boolean fingerprintEnabled = false;
         private String fingerprintScriptPath = "/bot/chrome-fingerprint.js";

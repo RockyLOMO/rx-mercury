@@ -12,7 +12,7 @@ public class WebBrowserConfig {
     private boolean headless = true;
     private String profileDataPath;
     private String downloadPath;
-    private BrowserWindowRect windowRectangle;
+    private BrowserWindowRect windowRectangle = new BrowserWindowRect(0, 0, -1, -1);
     private String configureScriptExecutorType;
     private boolean fingerprintEnabled = false;
     private String fingerprintScriptPath = "/bot/chrome-fingerprint.js";

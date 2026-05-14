@@ -37,7 +37,6 @@ app:
   storage:
     h2DbPath: ./browser-task-db
   browser:
-    windowRectangle: MAX
     fingerprintEnabled: false
     fingerprintScriptPath: /bot/chrome-fingerprint.js
     fingerprintStealthScriptPath: /static/js/stealth.min.js

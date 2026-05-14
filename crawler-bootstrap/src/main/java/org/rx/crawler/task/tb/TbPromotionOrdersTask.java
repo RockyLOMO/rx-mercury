@@ -1279,13 +1279,11 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             return false;
         }
         String lower = currentUrl.toLowerCase(Locale.ROOT);
-        if (lower.contains("pub.alimama.com") && lower.contains("login_jump")) {
-            return false;
-        }
         return currentUrl.startsWith(config.getLoginUrlPrefix())
                 || lower.contains("login.taobao.com")
                 || lower.contains("havanalogin")
-                || (lower.contains("/login") && !lower.contains("login_jump"));
+                || lower.contains("login_jump")
+                || lower.contains("/login");
     }
 
     private boolean isLoggedInUrl(String currentUrl, TbPromotionConfig config) {
@@ -1293,6 +1291,9 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             return false;
         }
         String lower = currentUrl.toLowerCase(Locale.ROOT);
+        if (lower.contains("login_jump")) {
+            return false;
+        }
         return lower.startsWith(config.getHomeUrl().toLowerCase(Locale.ROOT))
                 || lower.startsWith(config.getOrderUrl().toLowerCase(Locale.ROOT))
                 || lower.contains("pub.alimama.com/portal")

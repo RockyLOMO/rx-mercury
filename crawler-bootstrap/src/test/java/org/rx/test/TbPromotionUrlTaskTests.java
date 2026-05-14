@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -62,6 +63,25 @@ public class TbPromotionUrlTaskTests {
         assertTrue((Boolean) method.invoke(task,
                 "https://pub.alimama.com/portal/v2/pages/promo/goods/index.htm",
                 config.getCustom().getTbPromotion()));
+    }
+
+    @Test
+    public void tbPromotionUrlLoginJumpUrlShouldRequireLogin() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig config = new AppConfig();
+        TbPromotionUrlTask task = new TbPromotionUrlTask(config, new BrowserProfileManager(config),
+                new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
+
+        Method loginRequired = TbPromotionUrlTask.class.getDeclaredMethod("isLoginRequired", String.class,
+                TbPromotionConfig.class);
+        Method loggedIn = TbPromotionUrlTask.class.getDeclaredMethod("isLoggedInUrl", String.class,
+                TbPromotionConfig.class);
+        loginRequired.setAccessible(true);
+        loggedIn.setAccessible(true);
+        String url = "https://pub.alimama.com/portal/v2/home/plus/index.htm/_____tmd_____/page/login_jump?rand=abc";
+
+        assertTrue((Boolean) loginRequired.invoke(task, url, config.getCustom().getTbPromotion()));
+        assertFalse((Boolean) loggedIn.invoke(task, url, config.getCustom().getTbPromotion()));
     }
 
     @Test

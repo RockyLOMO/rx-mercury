@@ -31,7 +31,7 @@
 - 调试开关：`debugEnabled` 已提升到全局 `app.custom.debugEnabled`；发布默认关闭，测试/本地验证显式开启，便于读取 HTML 快照排查问题。
 - 任务超时：`app.custom.maxTaskMinutes` 默认 4 分钟，超时后返回 `TIMEOUT`。
 - 页面遮挡处理：进入页面后如果右上角 `消息公告` 遮挡主体，先点 `收起`。
-- 窗口要求：任务开始时先最大化 Chrome，避免底部翻页和表格区域被裁切。
+- 窗口要求：任务开始时先最大化 Chrome，避免底部翻页和表格区域被裁切；底层 `WebBrowser.maximize()` 最大化后需同步 Playwright viewport，避免浏览器外壳已全屏但网页画布仍停留在旧尺寸。
 
 ### 入参
 

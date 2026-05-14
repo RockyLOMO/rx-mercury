@@ -657,6 +657,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
     public synchronized void maximize() {
         checkNotClosed();
 
+        Map<String, Object> beforeMetrics = readWindowMetrics();
         boolean maximized = maximizeByCdp();
         if (!maximized) {
             try {
@@ -667,6 +668,7 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             }
         }
         if (maximized) {
+            syncViewportAfterMaximize(beforeMetrics);
             notifyWindowResizeAfterMaximize();
         }
     }
@@ -723,9 +725,9 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             return;
         }
         try {
-            HWND hwnd = User32.INSTANCE.FindWindow("Chrome_WidgetWin_1", null);
+            HWND hwnd = User32.INSTANCE.GetForegroundWindow();
             if (hwnd == null) {
-                hwnd = User32.INSTANCE.GetForegroundWindow();
+                hwnd = User32.INSTANCE.FindWindow("Chrome_WidgetWin_1", null);
             }
             if (hwnd == null) {
                 return;
@@ -737,6 +739,71 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             page.evaluate("() => { try { window.dispatchEvent(new Event('resize')); } catch (e) {} }");
         } catch (Exception e) {
             log.debug("Windows API maximize ignored, error={}", e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readWindowMetrics() {
+        if (page == null) {
+            return new HashMap<String, Object>();
+        }
+        try {
+            Object value = page.evaluate("() => ({"
+                    + "innerWidth: window.innerWidth || 0,"
+                    + "innerHeight: window.innerHeight || 0,"
+                    + "outerWidth: window.outerWidth || 0,"
+                    + "outerHeight: window.outerHeight || 0,"
+                    + "availWidth: window.screen && window.screen.availWidth || 0,"
+                    + "availHeight: window.screen && window.screen.availHeight || 0"
+                    + "})");
+            if (value instanceof Map) {
+                return (Map<String, Object>) value;
+            }
+        } catch (Exception e) {
+            log.debug("Read browser window metrics ignored, error={}", e.getMessage());
+        }
+        return new HashMap<String, Object>();
+    }
+
+    private void syncViewportAfterMaximize(Map<String, Object> beforeMetrics) {
+        if (page == null || page.viewportSize() == null) {
+            return;
+        }
+        try {
+            Extends.sleep(250);
+            Map<String, Object> afterMetrics = readWindowMetrics();
+            int beforeInnerWidth = metricInt(beforeMetrics, "innerWidth");
+            int beforeInnerHeight = metricInt(beforeMetrics, "innerHeight");
+            int chromeWidth = Math.max(0, metricInt(beforeMetrics, "outerWidth") - beforeInnerWidth);
+            int chromeHeight = Math.max(0, metricInt(beforeMetrics, "outerHeight") - beforeInnerHeight);
+            int targetWidth = Math.max(metricInt(afterMetrics, "outerWidth"), metricInt(afterMetrics, "availWidth")) - chromeWidth;
+            int targetHeight = Math.max(metricInt(afterMetrics, "outerHeight"), metricInt(afterMetrics, "availHeight")) - chromeHeight;
+            if (targetWidth <= 0 || targetHeight <= 0) {
+                return;
+            }
+
+            ViewportSize current = page.viewportSize();
+            if (Math.abs(current.width - targetWidth) > 8 || Math.abs(current.height - targetHeight) > 8) {
+                page.setViewportSize(targetWidth, targetHeight);
+                log.debug("Browser viewport synced after maximize, viewport={}x{}", targetWidth, targetHeight);
+            }
+        } catch (Exception e) {
+            log.debug("Browser viewport sync after maximize ignored, error={}", e.getMessage());
+        }
+    }
+
+    private int metricInt(Map<String, Object> metrics, String key) {
+        if (metrics == null || !metrics.containsKey(key)) {
+            return 0;
+        }
+        Object value = metrics.get(key);
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception e) {
+            return 0;
         }
     }
 
