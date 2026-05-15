@@ -9,18 +9,18 @@ import org.rx.crawler.task.tb.TbPromotionOrdersResult;
 import java.util.List;
 
 public interface CustomCrawlRemotingContract extends EventPublisher<CustomCrawlRemotingContract>, AutoCloseable {
-    String EVENT_PROMOTION_RESULT = "getPromotionUrlResult";
-    String EVENT_PROMOTION_URLS_RESULT = "getPromotionUrlsResult";
-    String EVENT_PROMOTION_ORDERS_RESULT = "getPromotionOrdersResult";
+    String EVENT_JD_PROMOTION_RESULT = "getJdPromotionUrlResult";
+    String EVENT_JD_PROMOTION_URLS_RESULT = "getJdPromotionUrlsResult";
+    String EVENT_JD_PROMOTION_ORDERS_RESULT = "getJdPromotionOrdersResult";
     String EVENT_TB_PROMOTION_ORDERS_RESULT = "getTbPromotionOrdersResult";
     String EVENT_TB_PROMOTION_URL_RESULT = "getTbPromotionUrlResult";
     String EVENT_TB_PROMOTION_URLS_RESULT = "getTbPromotionUrlsResult";
 
-    PromotionUrlResult getPromotionUrl(PromotionUrlRequest request);
+    PromotionUrlResult getJdPromotionUrl(PromotionUrlRequest request);
 
-    List<PromotionUrlResult> getPromotionUrls(List<String> keywords);
+    List<PromotionUrlResult> getJdPromotionUrls(List<String> keywords);
 
-    JdUnionPromotionOrdersResult getPromotionOrders(JdUnionPromotionOrdersRequest request);
+    JdUnionPromotionOrdersResult getJdPromotionOrders(JdUnionPromotionOrdersRequest request);
 
     PromotionUrlResult getTbPromotionUrl(PromotionUrlRequest request);
 

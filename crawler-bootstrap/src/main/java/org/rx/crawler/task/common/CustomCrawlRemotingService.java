@@ -51,23 +51,23 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     }
 
     @Override
-    public PromotionUrlResult getPromotionUrl(PromotionUrlRequest request) {
+    public PromotionUrlResult getJdPromotionUrl(PromotionUrlRequest request) {
         PromotionUrlResult result = jdUnionPromotionTask.getPromotionUrl(request);
-        publishDirect(EVENT_PROMOTION_RESULT, result);
+        publishDirect(EVENT_JD_PROMOTION_RESULT, result);
         return result;
     }
 
     @Override
-    public List<PromotionUrlResult> getPromotionUrls(List<String> keywords) {
+    public List<PromotionUrlResult> getJdPromotionUrls(List<String> keywords) {
         List<PromotionUrlResult> results = jdUnionPromotionTask.getPromotionUrls(keywords);
-        publishDirect(EVENT_PROMOTION_URLS_RESULT, results);
+        publishDirect(EVENT_JD_PROMOTION_URLS_RESULT, results);
         return results;
     }
 
     @Override
-    public JdUnionPromotionOrdersResult getPromotionOrders(JdUnionPromotionOrdersRequest request) {
+    public JdUnionPromotionOrdersResult getJdPromotionOrders(JdUnionPromotionOrdersRequest request) {
         JdUnionPromotionOrdersResult result = jdUnionPromotionTask.getPromotionOrders(request);
-        publishDirect(EVENT_PROMOTION_ORDERS_RESULT, result);
+        publishDirect(EVENT_JD_PROMOTION_ORDERS_RESULT, result);
         return result;
     }
 
@@ -95,7 +95,7 @@ public class CustomCrawlRemotingService implements CustomCrawlRemotingContract {
     @Override
     public PromotionUrlResult loginCheck(PromotionUrlRequest request) {
         PromotionUrlResult result = jdUnionPromotionTask.loginCheck(request);
-        publishDirect(EVENT_PROMOTION_RESULT, result);
+        publishDirect(EVENT_JD_PROMOTION_RESULT, result);
         return result;
     }
 

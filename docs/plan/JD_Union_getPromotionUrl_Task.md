@@ -380,7 +380,7 @@ public class JdUnionGetPromotionUrlClient {
             request.setKeyword("100341910908");
             request.setAdSiteName("5");
 
-            PromotionUrlResult result = client.getPromotionUrl(request);
+            PromotionUrlResult result = client.getJdPromotionUrl(request);
             System.out.println(result.getStatus());
             System.out.println(result.getPromotionUrl());
             System.out.println(result.getMessage());
@@ -394,16 +394,16 @@ public class JdUnionGetPromotionUrlClient {
 统一推荐调用：
 
 ```java
-PromotionUrlResult result = client.getPromotionUrl(request);
+PromotionUrlResult result = client.getJdPromotionUrl(request);
 ```
 
 批量推广链接调用：
 
 ```java
-List<PromotionUrlResult> results = client.getPromotionUrls(Arrays.asList("100059484008", "100002715968"));
+List<PromotionUrlResult> results = client.getJdPromotionUrls(Arrays.asList("100059484008", "100002715968"));
 ```
 
-`getPromotionUrls(List<String> keywords)` 只接收商品关键词列表，任务会复用单条 `getPromotionUrl` 的抓取逻辑；Sannysoft、登录接管、进入京东联盟商品推广工作台只执行一次，从输入 `keyword` 开始循环抓取每个商品，返回 `List<PromotionUrlResult>`。批量模式默认使用配置项 `app.custom.jdUnion.defaultAdSiteName` 作为推广位。
+`getJdPromotionUrls(List<String> keywords)` 只接收商品关键词列表，任务会复用单条 `getPromotionUrl` 的抓取逻辑；Sannysoft、登录接管、进入京东联盟商品推广工作台只执行一次，从输入 `keyword` 开始循环抓取每个商品，返回 `List<PromotionUrlResult>`。批量模式默认使用配置项 `app.custom.jdUnion.defaultAdSiteName` 作为推广位。
 
 ## HTTP 调用入口
 
