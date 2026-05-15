@@ -28,7 +28,7 @@ public class SliderVerifyHandler {
     };
 
     /**
-     * 检测当前页面是否为滑块验证页（通过页面文字特征、URL 或特定元素判断）。
+     * 检测当前页面是否为滑块验证页（通过页面文字特征、URL、特定元素判断，含同源 iframe）。
      */
     public boolean isSliderVerifyPage(Browser browser) {
         try {
@@ -42,21 +42,26 @@ public class SliderVerifyHandler {
                 return true;
             }
 
-            Boolean detected = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                    "function visible(el){" +
-                    "  var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                    "  return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;" +
+            Boolean detected = browser.executeScript(
+                    "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                    "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                    "var WORDS=['请拖动下方滑块完成验证','拖动滑块','拖到最右边','按住滑块','滑块验证','安全验证','访问验证','行为验证','请完成验证','请按住滑块'];" +
+                    "function checkDoc(doc){" +
+                    "  if(!doc||!doc.body){return false;}" +
+                    "  var body=norm(doc.body.innerText||doc.body.textContent||'');" +
+                    "  for(var i=0;i<WORDS.length;i++){if(body.indexOf(WORDS[i])>=0){return true;}}" +
+                    "  if(doc.querySelector('#nc_1_n1z,#nc_1_n1t,#nc_1_wrapper,#baxia-punish,#nocaptcha,.btn_slide,.nc_scale,.nc_wrapper,.nc-container,punish-component')){return true;}" +
+                    "  var nodes=doc.querySelectorAll('iframe,div,span,input,button');" +
+                    "  for(var j=0;j<nodes.length;j++){var e=nodes[j];" +
+                    "    var meta=[e.id,e.className,e.name,e.src||'',e.getAttribute&&e.getAttribute('title')||'',e.getAttribute&&e.getAttribute('aria-label')||'',e.getAttribute&&e.getAttribute('data-spm')||''].join(' ');" +
+                    "    if(!/(nc_|nc-|awsc|captcha|punish|baxia|滑块|验证码|安全验证|x5sec)/i.test(meta)){continue;}" +
+                    "    if(e.tagName==='IFRAME'||visible(e)){return true;}" +
+                    "  }" +
+                    "  return false;" +
                     "}" +
-                    "var body=norm(document.body ? (document.body.innerText || document.body.textContent || '') : '');" +
-                    "var words=['请拖动下方滑块完成验证','拖动滑块','拖到最右边','按住滑块','滑块验证','安全验证','访问验证','行为验证','请完成验证','请按住滑块'];" +
-                    "for(var i=0;i<words.length;i++){ if(body.indexOf(words[i])>=0){return true;} }" +
-                    "var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,div,span,input,button'));" +
-                    "for(var j=0;j<nodes.length;j++){" +
-                    "  var e=nodes[j];" +
-                    "  var meta=[e.id,e.className,e.name,e.src,e.getAttribute('title'),e.getAttribute('aria-label'),e.getAttribute('data-spm')].join(' ');" +
-                    "  if(!/(nc_|nc-|awsc|captcha|punish|baxia|滑块|验证码|安全验证|x5sec)/i.test(meta)){continue;}" +
-                    "  if(e.tagName==='IFRAME' || visible(e)){return true;}" +
-                    "}" +
+                    "if(checkDoc(document)){return true;}" +
+                    "var ifrs=document.querySelectorAll('iframe');" +
+                    "for(var k=0;k<ifrs.length;k++){try{var d=ifrs[k].contentDocument||(ifrs[k].contentWindow&&ifrs[k].contentWindow.document);if(d&&checkDoc(d)){return true;}}catch(e){}}" +
                     "return false;");
             return Boolean.TRUE.equals(detected);
         } catch (Exception e) {
@@ -81,12 +86,14 @@ public class SliderVerifyHandler {
             if (!isSliderVerifyPage(browser)) {
                 return true;
             }
-            // 发现验证页
             log.info("Slider verify detected, step={}, attempt={}", stepTag, attempt + 1);
+            // 等待滑块 handle 渲染（NC 异步注入，常需 1-3s）
+            waitSliderHandleReady(browser, 5000);
             doSnapshot(snapshot, browser, stepTag + "-before-slide-" + (attempt + 1));
 
             boolean slid = simulateSlideDrag(browser, snapshot, stepTag, attempt + 1);
-            Extends.sleep(Math.max(1500, retryDelay * 2));
+            // mouseUp 后 NC 后端校验需要 1-2s，给到至少 2.5s
+            Extends.sleep(Math.max(2500, retryDelay * 2));
             doSnapshot(snapshot, browser, stepTag + "-after-slide-" + (attempt + 1));
 
             if (slid && !isSliderVerifyPage(browser)) {
@@ -105,6 +112,28 @@ public class SliderVerifyHandler {
         return false;
     }
 
+    /** 轮询等待滑块 handle 出现并可见，最多等待 maxWaitMillis 毫秒。 */
+    private boolean waitSliderHandleReady(Browser browser, long maxWaitMillis) {
+        long deadline = System.currentTimeMillis() + maxWaitMillis;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Boolean ready = browser.executeScript(
+                        "function visible(el){if(!el){return false;}var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                        "function check(doc){if(!doc){return false;}var h=doc.querySelector('#nc_1_n1z,.btn_slide,[class*=btn_slide]');return !!(h&&visible(h));}" +
+                        "if(check(document)){return true;}" +
+                        "var ifrs=document.querySelectorAll('iframe');" +
+                        "for(var i=0;i<ifrs.length;i++){try{var d=ifrs[i].contentDocument||(ifrs[i].contentWindow&&ifrs[i].contentWindow.document);if(check(d)){return true;}}catch(e){}}" +
+                        "return false;");
+                if (Boolean.TRUE.equals(ready)) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+            }
+            Extends.sleep(300L);
+        }
+        return false;
+    }
+
     /**
      * 模拟人工缓慢向右拖拽滑块验证的滑块按钮。
      * 通过 JS 找到滑块元素坐标，再用 Playwright 原生 Mouse API 模拟拖拽。
@@ -112,61 +141,38 @@ public class SliderVerifyHandler {
      */
     public boolean simulateSlideDrag(Browser browser, BiConsumer<Browser, String> snapshot,
             String stepTag, int attempt) {
-        // 找到滑块按钮，返回 {x, y, width, height, trackWidth}
+        // 跨主文档与同源 iframe 查找滑块，返回相对视口的绝对坐标 {x,y,width,height,trackWidth,inIframe}
         Map<String, Object> sliderInfo = browser.executeScript(
-                "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                "function visible(el){if(!el){return false;}var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
                 "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                // 1) 精确匹配阿里云 NoCaptcha (NC) 滑块把手: class 含 btn_slide
-                "var handles=Array.prototype.slice.call(document.querySelectorAll('.btn_slide,[class*=btn_slide]')).filter(visible);" +
-                // 2) NC 轨道: .nc_scale
-                "var tracks=Array.prototype.slice.call(document.querySelectorAll('.nc_scale,[class*=nc_scale],[class*=nc_wrapper]')).filter(function(e){" +
-                "  if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
-                "});" +
-                // 3) 通用备选: class 含 slider/handle/drag 且宽度 <= 80
-                "if(handles.length===0){" +
-                "  handles=Array.prototype.slice.call(document.querySelectorAll(" +
-                "    '[class*=slider],[class*=Slider],[class*=handle],[class*=Handle],[class*=drag],[class*=Drag]'" +
-                "  )).filter(function(e){" +
-                "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();" +
-                "    return r.width>0&&r.width<=80&&r.height>0&&r.height<=80;" +
-                "  });" +
-                "}" +
-                // 4) 轨道备选: 宽度较大且 class 含 track/rail/groove
-                "if(tracks.length===0){" +
-                "  tracks=Array.prototype.slice.call(document.querySelectorAll(" +
-                "    '[class*=track],[class*=Track],[class*=rail],[class*=Rail],[class*=groove],[class*=Groove]'" +
-                "  )).filter(function(e){" +
-                "    if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;" +
-                "  });" +
-                "}" +
-                // 5) 最终兜底: 找到文字含'拖'的父容器内第一个小方块
-                "if(handles.length===0){" +
-                "  var verifyBox=null;" +
-                "  var allDivs=Array.prototype.slice.call(document.querySelectorAll('div,span,section'));" +
-                "  for(var i=0;i<allDivs.length;i++){" +
-                "    var t=norm(allDivs[i].innerText||allDivs[i].textContent||'');" +
-                "    if(t.indexOf('\\u62d6')>=0&&t.indexOf('\\u6ed1\\u5757')>=0){verifyBox=allDivs[i];break;}" +
+                "function searchDoc(doc,offX,offY){" +
+                "  if(!doc){return null;}" +
+                // 1) NC 标准选择器：精确 ID + class
+                "  var handles=Array.prototype.slice.call(doc.querySelectorAll('#nc_1_n1z,.btn_slide,[class*=btn_slide],[id$=_n1z]')).filter(visible);" +
+                "  var tracks=Array.prototype.slice.call(doc.querySelectorAll('#nc_1_n1t,.nc_scale,[class*=nc_scale],[id$=_n1t],.nc_wrapper,[class*=nc_wrapper]')).filter(function(e){if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>80;});" +
+                // 2) 通用备选：小方块（width<=80 且高度合理）
+                "  if(handles.length===0){" +
+                "    handles=Array.prototype.slice.call(doc.querySelectorAll('[class*=slider],[class*=Slider],[class*=handle],[class*=Handle],[class*=drag],[class*=Drag]')).filter(function(e){if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>0&&r.width<=80&&r.height>0&&r.height<=80;});" +
                 "  }" +
-                "  if(verifyBox){" +
-                "    var kids=Array.prototype.slice.call(verifyBox.querySelectorAll('*'));" +
-                "    for(var j=0;j<kids.length;j++){" +
-                "      var kr=kids[j].getBoundingClientRect();" +
-                "      if(visible(kids[j])&&kr.width>10&&kr.width<=80&&kr.height>10&&kr.height<=80){" +
-                "        handles.push(kids[j]);break;" +
-                "      }" +
-                "    }" +
+                "  if(tracks.length===0){" +
+                "    tracks=Array.prototype.slice.call(doc.querySelectorAll('[class*=track],[class*=Track],[class*=rail],[class*=Rail],[class*=groove],[class*=Groove]')).filter(function(e){if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;});" +
                 "  }" +
+                // 3) 最终兜底：找到含「拖滑块」文字的容器内的小方块
+                "  if(handles.length===0){" +
+                "    var verifyBox=null,allDivs=doc.querySelectorAll('div,span,section');" +
+                "    for(var i=0;i<allDivs.length;i++){var t=norm(allDivs[i].innerText||allDivs[i].textContent||'');if(t.indexOf('\\u62d6')>=0&&t.indexOf('\\u6ed1\\u5757')>=0){verifyBox=allDivs[i];break;}}" +
+                "    if(verifyBox){var kids=verifyBox.querySelectorAll('*');for(var j=0;j<kids.length;j++){var kr=kids[j].getBoundingClientRect();if(visible(kids[j])&&kr.width>10&&kr.width<=80&&kr.height>10&&kr.height<=80){handles=[kids[j]];break;}}}" +
+                "  }" +
+                "  if(handles.length===0){return null;}" +
+                "  var handle=handles[0],hr=handle.getBoundingClientRect(),trackWidth=hr.width;" +
+                "  if(tracks.length>0){var tr=tracks[0].getBoundingClientRect();trackWidth=tr.width;}" +
+                "  return {x:offX+hr.left+hr.width/2,y:offY+hr.top+hr.height/2,width:hr.width,height:hr.height,trackWidth:trackWidth,inIframe:offX>0||offY>0};" +
                 "}" +
-                "if(handles.length===0){return null;}" +
-                "var handle=handles[0];" +
-                "var hr=handle.getBoundingClientRect();" +
-                "var trackWidth=hr.width;" +
-                "if(tracks.length>0){" +
-                "  var tr=tracks[0].getBoundingClientRect();" +
-                "  trackWidth=tr.width;" +
-                "}" +
-                "return {x:hr.left+hr.width/2,y:hr.top+hr.height/2,width:hr.width,height:hr.height,trackWidth:trackWidth};");
+                "var info=searchDoc(document,0,0);" +
+                "if(info){return info;}" +
+                "var ifrs=document.querySelectorAll('iframe');" +
+                "for(var k=0;k<ifrs.length;k++){if(!visible(ifrs[k])){continue;}try{var d=ifrs[k].contentDocument||(ifrs[k].contentWindow&&ifrs[k].contentWindow.document);if(!d){continue;}var fr=ifrs[k].getBoundingClientRect();var r=searchDoc(d,fr.left,fr.top);if(r){return r;}}catch(e){}}" +
+                "return null;");
 
         if (sliderInfo == null) {
             log.warn("Slider handle not found, cannot simulate drag, step={}, attempt={}", stepTag, attempt);
@@ -178,8 +184,8 @@ public class SliderVerifyHandler {
         double startY = toDouble(sliderInfo.get("y"));
         double handleWidth = toDouble(sliderInfo.get("width"));
         double trackWidth = toDouble(sliderInfo.get("trackWidth"));
+        boolean inIframe = Boolean.TRUE.equals(sliderInfo.get("inIframe"));
 
-        // 坐标合法性校验
         if (!Double.isFinite(startX) || !Double.isFinite(startY) || startX < 1 || startY < 1) {
             log.warn("Slider handle coordinates invalid, startX={}, startY={}, step={}, attempt={}", startX, startY, stepTag, attempt);
             doSnapshot(snapshot, browser, stepTag + "-slide-invalid-coord-" + attempt);
@@ -195,10 +201,10 @@ public class SliderVerifyHandler {
             dragDistance = Math.max(200, viewportWidth * 0.70 - handleWidth);
         }
 
-        log.info("Simulate slide drag, startX={}, startY={}, handleWidth={}, trackWidth={}, dragDistance={}",
-                startX, startY, handleWidth, trackWidth, dragDistance);
+        log.info("Simulate slide drag, startX={}, startY={}, handleWidth={}, trackWidth={}, dragDistance={}, inIframe={}",
+                startX, startY, handleWidth, trackWidth, dragDistance, inIframe);
 
-        // 使用 Playwright 原生 Mouse API 模拟拖拽
+        // 使用 Playwright 原生 Mouse API 模拟拖拽（坐标已经是主页面视口绝对坐标）
         double endX = startX + dragDistance;
         browser.mouseDrag(startX, startY, endX, startY, 30);
         return true;
@@ -217,20 +223,21 @@ public class SliderVerifyHandler {
             log.info("Slider verify failed hint detected, clicking container to retry, step={}, attempt={}", stepTag, attempt);
             doSnapshot(snapshot, browser, stepTag + "-verify-failed-" + attempt);
 
-            // 通过 JS 找到 NC 验证容器框体坐标
+            // 跨主文档与同源 iframe 找到 NC 验证容器框体绝对坐标
             Map<String, Object> containerInfo = browser.executeScript(
-                    "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
-                    "return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                    "var c=document.querySelector('.nc-container,.nc_wrapper,.sm-pop-inner');" +
-                    "if(c&&visible(c)){var r=c.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}" +
-                    "var all=Array.prototype.slice.call(document.querySelectorAll('div,span,p'));" +
-                    "for(var i=0;i<all.length;i++){" +
-                    "  var t=(all[i].innerText||all[i].textContent||'').trim();" +
-                    "  if(t.indexOf('验证失败')>=0&&visible(all[i])){" +
-                    "    var r=all[i].getBoundingClientRect();" +
-                    "    if(r.width>50&&r.height>20){return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};}" +
-                    "  }" +
+                    "function visible(el){if(!el){return false;}var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                    "function searchDoc(doc,offX,offY){" +
+                    "  if(!doc){return null;}" +
+                    "  var c=doc.querySelector('.nc-container,.nc_wrapper,.sm-pop-inner,#baxia-punish,#nocaptcha');" +
+                    "  if(c&&visible(c)){var r=c.getBoundingClientRect();return {x:offX+r.left+r.width/2,y:offY+r.top+r.height/2,w:r.width,h:r.height};}" +
+                    "  var all=doc.querySelectorAll('div,span,p');" +
+                    "  for(var i=0;i<all.length;i++){var t=(all[i].innerText||all[i].textContent||'').trim();if(t.indexOf('验证失败')>=0&&visible(all[i])){var r=all[i].getBoundingClientRect();if(r.width>50&&r.height>20){return {x:offX+r.left+r.width/2,y:offY+r.top+r.height/2,w:r.width,h:r.height};}}}" +
+                    "  return null;" +
                     "}" +
+                    "var info=searchDoc(document,0,0);" +
+                    "if(info){return info;}" +
+                    "var ifrs=document.querySelectorAll('iframe');" +
+                    "for(var k=0;k<ifrs.length;k++){if(!visible(ifrs[k])){continue;}try{var d=ifrs[k].contentDocument||(ifrs[k].contentWindow&&ifrs[k].contentWindow.document);if(!d){continue;}var fr=ifrs[k].getBoundingClientRect();var r=searchDoc(d,fr.left,fr.top);if(r){return r;}}catch(e){}}" +
                     "return null;");
 
             if (containerInfo == null) {
@@ -257,12 +264,17 @@ public class SliderVerifyHandler {
 
     /**
      * 读取页面 body 文本摘要（最多 2000 字符），带导航重试。
+     * 同时拼接同源 iframe 的 body 文本，方便检测百夏滑块场景。
      */
     public String readBodySnippet(Browser browser) {
         String body = "";
         for (int i = 0; i < 3; i++) {
             try {
-                body = browser.executeScript("return document.body ? document.body.innerText : '';");
+                body = browser.executeScript(
+                        "var parts=[document.body?(document.body.innerText||document.body.textContent||''):''];" +
+                        "var ifrs=document.querySelectorAll('iframe');" +
+                        "for(var k=0;k<ifrs.length;k++){try{var d=ifrs[k].contentDocument||(ifrs[k].contentWindow&&ifrs[k].contentWindow.document);if(d&&d.body){parts.push(d.body.innerText||d.body.textContent||'');}}catch(e){}}" +
+                        "return parts.join('\\n');");
                 break;
             } catch (Exception e) {
                 String message = e.getMessage();

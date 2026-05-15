@@ -205,6 +205,114 @@ public class TbPromotionOrdersTaskTests {
     }
 
     @Test
+    public void sliderVerifyHandlerShouldRecognizeBaxiaIframeAndDirectMarkup() {
+        org.rx.crawler.task.tb.SliderVerifyHandler handler = new org.rx.crawler.task.tb.SliderVerifyHandler();
+        org.rx.crawler.service.Browser iframeBrowser = stubBrowser(
+                "https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm",
+                "<html><body><div class='baxia-dialog'><iframe id='baxia-dialog-content' src='/punish?x5sec=1'></iframe></div></body></html>",
+                "");
+        assertTrue(handler.isSliderVerifyPage(iframeBrowser));
+
+        org.rx.crawler.service.Browser directBrowser = stubBrowser(
+                "https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm",
+                "<html><body><div id='baxia-punish'><div id='nocaptcha' class='nc-container'>"
+                        + "<div id='nc_1_wrapper' class='nc_wrapper'><div id='nc_1_n1t' class='nc_scale'>"
+                        + "<span id='nc_1_n1z' class='nc_iconfont btn_slide' role='button'></span>"
+                        + "<div class='scale_text slidetounlock'><span data-nc-lang='SLIDE'>请按住滑块，拖动到最右边</span></div>"
+                        + "</div></div></div></div></body></html>",
+                "请按住滑块，拖动到最右边");
+        assertTrue(handler.isSliderVerifyPage(directBrowser));
+
+        org.rx.crawler.service.Browser normalBrowser = stubBrowser(
+                "https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm",
+                "<html><body><div>订单信息 订单状态 佣金比例 预估佣金</div></body></html>",
+                "订单信息 订单状态 佣金比例 预估佣金");
+        assertFalse(handler.isSliderVerifyPage(normalBrowser));
+    }
+
+    private org.rx.crawler.service.Browser stubBrowser(String url, String outerHtml, String bodyText) {
+        return new StubBrowser(url, outerHtml, bodyText);
+    }
+
+    /** 仅用于单测：模拟 isSliderVerifyPage 所依赖的 currentUrl + bodyText + 关键 DOM 关键词。 */
+    static class StubBrowser implements org.rx.crawler.service.Browser {
+        private final String url;
+        private final String outerHtml;
+        private final String bodyText;
+
+        StubBrowser(String url, String outerHtml, String bodyText) {
+            this.url = url;
+            this.outerHtml = outerHtml;
+            this.bodyText = bodyText;
+        }
+
+        @Override public String getCurrentUrl() { return url; }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T executeScript(String script, Object... args) {
+            if (script.contains("checkDoc")) {
+                if (containsSliderMarker(outerHtml) || containsSliderText(bodyText)) {
+                    return (T) Boolean.TRUE;
+                }
+                return (T) Boolean.FALSE;
+            }
+            if (script.contains("document.body")) {
+                return (T) bodyText;
+            }
+            return null;
+        }
+
+        private boolean containsSliderMarker(String html) {
+            if (html == null) { return false; }
+            return html.contains("baxia") || html.contains("nc_1_n1z") || html.contains("btn_slide")
+                    || html.contains("nc_scale") || html.contains("nc-container") || html.contains("baxia-punish")
+                    || html.contains("nocaptcha") || html.contains("punish-component");
+        }
+
+        private boolean containsSliderText(String body) {
+            if (body == null) { return false; }
+            return body.contains("请拖动下方滑块完成验证") || body.contains("拖动滑块") || body.contains("拖到最右边")
+                    || body.contains("按住滑块") || body.contains("滑块验证") || body.contains("安全验证")
+                    || body.contains("访问验证") || body.contains("行为验证") || body.contains("请完成验证")
+                    || body.contains("请按住滑块");
+        }
+
+        @Override public org.rx.crawler.service.BrowserType getType() { return null; }
+        @Override public void setCookieRegion(String cookieRegion) {}
+        @Override public long getWaitMillis() { return 0; }
+        @Override public void navigateUrl(String url) {}
+        @Override public void navigateUrl(String url, String locatorSelector) {}
+        @Override public void navigateUrl(String url, String locatorSelector, int timeoutSeconds) {}
+        @Override public void nativeGet(String url) {}
+        @Override public String saveCookies(boolean reset) { return ""; }
+        @Override public void clearCookies(boolean onlyBrowser) {}
+        @Override public void setRawCookie(String rawCookie) {}
+        @Override public String getRawCookie() { return ""; }
+        @Override public boolean hasElement(String selector) { return false; }
+        @Override public String elementText(String selector) { return ""; }
+        @Override public org.rx.core.Linq<String> elementsText(String selector) { return org.rx.core.Linq.from(java.util.Collections.emptyList()); }
+        @Override public String elementVal(String selector) { return ""; }
+        @Override public org.rx.core.Linq<String> elementsVal(String selector) { return org.rx.core.Linq.from(java.util.Collections.emptyList()); }
+        @Override public String elementAttr(String selector, String... attrArgs) { return ""; }
+        @Override public org.rx.core.Linq<String> elementsAttr(String selector, String... attrArgs) { return org.rx.core.Linq.from(java.util.Collections.emptyList()); }
+        @Override public void elementClick(String selector) {}
+        @Override public void elementClick(String selector, boolean waitElementLocated) {}
+        @Override public void elementPress(String selector, String keys) {}
+        @Override public void elementPress(String selector, String keys, boolean waitElementLocated) {}
+        @Override public void waitElementLocated(String selector) {}
+        @Override public void waitElementLocated(String selector, int timeoutSeconds) {}
+        @Override public void injectScript(String script) {}
+        @Override public <T> T injectAndExecuteScript(String injectScript, String script, Object... args) { return null; }
+        @Override public <T> T executeConfigureScript(String scriptName, Object... args) { return null; }
+        @Override public byte[] screenshotAsBytes(String selector) { return new byte[0]; }
+        @Override public void focus() {}
+        @Override public void maximize() {}
+        @Override public void normalize() {}
+        @Override public void close() {}
+    }
+
+    @Test
     public void tbPromotionOrdersIntegrationShouldSaveReadableDebugSnapshot() throws Exception {
         assumeTrue(Boolean.parseBoolean(System.getProperty("tb.promotion.orders.integration", "false")));
 
