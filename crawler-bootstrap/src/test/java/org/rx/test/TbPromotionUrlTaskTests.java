@@ -22,8 +22,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -190,6 +192,58 @@ public class TbPromotionUrlTaskTests {
         assertTrue(html.contains("<html") || html.contains("<body") || html.contains("阿里妈妈") || html.contains("淘宝"));
         if (result.getStatus() != CustomCrawlStatus.LOGIN_REQUIRED) {
             task.closeProfile(request.getProfileName());
+        }
+    }
+
+    @Test
+    public void tbPromotionUrlsIntegrationShouldPrintBatchResults() throws Exception {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("tb.promotion.url.batch.integration", "false")));
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        AppConfig config = new AppConfig();
+        config.getCustom().setRemotingEnabled(false);
+        config.getCustom().getChrome().setProfileBasePath(
+                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+        Path debugDir = Paths.get("target", "tb-promotion-url-debug").toAbsolutePath();
+        config.getCustom().setDebugEnabled(true);
+        config.getCustom().getTbPromotion().setDebugOutputDir(debugDir.toString());
+        config.getCustom().getTbPromotion().setDefaultOutputPath(tempDir.resolve("tb-url-batch-output.jsonl").toString());
+        config.getCustom().getTbPromotion().setForcePreflight(
+                Boolean.parseBoolean(System.getProperty("app.custom.tbPromotion.forcePreflight", "true")));
+        config.getCustom().getTbPromotion().setPreflightEnabled(
+                Boolean.parseBoolean(System.getProperty("app.custom.tbPromotion.preflightEnabled", "true")));
+
+        TbPromotionUrlTask task = new TbPromotionUrlTask(config, new BrowserProfileManager(config),
+                new CrawlEntryService(new BrowserPreflightService()), new ResultWriter(objectMapper), objectMapper);
+        List<String> keywords = Arrays.asList(
+                System.getProperty("tb.promotion.url.batch.keyword1", "钱包"),
+                System.getProperty("tb.promotion.url.batch.keyword2", "衣服"));
+
+        List<PromotionUrlResult> results = task.getPromotionUrls(keywords);
+        System.out.println("TB_PROMOTION_URL_BATCH_RESULT=" + objectMapper.writeValueAsString(results));
+        for (PromotionUrlResult result : results) {
+            if (result.getProductInfo() != null) {
+                System.out.println("TB_PROMOTION_URL_BATCH_SUMMARY keyword=" + result.getKeyword()
+                        + ", status=" + result.getStatus()
+                        + ", promotionUrl=" + result.getPromotionUrl()
+                        + ", productName=" + result.getProductInfo().getProductName()
+                        + ", productLink=" + result.getProductInfo().getProductLink()
+                        + ", commissionRate=" + result.getProductInfo().getCommissionRate()
+                        + ", price=" + result.getProductInfo().getPrice()
+                        + ", storeName=" + result.getProductInfo().getStoreName());
+            } else {
+                System.out.println("TB_PROMOTION_URL_BATCH_SUMMARY keyword=" + result.getKeyword()
+                        + ", status=" + result.getStatus()
+                        + ", promotionUrl=" + result.getPromotionUrl()
+                        + ", message=" + result.getMessage());
+            }
+        }
+        assertEquals(keywords.size(), results.size());
+        for (PromotionUrlResult result : results) {
+            assertNotNull(result.getStatus());
+        }
+        if (!results.isEmpty()) {
+            task.closeProfile(results.get(0).getProfileName());
         }
     }
 }

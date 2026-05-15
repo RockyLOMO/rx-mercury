@@ -538,11 +538,6 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
     private boolean ensurePromotionGoodsPageForNextTbKeyword(Browser browser, TbPromotionConfig config,
             PromotionUrlResult result, DebugRecorder debug) throws TimeoutException {
         closeTbPromotionDialogIfNeeded(browser, config);
-        if (hasGoodsSearchInput(browser)) {
-            result.setCurrentUrl(browser.getCurrentUrl());
-            debug.snapshot(browser, "02-goods-page-ready-batch");
-            return true;
-        }
         browser.navigateUrl(config.getPromotionGoodsUrl(), Browser.BODY_SELECTOR, config.getPageTimeoutSeconds());
         Extends.sleep(config.nextStepDelayMillis());
         result.setCurrentUrl(browser.getCurrentUrl());
@@ -590,15 +585,6 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
                 return;
             }
         }
-    }
-
-    private boolean hasGoodsSearchInput(Browser browser) {
-        Boolean ok = browser.executeScript("function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&!el.readOnly;}" +
-                "function meta(el){return (el.getAttribute('placeholder')||'')+(el.getAttribute('aria-label')||'')+(el.name||'')+(el.id||'')+(el.className||'');}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('input,textarea'));" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i],m=meta(e);if(visible(e)&&(m.indexOf('请输入你要搜索的商品')>=0||m.indexOf('商品/类目/商品链接')>=0||/商品|类目|链接|搜索/.test(m))){return true;}}" +
-                "return false;");
-        return Boolean.TRUE.equals(ok);
     }
 
     private boolean completeForwardLanding(Browser browser, TbPromotionConfig config) throws TimeoutException {
