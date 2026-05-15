@@ -5,6 +5,7 @@ import org.mockito.ArgumentCaptor;
 import org.rx.crawler.service.Browser;
 import org.rx.crawler.task.tb.SliderVerifyHandler;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -34,5 +35,14 @@ public class SliderVerifyHandlerTests {
         ArgumentCaptor<String> scriptCaptor = ArgumentCaptor.forClass(String.class);
         verify(browser, times(2)).executeScript(scriptCaptor.capture());
         assertTrue(scriptCaptor.getAllValues().get(1).contains("querySelectorAll('iframe,div,span,input,button')"));
+    }
+
+    @Test
+    public void sliderVerifyShouldIgnoreNormalOrderPageWhenDomProbeMissed() {
+        Browser browser = mock(Browser.class);
+        when(browser.getCurrentUrl()).thenReturn("https://pub.alimama.com/portal/v2/effect/order/overviewOrder/page/index.htm");
+        when(browser.executeScript(anyString())).thenReturn("推广订单明细 订单信息 暂无数据", Boolean.FALSE);
+
+        assertFalse(new SliderVerifyHandler().isSliderVerifyPage(browser));
     }
 }

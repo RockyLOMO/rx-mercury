@@ -212,6 +212,25 @@ target/tb-promotion-debug/{profileName}/{startTime}-{endTime}-{timestamp}
 | 表头过滤 | 已过滤 `订单信息` 表头行 |
 | Debug 目录 | `crawler-bootstrap/target/tb-promotion-debug/common/2026-04-13-2026-05-13-20260513_165326_970` |
 
+2026-05-15 实测：
+
+| 项 | 结果 |
+| --- | --- |
+| 入参 | `startTime=2026-04-15`，`endTime=2026-05-15` |
+| Chrome profile | `common` |
+| Sannysoft | 通过 |
+| 抓取状态 | `SUCCESS` |
+| 当前页订单数 | 5 |
+| 风控处理 | 修正隐藏残留 `nc_*` / `baxia` / `nocaptcha` DOM 被误判为滑块的问题；滑块清除后流程可继续执行 |
+| Debug 目录 | `crawler-bootstrap/target/tb-promotion-debug/common/2026-04-15-2026-05-15-20260515_140836_650` |
+
+问题定位与修复：
+
+- 现象：滑块验证处理完成后，页面已经回到订单明细报表，但任务没有立即继续，而是在 `waitSliderVerifyCleared` 中等待到超时。
+- 原因：页面会残留隐藏的 `nc_*`、`baxia`、`nocaptcha` 等风控 DOM。旧逻辑只要发现这些特征节点就判定为滑块页，没有判断节点是否可见。
+- 修复：`SliderVerifyHandler.isSliderVerifyPage` 的 DOM 探测只认可见风控节点；隐藏残留节点不再算滑块。可见 iframe 才进入同源内容检查。
+- 验证：同一入参重新执行订单集成验证后返回 `SUCCESS`，抓取订单 5 条。
+
 ## 调用入口
 
 HTTP 入口：
@@ -254,6 +273,7 @@ org.rx.crawler.task.common.CustomCrawlRemotingContract#getTbPromotionOrders
   - `请完成验证`
   - `验证失败`
 - 若页面没有跳转而是直接弹出浮层滑块，则继续检查可见的 `iframe/div/span/input/button` 节点；元素 `id/class/name/src/title/aria-label/data-spm` 中包含 `nc_`、`awsc`、`captcha`、`punish`、`baxia`、`滑块`、`验证码`、`安全验证` 或 `x5sec` 时，判定为滑块验证。
+- 滑块处理完成后可能残留隐藏的风控 DOM。隐藏节点不再判定为滑块，避免人工处理后 `waitSliderVerifyCleared` 阶段误判未清除并等待到超时。
 
 ### 模拟滑动策略
 

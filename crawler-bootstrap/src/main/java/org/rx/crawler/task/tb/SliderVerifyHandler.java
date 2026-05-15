@@ -42,6 +42,8 @@ public class SliderVerifyHandler {
                 return true;
             }
 
+            // 滑块通过或人工处理后，页面可能残留隐藏的 nc/baxia/nocaptcha 节点。
+            // 这里必须只认可见节点，否则 waitSliderVerifyCleared 会误判滑块仍存在并等到超时。
             Boolean detected = browser.executeScript(
                     "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
                     "function visible(el){var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
@@ -50,18 +52,19 @@ public class SliderVerifyHandler {
                     "  if(!doc||!doc.body){return false;}" +
                     "  var body=norm(doc.body.innerText||doc.body.textContent||'');" +
                     "  for(var i=0;i<WORDS.length;i++){if(body.indexOf(WORDS[i])>=0){return true;}}" +
-                    "  if(doc.querySelector('#nc_1_n1z,#nc_1_n1t,#nc_1_wrapper,#baxia-punish,#nocaptcha,.btn_slide,.nc_scale,.nc_wrapper,.nc-container,punish-component')){return true;}" +
+                    "  var suspects=doc.querySelectorAll('#nc_1_n1z,#nc_1_n1t,#nc_1_wrapper,#baxia-punish,#nocaptcha,.btn_slide,.nc_scale,.nc_wrapper,.nc-container,punish-component');" +
+                    "  for(var s=0;s<suspects.length;s++){if(visible(suspects[s])){return true;}}" +
                     "  var nodes=doc.querySelectorAll('iframe,div,span,input,button');" +
                     "  for(var j=0;j<nodes.length;j++){var e=nodes[j];" +
                     "    var meta=[e.id,e.className,e.name,e.src||'',e.getAttribute&&e.getAttribute('title')||'',e.getAttribute&&e.getAttribute('aria-label')||'',e.getAttribute&&e.getAttribute('data-spm')||''].join(' ');" +
                     "    if(!/(nc_|nc-|awsc|captcha|punish|baxia|滑块|验证码|安全验证|x5sec)/i.test(meta)){continue;}" +
-                    "    if(e.tagName==='IFRAME'||visible(e)){return true;}" +
+                    "    if(visible(e)){return true;}" +
                     "  }" +
                     "  return false;" +
                     "}" +
                     "if(checkDoc(document)){return true;}" +
                     "var ifrs=document.querySelectorAll('iframe');" +
-                    "for(var k=0;k<ifrs.length;k++){try{var d=ifrs[k].contentDocument||(ifrs[k].contentWindow&&ifrs[k].contentWindow.document);if(d&&checkDoc(d)){return true;}}catch(e){}}" +
+                    "for(var k=0;k<ifrs.length;k++){if(!visible(ifrs[k])){continue;}try{var d=ifrs[k].contentDocument||(ifrs[k].contentWindow&&ifrs[k].contentWindow.document);if(d&&checkDoc(d)){return true;}}catch(e){}}" +
                     "return false;");
             return Boolean.TRUE.equals(detected);
         } catch (Exception e) {
