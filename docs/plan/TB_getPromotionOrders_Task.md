@@ -240,12 +240,20 @@ org.rx.crawler.task.common.CustomCrawlRemotingContract#getTbPromotionOrders
 
 ### 检测逻辑
 
+- URL 包含 `/punish`、`x5sec`、`_____tmd_____` 或 `captcha` 时，直接判定为验证页。
 - 读取页面 `body.innerText`，若包含以下任意文字则判定为验证页：
   - `请拖动下方滑块完成验证`
   - `拖动滑块`
   - `拖到最右边`
   - `按住滑块`
+  - `请按住滑块`
+  - `滑块验证`
+  - `安全验证`
+  - `访问验证`
+  - `行为验证`
+  - `请完成验证`
   - `验证失败`
+- 若页面没有跳转而是直接弹出浮层滑块，则继续检查可见的 `iframe/div/span/input/button` 节点；元素 `id/class/name/src/title/aria-label/data-spm` 中包含 `nc_`、`awsc`、`captcha`、`punish`、`baxia`、`滑块`、`验证码`、`安全验证` 或 `x5sec` 时，判定为滑块验证。
 
 ### 模拟滑动策略
 

@@ -669,7 +669,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionUrl.waitGoodsPageReady");
             Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
-            if (isSliderVerifyPage(browser)
+            if (sliderVerifyHandler.isSliderVerifyPage(browser)
                     && !checkAndWaitSliderVerify(browser, config, result, debug, "02-goods-ready-slider")) {
                 return false;
             }
@@ -683,7 +683,7 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
 
     private boolean checkAndWaitSliderVerify(Browser browser, TbPromotionConfig config,
             PromotionUrlResult result, DebugRecorder debug, String stepTag) throws TimeoutException {
-        if (!isSliderVerifyPage(browser)) {
+        if (!sliderVerifyHandler.isSliderVerifyPage(browser)) {
             return true;
         }
         result.getDiagnostics().put(stepTag + "SliderVerify", true);
@@ -724,29 +724,11 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionUrl.waitSliderVerifyCleared." + stepTag);
             Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
-            if (!isSliderVerifyPage(browser)) {
+            if (!sliderVerifyHandler.isSliderVerifyPage(browser)) {
                 return true;
             }
         }
         return false;
-    }
-
-    private boolean isSliderVerifyPage(Browser browser) {
-        String currentUrl = browser.getCurrentUrl();
-        if (containsAny(currentUrl, "/punish", "x5sec", "_____tmd_____", "captcha")) {
-            return true;
-        }
-        Boolean ok = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "var body=norm(document.body?(document.body.innerText||document.body.textContent||''):'');" +
-                "var words=['请拖动下方滑块完成验证','拖动滑块','拖到最右边','按住滑块','滑块验证','安全验证','访问验证','行为验证','请完成验证','请按住滑块'];" +
-                "for(var i=0;i<words.length;i++){if(body.indexOf(words[i])>=0){return true;}}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,div,span,input,button'));" +
-                "for(var j=0;j<nodes.length;j++){var e=nodes[j];var meta=[e.id,e.className,e.name,e.src,e.getAttribute('title'),e.getAttribute('aria-label'),e.getAttribute('data-spm')].join(' ');" +
-                "if(!/(nc_|nc-|awsc|captcha|punish|baxia|滑块|验证码|安全验证|x5sec)/i.test(meta)){continue;}" +
-                "if(e.tagName==='IFRAME'||visible(e)){return true;}}" +
-                "return false;");
-        return Boolean.TRUE.equals(ok);
     }
 
     private boolean nativeSetSearchValue(Browser browser, String value) {
@@ -969,12 +951,12 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
             }
             if (nativeClickMarkedElement(browser, "[data-rx-tb-promo-button='1']")) {
                 Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
-                if (isPromotionDialogVisible(browser) || isSliderVerifyPage(browser)) {
+                if (isPromotionDialogVisible(browser) || sliderVerifyHandler.isSliderVerifyPage(browser)) {
                     return true;
                 }
                 if (nativeMouseClickMarkedElement(browser, "[data-rx-tb-promo-button='1']")) {
                     Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
-                    if (isPromotionDialogVisible(browser) || isSliderVerifyPage(browser)) {
+                    if (isPromotionDialogVisible(browser) || sliderVerifyHandler.isSliderVerifyPage(browser)) {
                         return true;
                     }
                 }

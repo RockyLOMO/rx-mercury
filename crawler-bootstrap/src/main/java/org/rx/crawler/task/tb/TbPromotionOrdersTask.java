@@ -181,7 +181,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         if (isForwardLandingIncomplete(browser)) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion forward landing quick-enter page not completed");
             result.getDiagnostics().put("currentUrl", browser.getCurrentUrl());
-            result.getDiagnostics().put("body", bodySnippet(browser));
+            result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
             debug.snapshot(browser, "02-forward-landing-incomplete");
             return;
         }
@@ -191,7 +191,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         if (!checkAndHandleSliderVerify(browser, config, result, debug, "02-order-slider")) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED,
                     "TB promotion slider verify not cleared before order page ready");
-            result.getDiagnostics().put("body", bodySnippet(browser));
+            result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
             debug.snapshot(browser, "02-order-slider-not-cleared");
             return;
         }
@@ -213,7 +213,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 log.info("TB promotion order page ready after slider retry");
             } else {
                 fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order page not ready");
-                result.getDiagnostics().put("body", bodySnippet(browser));
+                result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
                 debug.snapshot(browser, "02-order-page-not-ready");
                 return;
             }
@@ -230,10 +230,24 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                     && selectPaymentDateRange(browser, startDate, endDate, config, debug)) {
                 log.info("TB promotion date range selected after slider retry");
             } else {
-                fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order date range picker not found");
-                result.getDiagnostics().put("body", bodySnippet(browser));
-                debug.snapshot(browser, "03-date-range-missing");
-                return;
+                // 再次深度检测滑块，可能文案没变但 UI 被遮挡
+                if (isSliderVerifyPage(browser)) {
+                    log.info("TB promotion slider detected after second failure, retrying flow");
+                    if (onSliderVerifyDetected(browser, config, result, debug, "03-date-range-final-slider")
+                        && selectPaymentDateRange(browser, startDate, endDate, config, debug)) {
+                        log.info("TB promotion date range selected after final slider retry");
+                    } else {
+                        fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order date range picker blocked by slider or missing");
+                        result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
+                        debug.snapshot(browser, "03-date-range-missing");
+                        return;
+                    }
+                } else {
+                    fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order date range picker not found");
+                    result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
+                    debug.snapshot(browser, "03-date-range-missing");
+                    return;
+                }
             }
         }
         debug.snapshot(browser, "03-date-range-selected");
@@ -245,7 +259,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             waitOrderRowsSettled(browser, config);
             if (!isOrderListLoaded(browser)) {
                 fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion order search button not found");
-                result.getDiagnostics().put("body", bodySnippet(browser));
+                result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
                 debug.snapshot(browser, "04-search-button-missing");
                 return;
             }
@@ -257,7 +271,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         // 搜索后检测滑块验证
         if (!checkAndHandleSliderVerify(browser, config, result, debug, "04-search-slider")) {
             fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion slider verify not cleared after search");
-            result.getDiagnostics().put("body", bodySnippet(browser));
+            result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
             debug.snapshot(browser, "04-search-slider-not-cleared");
             return;
         }
@@ -293,7 +307,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             if (!checkAndHandleSliderVerify(browser, config, result, debug,
                     String.format("05-page-%03d-slider", pageNo + 1))) {
                 fail(result, CustomCrawlStatus.PAGE_CHANGED, "TB promotion slider verify not cleared during page turn");
-                result.getDiagnostics().put("body", bodySnippet(browser));
+                result.getDiagnostics().put("body", sliderVerifyHandler.readBodySnippet(browser));
                 return;
             }
             waitOrderRowsSettled(browser, config);
@@ -445,7 +459,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
 
     private boolean completeForwardLanding(Browser browser, TbPromotionConfig config) throws TimeoutException {
         String currentUrl = browser.getCurrentUrl();
-        String body = bodySnippet(browser);
+        String body = sliderVerifyHandler.readBodySnippet(browser);
         if (!isForwardLandingUrl(currentUrl) && !hasQuickEntrance(body)) {
             return false;
         }
@@ -455,7 +469,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.completeForwardLanding");
             currentUrl = browser.getCurrentUrl();
-            body = bodySnippet(browser);
+            body = sliderVerifyHandler.readBodySnippet(browser);
             boolean forwardLanding = isForwardLandingUrl(currentUrl);
             boolean hasQuickEntrance = hasQuickEntrance(body);
             if (!forwardLanding && !hasQuickEntrance && isLoggedInUrl(currentUrl, config)) {
@@ -495,7 +509,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
             ensureTaskDeadline("getTbPromotionOrders.waitForwardLandingResolvedAfterClick");
             Extends.sleep(Math.max(700L, config.nextStepDelayMillis()));
             String currentUrl = browser.getCurrentUrl();
-            String body = bodySnippet(browser);
+            String body = sliderVerifyHandler.readBodySnippet(browser);
             boolean forwardLanding = isForwardLandingUrl(currentUrl);
             boolean hasQuickEntrance = hasQuickEntrance(body);
             if (!forwardLanding && !hasQuickEntrance && isLoggedInUrl(currentUrl, config)) {
@@ -548,7 +562,12 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.waitOrderPageReady");
             Extends.sleep(Math.max(1000, config.nextStepDelayMillis()));
-            String body = bodySnippet(browser);
+            // 等待过程中也要检测滑块
+            if (isSliderVerifyPage(browser)) {
+                log.info("TB promotion slider detected while waiting for order page ready");
+                return false; // 让外层触发 checkAndHandleSliderVerify
+            }
+            String body = sliderVerifyHandler.readBodySnippet(browser);
             if (containsAny(body, "付款时间", "搜索订单编号", "查找订单", "订单状态", "佣金比例")) {
                 return true;
             }
@@ -557,7 +576,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     }
 
     private boolean isOrderListLoaded(Browser browser) {
-        String body = bodySnippet(browser);
+        String body = sliderVerifyHandler.readBodySnippet(browser);
         return containsAny(body, "订单信息", "订单状态", "总提成率", "付款预估收入", "暂无数据")
                 && containsAny(body, "上一页", "下一页", "子订单编号", "父订单编号", "暂无数据");
     }
@@ -968,7 +987,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         while (System.currentTimeMillis() < deadline) {
             ensureTaskDeadline("getTbPromotionOrders.waitOrderRowsSettled");
             Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
-            String body = bodySnippet(browser);
+            String body = sliderVerifyHandler.readBodySnippet(browser);
             if (!containsAny(body, "加载中", "查询中") && containsAny(body, "订单", "暂无", "没有", "无数据", "佣金比例")) {
                 return;
             }
@@ -1318,7 +1337,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
     }
 
     private boolean isForwardLandingIncomplete(Browser browser) {
-        return isForwardLandingUrl(browser.getCurrentUrl()) || hasQuickEntrance(bodySnippet(browser));
+        return isForwardLandingUrl(browser.getCurrentUrl()) || hasQuickEntrance(sliderVerifyHandler.readBodySnippet(browser));
     }
 
     private boolean hasQuickEntrance(String body) {
@@ -1462,30 +1481,6 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         context.setLoginWaitSeconds(appConfig.getCustom().getTbPromotion().getLoginWaitSeconds());
         context.setKeepBrowserOpenSeconds(appConfig.getCustom().getTbPromotion().getKeepBrowserOpenSecondsOnLoginRequired());
         entryService.notifyLoginRequired(context);
-    }
-
-    private String bodySnippet(Browser browser) {
-        String body = "";
-        for (int i = 0; i < 3; i++) {
-            try {
-                body = browser.executeScript("return document.body ? document.body.innerText : '';");
-                break;
-            } catch (Exception e) {
-                String message = e.getMessage();
-                if (message != null && (message.contains("Execution context was destroyed")
-                        || message.contains("because of a navigation"))) {
-                    log.debug("Read TB promotion body while navigating, retry={}", i + 1);
-                    Extends.sleep(500L * (i + 1));
-                    continue;
-                }
-                log.warn("Read TB promotion body fail, currentUrl={}, error={}", browser.getCurrentUrl(), message);
-                return "";
-            }
-        }
-        if (Strings.isEmpty(body) || body.length() <= 2000) {
-            return body;
-        }
-        return body.substring(0, 2000);
     }
 
     private boolean containsAny(String value, String... keys) {

@@ -6,7 +6,7 @@
 - 浏览器：本机 Chrome + Playwright，复用持久化 profile。
 - 窗口要求：浏览器默认最大化启动，保证 Sannysoft、首页、登录接管页和业务页使用一致的可视区域。
 - 前置流程：复用公共 Sannysoft 检测、人工登录接管和等待恢复流程。
-- 风控滑块：任务关键步骤会优先识别滑动验证并保存 debug 快照；检测后先调用 `onSliderVerifyDetected(...)` 空钩子，默认不处理并等待人工处理完成后继续当前流程。
+- 风控滑块：任务关键步骤会优先识别滑动验证并保存 debug 快照；识别逻辑覆盖跳转验证页、页面文案和未跳转的可见浮层滑块，检测后优先调用公共 `SliderVerifyHandler` 自动处理，失败后等待人工接管。
 - 页面操作：优先使用 `Browser` 封装的原生点击、输入、鼠标移动能力；JS 只用于定位、读取页面状态或兜底。
 
 ## 目标网站
@@ -89,3 +89,10 @@
 ```powershell
 mvn -pl crawler-bootstrap -am "-Dmaven.test.skip=false" "-DskipTests=false" "-Dtest=TbPromotionUrlTaskTests#tbPromotionUrlIntegrationShouldSaveReadableDebugSnapshot" "-Dtb.promotion.url.integration=true" test
 ```
+
+2026-05-15 本地验证记录：
+
+- Sannysoft：`passed`
+- 入参：`keyword=西麦纯燕麦片3kg高蛋白质0添加蔗糖即食谷物速食懒人代餐冲饮早餐`，`adSiteName=5`，`profileName=common`
+- 结果：`status=PAGE_CHANGED`，`message=TB promotion slider verify not cleared while entering goods page`
+- 明细：进入选品页后在 `02-goods-ready-slider` 检测到滑块浮层，自动重试 3 次均未找到可拖拽把手，已保存 debug 快照到 `target/tb-promotion-url-debug`

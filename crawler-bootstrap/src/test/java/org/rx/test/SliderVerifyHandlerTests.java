@@ -1,0 +1,38 @@
+package org.rx.test;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.rx.crawler.service.Browser;
+import org.rx.crawler.task.tb.SliderVerifyHandler;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+public class SliderVerifyHandlerTests {
+    @Test
+    public void sliderVerifyShouldKeepBodyKeywordDetection() {
+        Browser browser = mock(Browser.class);
+        when(browser.getCurrentUrl()).thenReturn("https://pub.alimama.com/portal/v2/pages/promo/goods/index.htm");
+        when(browser.<String>executeScript(anyString())).thenReturn("亲，请拖动下方滑块完成验证");
+
+        assertTrue(new SliderVerifyHandler().isSliderVerifyPage(browser));
+        verify(browser, times(1)).executeScript(anyString());
+    }
+
+    @Test
+    public void sliderVerifyShouldDetectPopupDomWhenBodySnippetMissed() {
+        Browser browser = mock(Browser.class);
+        when(browser.getCurrentUrl()).thenReturn("https://pub.alimama.com/portal/v2/pages/promo/goods/index.htm");
+        when(browser.executeScript(anyString())).thenReturn("正常商品页", Boolean.TRUE);
+
+        assertTrue(new SliderVerifyHandler().isSliderVerifyPage(browser));
+
+        ArgumentCaptor<String> scriptCaptor = ArgumentCaptor.forClass(String.class);
+        verify(browser, times(2)).executeScript(scriptCaptor.capture());
+        assertTrue(scriptCaptor.getAllValues().get(1).contains("querySelectorAll('iframe,div,span,input,button')"));
+    }
+}

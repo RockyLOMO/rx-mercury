@@ -18,7 +18,8 @@ public class SliderVerifyHandler {
 
     /** 滑块验证页面特征关键词 */
     private static final String[] SLIDER_KEYWORDS = {
-            "请拖动下方滑块完成验证", "拖动滑块", "拖到最右边", "按住滑块", "验证失败"
+            "请拖动下方滑块完成验证", "拖动滑块", "拖到最右边", "按住滑块", "请按住滑块",
+            "滑块验证", "安全验证", "访问验证", "行为验证", "请完成验证", "验证失败"
     };
 
     /** 验证失败重试特征关键词 */
@@ -27,17 +28,37 @@ public class SliderVerifyHandler {
     };
 
     /**
-     * 检测当前页面是否为滑块验证页（通过页面文字特征或 URL 判断）。
+     * 检测当前页面是否为滑块验证页（通过页面文字特征、URL 或特定元素判断）。
      */
     public boolean isSliderVerifyPage(Browser browser) {
         try {
-            // punish 惩罚页 URL 也包含滑块验证
             String url = browser.getCurrentUrl();
-            if (!Strings.isEmpty(url) && url.contains("punish")) {
+            if (containsAny(url, "/punish", "x5sec", "_____tmd_____", "captcha")) {
                 return true;
             }
+
             String body = readBodySnippet(browser);
-            return containsAny(body, SLIDER_KEYWORDS);
+            if (containsAny(body, SLIDER_KEYWORDS)) {
+                return true;
+            }
+
+            Boolean detected = browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                    "function visible(el){" +
+                    "  var st=getComputedStyle(el),r=el.getBoundingClientRect();" +
+                    "  return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;" +
+                    "}" +
+                    "var body=norm(document.body ? (document.body.innerText || document.body.textContent || '') : '');" +
+                    "var words=['请拖动下方滑块完成验证','拖动滑块','拖到最右边','按住滑块','滑块验证','安全验证','访问验证','行为验证','请完成验证','请按住滑块'];" +
+                    "for(var i=0;i<words.length;i++){ if(body.indexOf(words[i])>=0){return true;} }" +
+                    "var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,div,span,input,button'));" +
+                    "for(var j=0;j<nodes.length;j++){" +
+                    "  var e=nodes[j];" +
+                    "  var meta=[e.id,e.className,e.name,e.src,e.getAttribute('title'),e.getAttribute('aria-label'),e.getAttribute('data-spm')].join(' ');" +
+                    "  if(!/(nc_|nc-|awsc|captcha|punish|baxia|滑块|验证码|安全验证|x5sec)/i.test(meta)){continue;}" +
+                    "  if(e.tagName==='IFRAME' || visible(e)){return true;}" +
+                    "}" +
+                    "return false;");
+            return Boolean.TRUE.equals(detected);
         } catch (Exception e) {
             return false;
         }

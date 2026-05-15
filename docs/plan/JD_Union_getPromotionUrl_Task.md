@@ -537,3 +537,7 @@ status: SUCCESS
 promotionUrl: https://u.jd.com/f6FcZZw
 ```
 
+## 维护记录
+
+- 2026-05-15：同步记录公共依赖与滑块检测维护；Lombok 升级到 `1.18.46`，淘宝联盟公共滑块检测改为 URL、页面文案、可见浮层 DOM 三路判断；京东联盟推广链接主流程无代码变更。
+
