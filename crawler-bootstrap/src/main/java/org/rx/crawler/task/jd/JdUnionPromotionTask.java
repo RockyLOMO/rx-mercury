@@ -30,6 +30,7 @@ import org.rx.crawler.task.common.PromotionUrlResult;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
 import org.rx.util.BeanMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -56,7 +57,7 @@ import static org.rx.core.Extends.tryClose;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest, PromotionUrlResult> {
     private static final String TASK_TYPE = "getPromotionUrl";
     private static final String ORDERS_TASK_TYPE = "getPromotionOrders";

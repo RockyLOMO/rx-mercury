@@ -27,6 +27,7 @@ import org.rx.crawler.task.common.PromotionOrderItem;
 import org.rx.crawler.task.common.ResultWriter;
 import org.rx.exception.InvalidException;
 import org.rx.util.BeanMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -54,7 +55,7 @@ import static org.rx.core.Extends.tryClose;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersRequest, TbPromotionOrdersResult> {
     private static final String TASK_TYPE = "getTbPromotionOrders";
     private static final DateTimeFormatter DEBUG_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS");

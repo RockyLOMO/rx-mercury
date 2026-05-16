@@ -12,6 +12,7 @@ import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.crawler.task.jd.JdUnionConfig;
 import org.rx.crawler.task.tb.TbPromotionConfig;
 import org.rx.util.BeanMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +26,7 @@ import static org.rx.core.Extends.tryClose;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class LoginKeepAliveService {
     private static final String JD_PLATFORM = "jd";
     private static final String TB_PLATFORM = "tb";
