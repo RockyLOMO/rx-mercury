@@ -4,13 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.rx.core.Extends;
 import org.rx.core.Strings;
 import org.rx.crawler.service.Browser;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
 import java.util.concurrent.TimeoutException;
 
 @Service
-@RequiredArgsConstructor
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class CrawlEntryService {
     private final BrowserPreflightService preflightService;
     private final LoginNotificationService loginNotificationService;
