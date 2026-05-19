@@ -30,6 +30,8 @@ public interface CustomCrawlRemotingContract extends EventPublisher<CustomCrawlR
 
     PromotionUrlResult loginCheck(PromotionUrlRequest request);
 
+    String cookiesRaw(String profileName, String url);
+
     boolean closeProfile(String profileName);
 
     @Override

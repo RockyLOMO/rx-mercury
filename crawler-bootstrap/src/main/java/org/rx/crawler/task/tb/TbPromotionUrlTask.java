@@ -527,11 +527,6 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
         result.setPromotionUrl(promotionUrl);
         result.setStatus(CustomCrawlStatus.SUCCESS);
         result.setMessage("");
-        try {
-            browser.saveCookies(false);
-        } catch (Exception e) {
-            log.warn("save TB promotion cookies fail, error={}", e.getMessage());
-        }
         keepAliveUrlStore.collect("tb", browser, result.getDiagnostics());
         debug.snapshot(browser, "15-promotion-url-ready");
     }

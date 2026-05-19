@@ -172,6 +172,11 @@ public class BrowserProfileManager {
         @Override
         public void close() {
             try {
+                try {
+                    browser.saveCookies(false);
+                } catch (Exception e) {
+                    log.warn("Save chrome profile cookies fail, profile={}, error={}", profileName, e.getMessage());
+                }
                 if (keepOpen) {
                     long expireAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(keepOpenSeconds);
                     sessions.put(profileName, new ProfileSession(browser, expireAt));

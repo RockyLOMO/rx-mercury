@@ -50,6 +50,14 @@
 
 批量模式复用单条 `getTbPromotionUrl` 的抓取逻辑；Sannysoft、登录接管、进入淘宝联盟选品页只执行一次，从输入 `keyword` 开始循环抓取每个商品，返回 `List<PromotionUrlResult>`。批量模式默认使用配置项 `app.custom.tbPromotion.defaultAdSiteName` 作为推广位。
 
+## Cookie 与 Profile
+
+- 调试入口 `GET /cookies/raw` 支持可选 `profileName` 参数；不传时默认读取通用 profile。
+- remoting 接口统一使用 `CustomCrawlRemotingContract#cookiesRaw(String profileName, String url)`。
+- `profileName` 非空时，cookie 会按指定 Chrome profile 读取；`profileName` 为空时，默认走通用 profile。
+- 任务执行结束后，不再在各任务里分散调用 `browser.saveCookies(false)`；统一由 `BrowserProfileManager.ProfileLease.close()` 在释放 profile lease 时保存当前浏览器上下文 cookie 到 `HttpClientCookieJar`。
+- `cookiesRaw(profileName, url)` 在读取前会把当前浏览器上下文 cookie 同步进 `HttpClientCookieJar`，因此可用于读取最新登录态。
+
 ## 页面流程
 
 1. 进入阿里妈妈初始页，执行 Sannysoft 与登录接管；`login_jump` 跳转页按登录接管状态处理，不提前进入推广链接流程。

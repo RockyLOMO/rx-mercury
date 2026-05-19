@@ -245,6 +245,14 @@ Remoting RPC 统一使用：
 org.rx.crawler.task.common.CustomCrawlRemotingContract#getTbPromotionOrders
 ```
 
+## Cookie 与 Profile
+
+- 调试入口 `GET /cookies/raw` 支持可选 `profileName` 参数；不传时默认读取通用 profile。
+- remoting 接口统一使用 `CustomCrawlRemotingContract#cookiesRaw(String profileName, String url)`。
+- `profileName` 非空时，cookie 会按指定 Chrome profile 读取；`profileName` 为空时，默认走通用 profile。
+- 当前 cookie 保存策略统一收口到 `BrowserProfileManager.ProfileLease.close()`：淘宝订单任务执行结束、释放 profile lease 时，自动把当前 Playwright 页面上下文 cookie 保存到 `HttpClientCookieJar`。
+- 任务代码里不再单独手工保存 cookie；读取 `cookiesRaw(profileName, url)` 时也会先同步当前浏览器上下文 cookie，再返回 raw cookie。
+
 ## 滑块验证处理
 
 淘宝联盟页面在高频访问或账号风控时，会弹出"亲，请拖动下方滑块完成验证"的验证页（阿里妈妈防爬机制）。

@@ -259,7 +259,10 @@ Content-Type: application/json
 ### Cookie 记录
 
 - `cookies.html` 现在作为对比页使用，会同时展示当前 `HttpServletRequest` 的 `Cookie` 头和 `HttpClientCookieJar` 里同一 URL 对应的 cookie。
-- `getPromotionUrl` 成功结束时，会把当前 Playwright 页面上下文中的 cookie 一次性保存进 `HttpClientCookieJar`，包括 `HttpOnly` cookie。
+- `GET /cookies/raw` 现在支持可选 `profileName` 参数；不传时默认读取通用 profile，对应 remoting 接口 `CustomCrawlRemotingContract#cookiesRaw(String profileName, String url)`。
+- `cookiesRaw(profileName, url)` 在 `profileName` 非空时，会优先按指定 Chrome profile 读取当前浏览器上下文 cookie；`profileName` 为空时，默认走通用 profile。
+- 当前 cookie 保存策略已经统一收口到 `BrowserProfileManager.ProfileLease.close()`：任务执行结束、释放 profile lease 时，自动把当前 Playwright 页面上下文中的 cookie 一次性保存进 `HttpClientCookieJar`，包括 `HttpOnly` cookie。
+- 任务代码里不再要求各自手工调用 `browser.saveCookies(false)`；统一由 profile lease 关闭时兜底保存。
 - 本地持久化改为 `HttpClientCookieJar + H2CookieStorage`，不再依赖 Redis cookie 容器。
 
 ## Debug 模式

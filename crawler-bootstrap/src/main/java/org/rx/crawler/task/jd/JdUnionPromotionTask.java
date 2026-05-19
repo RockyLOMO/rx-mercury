@@ -559,11 +559,6 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
         result.setPromotionUrl(promotionUrl);
         result.setStatus(CustomCrawlStatus.SUCCESS);
         result.setMessage("");
-        try {
-            browser.saveCookies(false);
-        } catch (Exception e) {
-            log.warn("save promotion cookies fail, error={}", e.getMessage());
-        }
         keepAliveUrlStore.collect("jd", browser, result.getDiagnostics());
         debug.snapshot(browser, "14-promotion-link-ready");
     }
@@ -644,11 +639,6 @@ public class JdUnionPromotionTask implements CustomCrawlTask<PromotionUrlRequest
         result.setStatus(CustomCrawlStatus.SUCCESS);
         result.setMessage("");
         result.getDiagnostics().put("orderCount", orders.size());
-        try {
-            browser.saveCookies(false);
-        } catch (Exception e) {
-            log.warn("save promotion orders cookies fail, error={}", e.getMessage());
-        }
         keepAliveUrlStore.collect("jd", browser, result.getDiagnostics());
     }
 

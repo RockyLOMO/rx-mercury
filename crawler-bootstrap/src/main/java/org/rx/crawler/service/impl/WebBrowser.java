@@ -413,6 +413,17 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
         return cookieJar.loadForRequest(java.net.URI.create(currentCookieUrl()));
     }
 
+    public synchronized String getRawCookie(String url) {
+        if (Strings.isEmpty(url) || !Strings.startsWithIgnoreCase(url, "http")) {
+            return Strings.EMPTY;
+        }
+        saveCookiesToJar(url);
+        String regionUrl = cookieRegion != null
+                ? HttpClient.buildUrl(url, java.util.Collections.singletonMap("_Region", cookieRegion))
+                : url;
+        return ifNull(cookieJar.loadForRequest(java.net.URI.create(regionUrl)), Strings.EMPTY);
+    }
+
     private String currentCookieUrl() {
         String u = getCurrentUrl();
         return cookieRegion != null ? HttpClient.buildUrl(u, java.util.Collections.singletonMap("_Region", cookieRegion)) : u;
@@ -1392,7 +1403,10 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
             }
             setCookies.add(sb.toString());
         }
-        java.net.URI uri = java.net.URI.create(url);
+        String storageUrl = cookieRegion != null
+                ? HttpClient.buildUrl(url, java.util.Collections.singletonMap("_Region", cookieRegion))
+                : url;
+        java.net.URI uri = java.net.URI.create(storageUrl);
         cookieJar.clear(uri);
         cookieJar.saveFromResponse(uri, setCookies);
     }

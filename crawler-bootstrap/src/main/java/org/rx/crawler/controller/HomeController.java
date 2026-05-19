@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Cache;
 import org.rx.core.Strings;
 import org.rx.crawler.config.AppConfig;
+import org.rx.crawler.task.common.CustomCrawlRemotingContract;
 import org.rx.net.http.HttpClientCookieJar;
 import org.rx.net.http.HttpClient;
 import org.springframework.stereotype.Controller;
@@ -25,6 +26,7 @@ import static org.rx.core.Sys.cacheKey;
 @Controller
 public class HomeController {
     private final HttpClientCookieJar cookieJar;
+    private final CustomCrawlRemotingContract customCrawlRemotingService;
 
     @RequestMapping("/pddName")
     @ResponseBody
@@ -71,16 +73,8 @@ public class HomeController {
 
     @RequestMapping("/cookies/raw")
     @ResponseBody
-    public String cookiesRaw(String url) {
-        if (Strings.isEmpty(url)) {
-            return Strings.EMPTY;
-        }
-        try {
-            return ifNull(cookieJar.loadForRequest(URI.create(url)), Strings.EMPTY);
-        } catch (Exception e) {
-            log.warn("load raw cookie fail, url={}, error={}", url, e.getMessage());
-            return Strings.EMPTY;
-        }
+    public String cookiesRaw(String url, String profileName) {
+        return customCrawlRemotingService.cookiesRaw(profileName, url);
     }
 
     @RequestMapping("/health")
