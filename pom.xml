@@ -26,7 +26,7 @@
         <maven.test.skip>${skipTests}</maven.test.skip>
         <java.version>21</java.version>
         <lombok.version>1.18.46</lombok.version>
-        <rxlib.version>2.22.7-SNAPSHOT</rxlib.version>
+        <rxlib.version>2.22.8-SNAPSHOT</rxlib.version>
         <h2.version>2.2.224</h2.version>
         <netty.version>4.2.12.Final</netty.version>
         <playwright.version>1.59.0</playwright.version>
