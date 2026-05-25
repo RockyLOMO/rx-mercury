@@ -30,8 +30,8 @@ public class BrowserWindowTests {
         config.setFingerprintEnabled(false);
         config.setCookieJar(HttpClientCookieJar.memory());
         config.setConfigureScriptExecutorType(ApiConfigureScriptExecutor.class.getName());
-        config.setProfileDataPath(System.getProperty("browser.window.profileDataPath", "D:/app-crawler/data/chrome/window"));
-        config.setDownloadPath(System.getProperty("browser.window.downloadPath", "D:/app-crawler/temp/"));
+        config.setProfileDataPath(System.getProperty("browser.window.profileDataPath", "./data/chrome/window"));
+        config.setDownloadPath(System.getProperty("browser.window.downloadPath", "./temp/"));
         config.setWindowRectangle(new BrowserWindowRect(0, 0, -1, -1));
 
         WebBrowser browser = new WebBrowser(config, BrowserType.CHROME);

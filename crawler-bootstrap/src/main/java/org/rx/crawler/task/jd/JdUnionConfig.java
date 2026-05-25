@@ -32,6 +32,6 @@ public class JdUnionConfig implements StepDelayConfig {
     private boolean keepBrowserOpenOnLoginRequired = true;
     private int keepBrowserOpenSecondsOnLoginRequired = 180;
     private int loginWaitSeconds = 180;
-    private String defaultOutputPath = "D:/app-crawler/data/jd-union/output.jsonl";
-    private String debugOutputDir = "D:/app-crawler/data/jd-union/debug";
+    private String defaultOutputPath = "./data/jd-union/output.jsonl";
+    private String debugOutputDir = "./data/jd-union/debug";
 }

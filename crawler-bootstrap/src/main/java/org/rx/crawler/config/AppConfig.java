@@ -48,7 +48,7 @@ public class AppConfig {
         private int findElementTimeoutSeconds = 6;
         private boolean headless = true;
         private String profileDataPath;
-        private String downloadPath = "/app-crawler/temp/";
+        private String downloadPath = "./temp/";
         private BrowserWindowRect windowRectangle = new BrowserWindowRect(0, 0, -1, -1);
         private String configureScriptExecutorType = "org.rx.crawler.service.impl.ApiConfigureScriptExecutor";
         private boolean fingerprintEnabled = false;
@@ -113,7 +113,7 @@ public class AppConfig {
         private boolean harvestEnabled = true;
         private int harvestPerRunCount = 5;
         private int maxUrlsPerPlatform = 50;
-        private String urlStorePath = "D:/app-crawler/data/keepalive/urls.json";
+        private String urlStorePath = "./data/keepalive/urls.json";
     }
 
     private BrowserPoolConfig browser = new BrowserPoolConfig();

@@ -148,7 +148,7 @@ public class TbPromotionUrlTaskTests {
         AppConfig config = new AppConfig();
         config.getCustom().setRemotingEnabled(false);
         config.getCustom().getChrome().setProfileBasePath(
-                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+                System.getProperty("app.custom.chrome.profileBasePath", "./data/chrome"));
         Path debugDir = Paths.get("target", "tb-promotion-url-debug").toAbsolutePath();
         config.getCustom().setDebugEnabled(true);
         config.getCustom().getTbPromotion().setDebugOutputDir(debugDir.toString());
@@ -203,7 +203,7 @@ public class TbPromotionUrlTaskTests {
         AppConfig config = new AppConfig();
         config.getCustom().setRemotingEnabled(false);
         config.getCustom().getChrome().setProfileBasePath(
-                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+                System.getProperty("app.custom.chrome.profileBasePath", "./data/chrome"));
         Path debugDir = Paths.get("target", "tb-promotion-url-debug").toAbsolutePath();
         config.getCustom().setDebugEnabled(true);
         config.getCustom().getTbPromotion().setDebugOutputDir(debugDir.toString());

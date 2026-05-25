@@ -170,7 +170,7 @@ public class JdUnionPromotionTaskTests {
         AppConfig config = new AppConfig();
         config.getCustom().setRemotingEnabled(false);
         config.getCustom().getChrome().setProfileBasePath(
-                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+                System.getProperty("app.custom.chrome.profileBasePath", "./data/chrome"));
         config.getCustom().getJdUnion().setDefaultOutputPath(tempDir.resolve("jd-output.jsonl").toString());
         config.getCustom().getJdUnion().setForcePreflight(
                 Boolean.parseBoolean(System.getProperty("app.custom.jdUnion.forcePreflight", "true")));
@@ -216,7 +216,7 @@ public class JdUnionPromotionTaskTests {
         config.getCustom().setRemotingEnabled(false);
         config.getCustom().setDebugEnabled(true);
         config.getCustom().getChrome().setProfileBasePath(
-                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+                System.getProperty("app.custom.chrome.profileBasePath", "./data/chrome"));
         Path debugDir = Paths.get("target", "jd-union-debug").toAbsolutePath();
         config.getCustom().getJdUnion().setDebugOutputDir(debugDir.toString());
         config.getCustom().getJdUnion().setDefaultOutputPath(tempDir.resolve("jd-batch-output.jsonl").toString());
@@ -256,7 +256,7 @@ public class JdUnionPromotionTaskTests {
         AppConfig config = new AppConfig();
         config.getCustom().setRemotingEnabled(false);
         config.getCustom().getChrome().setProfileBasePath(
-                System.getProperty("app.custom.chrome.profileBasePath", "D:/app-crawler/data/chrome"));
+                System.getProperty("app.custom.chrome.profileBasePath", "./data/chrome"));
         Path debugDir = Paths.get("target", "jd-union-debug").toAbsolutePath();
         config.getCustom().setDebugEnabled(true);
         config.getCustom().getJdUnion().setDebugOutputDir(debugDir.toString());

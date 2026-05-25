@@ -173,7 +173,7 @@ public class FileKeepAliveUrlStore implements KeepAliveUrlStore {
     private Path storePath() {
         String path = appConfig.getCustom().getLoginKeepAlive().getUrlStorePath();
         if (Strings.isEmpty(path)) {
-            path = "D:/app-crawler/data/keepalive/urls.json";
+            path = "./data/keepalive/urls.json";
         }
         return Paths.get(path);
     }

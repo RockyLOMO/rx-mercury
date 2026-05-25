@@ -29,17 +29,17 @@ call :ensure_host ns.f-li.cn
 call :ensure_host apollo.meta
 call :ensure_host config.f-li.cn
 
-if not exist "D:\app-crawler\data" mkdir "D:\app-crawler\data"
-if not exist "D:\app-crawler\temp" mkdir "D:\app-crawler\temp"
+if not exist ".\data" mkdir ".\data"
+if not exist ".\temp" mkdir ".\temp"
 if /i "%RUN_MODE%"=="jd-union-orders-verify" (
-  if not exist "D:\app-crawler\data\jd-union\debug" mkdir "D:\app-crawler\data\jd-union\debug"
+  if not exist ".\data\jd-union\debug" mkdir ".\data\jd-union\debug"
 )
 
 set "JVM_OPENS=--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED"
-set "APP_ARGS=-Dapollo.config-service=http://%TARGET_IP%:8080 -Dapollo.meta=http://%TARGET_IP%:8080 -Denv=DEV -Dapp.redisUrl=%TARGET_IP%:6379 -Dapp.nameserverEndpoints=%TARGET_IP%:854 -Dapp.browser.downloadPath=D:/app-crawler/temp/ -Dapp.browser.diskDataPath=D:/app-crawler/data/chrome%%s/ -Dapp.browser.headless=false -Dapp.browser.playwrightChannel=chrome -Dapp.browser.humanInputEnabled=true"
+set "APP_ARGS=-Dapollo.config-service=http://%TARGET_IP%:8080 -Dapollo.meta=http://%TARGET_IP%:8080 -Denv=DEV -Dapp.redisUrl=%TARGET_IP%:6379 -Dapp.nameserverEndpoints=%TARGET_IP%:854 -Dapp.browser.downloadPath=./temp/ -Dapp.browser.diskDataPath=./data/chrome%%s/ -Dapp.browser.headless=false -Dapp.browser.playwrightChannel=chrome -Dapp.browser.humanInputEnabled=true"
 
 if /i "%RUN_MODE%"=="jd-union-orders-verify" (
-  set "APP_ARGS=%APP_ARGS% -Dapp.custom.jdUnion.debugEnabled=true -Dapp.custom.jdUnion.debugOutputDir=D:/app-crawler/data/jd-union/debug -Dapp.custom.jdUnion.outputPath=D:/app-crawler/data/jd-union/orders-output.jsonl"
+  set "APP_ARGS=%APP_ARGS% -Dapp.custom.jdUnion.debugEnabled=true -Dapp.custom.jdUnion.debugOutputDir=./data/jd-union/debug -Dapp.custom.jdUnion.outputPath=./data/jd-union/orders-output.jsonl"
 )
 
 if not exist "%ROOT_TARGET%" mkdir "%ROOT_TARGET%"

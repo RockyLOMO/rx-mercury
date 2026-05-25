@@ -21,7 +21,7 @@ public class DevTest {
     public WebBrowser init(BrowserType type) {
         AppConfig config = new AppConfig();
         WebBrowserConfig conf = BeanMapper.DEFAULT.map(config.getBrowser(), WebBrowserConfig.class);
-        conf.setProfileDataPath(System.getProperty("browser.dev.profileDataPath", "D:/app-crawler/data/chrome/dev"));
+        conf.setProfileDataPath(System.getProperty("browser.dev.profileDataPath", "./data/chrome/dev"));
         conf.setDownloadPath(conf.getDownloadPath());
         conf.setCookieJar(HttpClientCookieJar.memory());
         conf.setConfigureScriptExecutorType(conf.getConfigureScriptExecutorType());

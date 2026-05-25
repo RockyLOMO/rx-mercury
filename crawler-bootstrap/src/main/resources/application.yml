@@ -80,9 +80,9 @@ app:
       harvestEnabled: true
       harvestPerRunCount: 5
       maxUrlsPerPlatform: 50
-      urlStorePath: D:/app-crawler/data/keepalive/urls.json
+      urlStorePath: ./data/keepalive/urls.json
     chrome:
-      profileBasePath: D:/app-crawler/data/chrome
+      profileBasePath: ./data/chrome
       defaultProfileName: common
     jdUnion:
       profileName: common
@@ -109,8 +109,8 @@ app:
       keepBrowserOpenOnLoginRequired: true
       keepBrowserOpenSecondsOnLoginRequired: 180
       loginWaitSeconds: 180
-      defaultOutputPath: D:/app-crawler/data/jd-union/output.jsonl
-      debugOutputDir: D:/app-crawler/data/jd-union/debug
+      defaultOutputPath: ./data/jd-union/output.jsonl
+      debugOutputDir: ./data/jd-union/debug
     tbPromotion:
       profileName: common
       fingerprintEnabled: true
@@ -133,5 +133,5 @@ app:
       keepBrowserOpenOnLoginRequired: true
       keepBrowserOpenSecondsOnLoginRequired: 180
       loginWaitSeconds: 180
-      defaultOutputPath: D:/app-crawler/data/tb/output.jsonl
-      debugOutputDir: D:/app-crawler/data/tb/debug
+      defaultOutputPath: ./data/tb/output.jsonl
+      debugOutputDir: ./data/tb/debug
