@@ -6,6 +6,7 @@ import org.rx.core.Strings;
 import org.rx.crawler.service.Browser;
 
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiConsumer;
 
 /**
@@ -85,18 +86,31 @@ public class SliderVerifyHandler {
      */
     public boolean checkAndHandle(Browser browser, String stepTag, int maxAttempts,
             long retryDelay, BiConsumer<Browser, String> snapshot) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             if (!isSliderVerifyPage(browser)) {
                 return true;
             }
-            log.info("Slider verify detected, step={}, attempt={}", stepTag, attempt + 1);
-            // 等待滑块 handle 渲染（NC 异步注入，常需 1-3s）
-            waitSliderHandleReady(browser, 5000);
+            log.info("Slider verify detected, step={}, attempt={}/{}", stepTag, attempt + 1, maxAttempts);
+            // 等待滑块 handle 渲染（NC 异步注入，常需 1-3s）；首次给更长时间
+            long handleWait = attempt == 0 ? 8000 : 6000;
+            boolean handleReady = waitSliderHandleReady(browser, handleWait);
+            if (!handleReady) {
+                log.warn("Slider handle not ready in {}ms, refresh page to get fresh challenge, step={}, attempt={}",
+                        handleWait, stepTag, attempt + 1);
+                // handle 没渲染 → 直接刷新换干净挑战，比硬点容器更稳
+                refreshForFreshChallenge(browser, snapshot, stepTag, attempt + 1, retryDelay);
+                continue;
+            }
+            // 拖拽前像真人一样停顿一会（首次更长，后续逐步缩短，模拟"看清楚→犹豫→操作"）
+            long preThink = attempt == 0 ? rnd.nextLong(800, 1600) : rnd.nextLong(400, 1100);
+            Extends.sleep(preThink);
             doSnapshot(snapshot, browser, stepTag + "-before-slide-" + (attempt + 1));
 
             boolean slid = simulateSlideDrag(browser, snapshot, stepTag, attempt + 1);
-            // mouseUp 后 NC 后端校验需要 1-2s，给到至少 2.5s
-            Extends.sleep(Math.max(2500, retryDelay * 2));
+            // mouseUp 后 NC 后端校验需要 1-2s；attempt 越大等得越久（避免被识别为机器频率）
+            long postWait = Math.max(2500, retryDelay * 2) + attempt * 600L + rnd.nextLong(0, 600);
+            Extends.sleep(postWait);
             doSnapshot(snapshot, browser, stepTag + "-after-slide-" + (attempt + 1));
 
             if (slid && !isSliderVerifyPage(browser)) {
@@ -105,14 +119,45 @@ public class SliderVerifyHandler {
             }
             log.warn("Slider verify not resolved, step={}, attempt={}, slid={}", stepTag, attempt + 1, slid);
 
-            // 检测"验证失败，点击框体重试"文案，先点击框体触发重置
-            clickRetryContainerIfPresent(browser, snapshot, stepTag, attempt + 1);
-
-            // 等待一段时间再重试
-            Extends.sleep(Math.max(2000, retryDelay * 3));
+            // NC 失败后会把当前 session 风控拉黑，本地再怎么点击 .errloading / 拖拽都不会通过 ——
+            // 实测必须刷新页面才能拿到干净挑战。所以每次失败一律刷新。
+            refreshForFreshChallenge(browser, snapshot, stepTag, attempt + 1, retryDelay);
         }
         log.warn("Slider verify failed after {} attempts, step={}", maxAttempts, stepTag);
         return false;
+    }
+
+    /**
+     * 刷新当前页面以获取干净的 NC 挑战。
+     * NC 是会话级风控：本地拖拽失败后，后端把当前 challenge token 拉黑，再怎么拖也不行；
+     * 唯一可靠的恢复方式就是刷新页面让浏览器重新拿一个 challenge token。
+     */
+    private void refreshForFreshChallenge(Browser browser, BiConsumer<Browser, String> snapshot,
+            String stepTag, int attempt, long retryDelay) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        try {
+            // 刷新前先做真人式停顿，模拟「失败 → 看一眼 → 决定刷新」
+            long preReload = 800 + rnd.nextLong(400, 1400);
+            Extends.sleep(preReload);
+            doSnapshot(snapshot, browser, stepTag + "-before-reload-" + attempt);
+
+            String currentUrl = browser.getCurrentUrl();
+            log.info("Refreshing page for fresh NC challenge, step={}, attempt={}, url={}", stepTag, attempt, currentUrl);
+            if (Strings.isEmpty(currentUrl) || currentUrl.startsWith("about:")) {
+                log.warn("Cannot reload, currentUrl invalid, step={}, attempt={}", stepTag, attempt);
+                Extends.sleep(Math.max(2000, retryDelay));
+                return;
+            }
+            // 使用 nativeGet（直接 navigate，不走 navigateUrl 的额外等待与重试逻辑），
+            // punish 页面 reload 后 NC 会重新挂载，handle 渲染需 1-3s。
+            browser.nativeGet(currentUrl);
+        } catch (Exception e) {
+            log.warn("Reload page fail, step={}, attempt={}, error={}", stepTag, attempt, e.getMessage());
+        }
+        // 刷新后等页面 DOM 重建 + NC iframe 加载 + handle 渲染
+        long postReload = 2500 + rnd.nextLong(800, 2200) + Math.min(2000L, attempt * 400L);
+        Extends.sleep(postReload);
+        doSnapshot(snapshot, browser, stepTag + "-after-reload-" + attempt);
     }
 
     /** 轮询等待滑块 handle 出现并可见，最多等待 maxWaitMillis 毫秒。 */
@@ -144,32 +189,28 @@ public class SliderVerifyHandler {
      */
     public boolean simulateSlideDrag(Browser browser, BiConsumer<Browser, String> snapshot,
             String stepTag, int attempt) {
-        // 跨主文档与同源 iframe 查找滑块，返回相对视口的绝对坐标 {x,y,width,height,trackWidth,inIframe}
+        // 跨主文档与同源 iframe 严格定位 NC 滑块 handle，返回主页面绝对视口坐标 {x,y,width,height,trackWidth,inIframe}
+        // 严格策略：只认 NC 标准选择器（#nc_1_n1z / .btn_slide / [id$=_n1z]），
+        // 不要兜底命中页面其他 [class*=slider] 组件（如订单列表的轮播），避免拖错对象。
         Map<String, Object> sliderInfo = browser.executeScript(
                 "function visible(el){if(!el){return false;}var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
-                "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
+                "function validHandle(el){if(!visible(el)){return false;}var r=el.getBoundingClientRect();return r.width>=20&&r.width<=80&&r.height>=20&&r.height<=80;}" +
                 "function searchDoc(doc,offX,offY){" +
                 "  if(!doc){return null;}" +
-                // 1) NC 标准选择器：精确 ID + class
-                "  var handles=Array.prototype.slice.call(doc.querySelectorAll('#nc_1_n1z,.btn_slide,[class*=btn_slide],[id$=_n1z]')).filter(visible);" +
-                "  var tracks=Array.prototype.slice.call(doc.querySelectorAll('#nc_1_n1t,.nc_scale,[class*=nc_scale],[id$=_n1t],.nc_wrapper,[class*=nc_wrapper]')).filter(function(e){if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>80;});" +
-                // 2) 通用备选：小方块（width<=80 且高度合理）
-                "  if(handles.length===0){" +
-                "    handles=Array.prototype.slice.call(doc.querySelectorAll('[class*=slider],[class*=Slider],[class*=handle],[class*=Handle],[class*=drag],[class*=Drag]')).filter(function(e){if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>0&&r.width<=80&&r.height>0&&r.height<=80;});" +
-                "  }" +
-                "  if(tracks.length===0){" +
-                "    tracks=Array.prototype.slice.call(doc.querySelectorAll('[class*=track],[class*=Track],[class*=rail],[class*=Rail],[class*=groove],[class*=Groove]')).filter(function(e){if(!visible(e)){return false;}var r=e.getBoundingClientRect();return r.width>100;});" +
-                "  }" +
-                // 3) 最终兜底：找到含「拖滑块」文字的容器内的小方块
-                "  if(handles.length===0){" +
-                "    var verifyBox=null,allDivs=doc.querySelectorAll('div,span,section');" +
-                "    for(var i=0;i<allDivs.length;i++){var t=norm(allDivs[i].innerText||allDivs[i].textContent||'');if(t.indexOf('\\u62d6')>=0&&t.indexOf('\\u6ed1\\u5757')>=0){verifyBox=allDivs[i];break;}}" +
-                "    if(verifyBox){var kids=verifyBox.querySelectorAll('*');for(var j=0;j<kids.length;j++){var kr=kids[j].getBoundingClientRect();if(visible(kids[j])&&kr.width>10&&kr.width<=80&&kr.height>10&&kr.height<=80){handles=[kids[j]];break;}}}" +
-                "  }" +
+                // 严格匹配 NC handle：精确 ID + class，附加尺寸校验过滤误命中
+                "  var handles=Array.prototype.slice.call(doc.querySelectorAll('#nc_1_n1z,.btn_slide,[class*=btn_slide],[id$=_n1z][role=button]')).filter(validHandle);" +
                 "  if(handles.length===0){return null;}" +
-                "  var handle=handles[0],hr=handle.getBoundingClientRect(),trackWidth=hr.width;" +
-                "  if(tracks.length>0){var tr=tracks[0].getBoundingClientRect();trackWidth=tr.width;}" +
-                "  return {x:offX+hr.left+hr.width/2,y:offY+hr.top+hr.height/2,width:hr.width,height:hr.height,trackWidth:trackWidth,inIframe:offX>0||offY>0};" +
+                // NC 轨道：必须包含 handle 才算同一个 widget
+                "  var handle=handles[0];" +
+                "  var track=null,p=handle.parentElement;" +
+                "  for(var d=0;p&&d<6;d++,p=p.parentElement){" +
+                "    var c=((p.className||'')+'').toLowerCase();" +
+                "    if(c.indexOf('nc_scale')>=0||c.indexOf('nc_wrapper')>=0||(p.id||'').indexOf('nc_1_n1t')>=0||(p.id||'').indexOf('nc_1_wrapper')>=0){track=p;break;}" +
+                "  }" +
+                "  if(!track){track=doc.querySelector('#nc_1_n1t,.nc_scale,[class*=nc_scale],[id$=_n1t]');}" +
+                "  var hr=handle.getBoundingClientRect(),trackWidth=hr.width*7;" + // 兜底估算
+                "  if(track&&visible(track)){var tr=track.getBoundingClientRect();if(tr.width>=hr.width*3){trackWidth=tr.width;}}" +
+                "  return {x:offX+hr.left+hr.width/2,y:offY+hr.top+hr.height/2,handleLeft:offX+hr.left,width:hr.width,height:hr.height,trackWidth:trackWidth,inIframe:offX>0||offY>0};" +
                 "}" +
                 "var info=searchDoc(document,0,0);" +
                 "if(info){return info;}" +
@@ -178,7 +219,7 @@ public class SliderVerifyHandler {
                 "return null;");
 
         if (sliderInfo == null) {
-            log.warn("Slider handle not found, cannot simulate drag, step={}, attempt={}", stepTag, attempt);
+            log.warn("NC slider handle not found, cannot simulate drag, step={}, attempt={}", stepTag, attempt);
             doSnapshot(snapshot, browser, stepTag + "-slide-no-handle-" + attempt);
             return false;
         }
@@ -194,7 +235,14 @@ public class SliderVerifyHandler {
             doSnapshot(snapshot, browser, stepTag + "-slide-invalid-coord-" + attempt);
             return false;
         }
+        // 二次校验：handle 尺寸必须落在 NC handle 合理范围内（width 25-70）
+        if (handleWidth < 25 || handleWidth > 70) {
+            log.warn("Suspicious handle width={}, refuse to drag, step={}, attempt={}", handleWidth, stepTag, attempt);
+            doSnapshot(snapshot, browser, stepTag + "-slide-bad-handle-" + attempt);
+            return false;
+        }
 
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
         // 拖拽距离 = 轨道宽 - 滑块宽，兜底用视口宽度的 70%
         double dragDistance;
         if (trackWidth > handleWidth + 10) {
@@ -203,13 +251,33 @@ public class SliderVerifyHandler {
             double viewportWidth = toDouble(browser.executeScript("return window.innerWidth || 800;"));
             dragDistance = Math.max(200, viewportWidth * 0.70 - handleWidth);
         }
+        // 每次尝试给距离微小扰动（首次精确贴边，后续 ±3px 模拟人手轻微偏差），更难被识别
+        if (attempt > 1) {
+            dragDistance += rnd.nextDouble(-3.0, 3.0);
+        }
+        // 起点 Y 加微小漂移：真人按住滑块时 Y 坐标也会有零点几像素偏移
+        double startYJitter = rnd.nextDouble(-1.5, 1.5);
+        // 终点 Y 漂移更明显，模拟向右拖时手腕自然上下摆动
+        double endYJitter = rnd.nextDouble(-2.0, 2.5);
+        // 步数随机化：attempt=1 慢一点（30-38 步，像首次小心拖动），
+        // attempt>=2 加快（首次失败后真人会"我再用力拖一次"，更急更快），步数 18-26。
+        // NC 后端对 trajectory 既检测过慢（< 200ms 全程）也检测过慢（> 3s 像机器逐帧动），
+        // 我们已经在 200ms-2s 区间，加快重试可能反而更像真人的"急躁"操作。
+        int steps;
+        if (attempt <= 1) {
+            steps = 30 + rnd.nextInt(9);
+        } else {
+            steps = Math.max(16, 24 - (attempt - 2) * 3 + rnd.nextInt(6));
+        }
 
-        log.info("Simulate slide drag, startX={}, startY={}, handleWidth={}, trackWidth={}, dragDistance={}, inIframe={}",
-                startX, startY, handleWidth, trackWidth, dragDistance, inIframe);
+        double effectiveStartY = startY + startYJitter;
+        double endX = startX + dragDistance;
+        double endY = startY + endYJitter;
+        log.info("Simulate slide drag, attempt={}, startX={}, startY={}, handleWidth={}, trackWidth={}, dragDistance={}, steps={} (faster={}), inIframe={}",
+                attempt, startX, effectiveStartY, handleWidth, trackWidth, dragDistance, steps, attempt > 1, inIframe);
 
         // 使用 Playwright 原生 Mouse API 模拟拖拽（坐标已经是主页面视口绝对坐标）
-        double endX = startX + dragDistance;
-        browser.mouseDrag(startX, startY, endX, startY, 30);
+        browser.mouseDrag(startX, effectiveStartY, endX, endY, steps);
         return true;
     }
 
@@ -226,15 +294,30 @@ public class SliderVerifyHandler {
             log.info("Slider verify failed hint detected, clicking container to retry, step={}, attempt={}", stepTag, attempt);
             doSnapshot(snapshot, browser, stepTag + "-verify-failed-" + attempt);
 
-            // 跨主文档与同源 iframe 找到 NC 验证容器框体绝对坐标
+            // NC 失败后 DOM 会变：handle/track 消失，取而代之的是 .errloading（橙色错误条），
+            // 这才是「点击框体重试」对应的元素。优先点它，再回退到 handle/track/container。
+            // 同时所有候选都校验 rect 合理性（宽高最小阈值 + 大小 < 视口），避免命中位置异常元素。
             Map<String, Object> containerInfo = browser.executeScript(
                     "function visible(el){if(!el){return false;}var st=getComputedStyle(el),r=el.getBoundingClientRect();return st.display!=='none'&&st.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
+                    "function sane(r){return r.width>=20&&r.height>=10&&r.width<window.innerWidth*0.9&&r.height<window.innerHeight*0.9&&r.top>=0;}" +
+                    "function pack(offX,offY,el,r){return {x:offX+r.left+r.width/2,y:offY+r.top+r.height/2,w:r.width,h:r.height,tag:el.tagName+'#'+(el.id||'')+'.'+(el.className||'').split(' ')[0]};}" +
                     "function searchDoc(doc,offX,offY){" +
                     "  if(!doc){return null;}" +
-                    "  var c=doc.querySelector('.nc-container,.nc_wrapper,.sm-pop-inner,#baxia-punish,#nocaptcha');" +
-                    "  if(c&&visible(c)){var r=c.getBoundingClientRect();return {x:offX+r.left+r.width/2,y:offY+r.top+r.height/2,w:r.width,h:r.height};}" +
-                    "  var all=doc.querySelectorAll('div,span,p');" +
-                    "  for(var i=0;i<all.length;i++){var t=(all[i].innerText||all[i].textContent||'').trim();if(t.indexOf('验证失败')>=0&&visible(all[i])){var r=all[i].getBoundingClientRect();if(r.width>50&&r.height>20){return {x:offX+r.left+r.width/2,y:offY+r.top+r.height/2,w:r.width,h:r.height};}}}" +
+                    // 1) 优先 .errloading（NC 失败后唯一的「点击重试」目标）
+                    "  var er=doc.querySelector('.errloading,[id*=nc_1_refresh]');" +
+                    "  if(er&&visible(er)){var r=er.getBoundingClientRect();if(sane(r)){return pack(offX,offY,er,r);}}" +
+                    // 2) handle（成功状态或刚渲染时）
+                    "  var h=doc.querySelector('#nc_1_n1z,.btn_slide,[class*=btn_slide]');" +
+                    "  if(h&&visible(h)){var hr=h.getBoundingClientRect();if(sane(hr)){return pack(offX,offY,h,hr);}}" +
+                    // 3) track
+                    "  var t=doc.querySelector('#nc_1_n1t,.nc_scale,[class*=nc_scale]');" +
+                    "  if(t&&visible(t)){var tr=t.getBoundingClientRect();if(sane(tr)){return pack(offX,offY,t,tr);}}" +
+                    // 4) nc_wrapper（包含 errloading 的最小容器，宽度 300px 左右）
+                    "  var w=doc.querySelector('#nc_1_wrapper,.nc_wrapper');" +
+                    "  if(w&&visible(w)){var wr=w.getBoundingClientRect();if(sane(wr)){return pack(offX,offY,w,wr);}}" +
+                    // 5) 兜底：含「验证失败」文字的元素
+                    "  var all=doc.querySelectorAll('div,span,p,a');" +
+                    "  for(var i=0;i<all.length;i++){var txt=(all[i].innerText||all[i].textContent||'').trim();if(txt.indexOf('验证失败')>=0&&visible(all[i])){var fr=all[i].getBoundingClientRect();if(sane(fr)){return pack(offX,offY,all[i],fr);}}}" +
                     "  return null;" +
                     "}" +
                     "var info=searchDoc(document,0,0);" +
@@ -250,15 +333,20 @@ public class SliderVerifyHandler {
 
             double cx = toDouble(containerInfo.get("x"));
             double cy = toDouble(containerInfo.get("y"));
+            Object tagInfo = containerInfo.get("tag");
             if (cx < 1 || cy < 1) {
                 log.warn("Verify-failed container coordinates invalid, x={}, y={}", cx, cy);
                 return;
             }
-
-            log.info("Clicking verify-failed container at ({}, {}), step={}, attempt={}", cx, cy, stepTag, attempt);
-            // 用 mouseDrag 原地点击（起点终点相同 = 点击效果）
-            browser.mouseDrag(cx, cy, cx, cy, 1);
-            Extends.sleep(1500);
+            // 点击位置加微小随机偏移，更像真人
+            ThreadLocalRandom rnd = ThreadLocalRandom.current();
+            double clickX = cx + rnd.nextDouble(-3.0, 3.0);
+            double clickY = cy + rnd.nextDouble(-2.0, 2.0);
+            log.info("Clicking verify-failed target {} at ({}, {}), step={}, attempt={}",
+                    tagInfo, clickX, clickY, stepTag, attempt);
+            browser.mouseDrag(clickX, clickY, clickX, clickY, 1);
+            // 重试动画 + handle 复位通常需要 1-2s
+            Extends.sleep(1500 + rnd.nextLong(0, 800));
             doSnapshot(snapshot, browser, stepTag + "-verify-retry-clicked-" + attempt);
         } catch (Exception e) {
             log.warn("Click retry container error, step={}, attempt={}, error={}", stepTag, attempt, e.getMessage());

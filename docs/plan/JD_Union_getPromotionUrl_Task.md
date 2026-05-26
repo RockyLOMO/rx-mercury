@@ -5,7 +5,7 @@
 - 任务名：`getPromotionUrl`
 - 目标：根据京东商品 ID 和推广位名称，进入京东联盟后台生成推广短链。
 - 运行前置：每次抓取前先通过 `https://bot.sannysoft.com/` 指纹检测。
-- 浏览器：仅使用本机 Chrome + Playwright，持久化 profile，优先模拟真实人工操作，不追求并发效率。
+- 浏览器：仅使用本机 Chrome + Playwright，持久化 profile，默认在任务结束后保留 Chrome 并按 profile 复用已有会话，优先模拟真实人工操作，不追求并发效率。
 
 ## 推广链接任务约定
 
@@ -264,6 +264,24 @@ Content-Type: application/json
 - 当前 cookie 保存策略已经统一收口到 `BrowserProfileManager.ProfileLease.close()`：任务执行结束、释放 profile lease 时，自动把当前 Playwright 页面上下文中的 cookie 一次性保存进 `HttpClientCookieJar`，包括 `HttpOnly` cookie。
 - 任务代码里不再要求各自手工调用 `browser.saveCookies(false)`；统一由 profile lease 关闭时兜底保存。
 - 本地持久化改为 `HttpClientCookieJar + H2CookieStorage`，不再依赖 Redis cookie 容器。
+
+### Chrome 会话复用
+
+- `app.custom.chrome.closeBrowserAfterTask=false` 为默认行为：任务结束仅释放 profile 任务锁并同步 cookie，不关闭 Chrome；后续使用同一 `profileName` 的任务直接复用现有 Playwright/Chrome 会话。
+- 设置 `app.custom.chrome.closeBrowserAfterTask=true` 时，普通任务执行结束后立即关闭 Chrome，恢复一次任务一次浏览器的行为。
+- 当 `closeBrowserAfterTask=true` 且任务进入人工登录接管时，`keepBrowserOpenOnLoginRequired` 和 `keepBrowserOpenSecondsOnLoginRequired` 仍可临时保留 Chrome。
+- 无论配置取值，`POST /custom/profile/close` 对应的显式关闭入口以及应用停止都会真正释放已缓存的 Chrome 会话。
+
+配置示例：
+
+```yaml
+app:
+  custom:
+    chrome:
+      profileBasePath: ./data/chrome
+      defaultProfileName: common
+      closeBrowserAfterTask: false
+```
 
 ## Debug 模式
 
@@ -542,6 +560,7 @@ promotionUrl: https://u.jd.com/f6FcZZw
 
 ## 维护记录
 
+- 2026-05-26：新增 `app.custom.chrome.closeBrowserAfterTask` 配置，默认 `false`；JD/TB 公共 `BrowserProfileManager` 在任务完成后保留并复用同 profile 的 Chrome 会话，减少反复启动和关闭浏览器耗时，设置为 `true` 可恢复任务完成即关闭。
 - 2026-05-15：同步记录公共依赖与滑块检测维护；Lombok 升级到 `1.18.46`，淘宝联盟公共滑块检测改为 URL、页面文案、可见浮层 DOM 三路判断；京东联盟推广链接主流程无代码变更。
 - 2026-05-15：补充淘宝联盟滑块清除等待修正；原因是滑块清除后页面残留隐藏的 `nc_*` / `baxia` / `nocaptcha` 风控 DOM，旧逻辑误判滑块仍存在并在 `waitSliderVerifyCleared` 等到超时；现改为只认可见风控节点，订单集成验证 `2026-04-15` 至 `2026-05-15` 返回 `SUCCESS`。
 

@@ -3,7 +3,7 @@
 ## 任务范围
 
 - 任务名：`getTbPromotionUrl`
-- 浏览器：本机 Chrome + Playwright，复用持久化 profile。
+- 浏览器：本机 Chrome + Playwright，复用持久化 profile；默认任务结束后保留同 profile 的 Chrome 会话供下一次任务直接复用。
 - 窗口要求：浏览器默认最大化启动，保证 Sannysoft、首页、登录接管页和业务页使用一致的可视区域。
 - 前置流程：复用公共 Sannysoft 检测、人工登录接管和等待恢复流程。
 - 风控滑块：任务关键步骤会优先识别滑动验证并保存 debug 快照；识别逻辑覆盖跳转验证页、页面文案和未跳转的可见浮层滑块，检测后优先调用公共 `SliderVerifyHandler` 自动处理，失败后等待人工接管。
@@ -57,6 +57,7 @@
 - `profileName` 非空时，cookie 会按指定 Chrome profile 读取；`profileName` 为空时，默认走通用 profile。
 - 任务执行结束后，不再在各任务里分散调用 `browser.saveCookies(false)`；统一由 `BrowserProfileManager.ProfileLease.close()` 在释放 profile lease 时保存当前浏览器上下文 cookie 到 `HttpClientCookieJar`。
 - `cookiesRaw(profileName, url)` 在读取前会把当前浏览器上下文 cookie 同步进 `HttpClientCookieJar`，因此可用于读取最新登录态。
+- `app.custom.chrome.closeBrowserAfterTask` 默认 `false`，任务完成不关闭 Chrome；设置为 `true` 时普通任务完成即关闭，登录人工接管的临时保留配置仍有效。
 
 ## 页面流程
 

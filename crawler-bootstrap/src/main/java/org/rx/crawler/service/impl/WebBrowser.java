@@ -160,6 +160,9 @@ public final class WebBrowser extends Disposable implements Browser, EventPublis
                 .setIgnoreHTTPSErrors(true)
                 .setLocale(ifNull(config.getLocale(), "zh-CN"))
                 .setTimezoneId(ifNull(config.getTimezoneId(), "Asia/Shanghai"))
+                // 移除 Playwright 默认的 --enable-automation：该标志会触发 Chrome 顶部「正受到自动测试软件的控制」横幅，
+                // 同时让 navigator.webdriver=true、window.chrome.* 出现自动化特征，被阿里 NC/fireye 直接判定为机器人。
+                .setIgnoreDefaultArgs(java.util.Arrays.asList("--enable-automation"))
                 .setArgs(buildChromeArgs());
         if (maximized) {
             options.setViewportSize((ViewportSize) null);

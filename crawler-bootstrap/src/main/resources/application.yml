@@ -84,6 +84,7 @@ app:
     chrome:
       profileBasePath: ./data/chrome
       defaultProfileName: common
+      closeBrowserAfterTask: false
     jdUnion:
       profileName: common
       fingerprintEnabled: true

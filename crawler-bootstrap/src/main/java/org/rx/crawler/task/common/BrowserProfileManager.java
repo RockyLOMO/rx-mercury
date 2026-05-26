@@ -4,7 +4,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.rx.core.Strings;
-import org.rx.crawler.dto.BrowserWindowRect;
 import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.config.AppConfig;
 import org.rx.crawler.service.impl.WebBrowser;
@@ -69,12 +68,6 @@ public class BrowserProfileManager {
 
             WebBrowser browser;
             boolean fromSession = session != null;
-            if (fromSession && isMaximized(config.getWindowRectangle())) {
-                sessions.remove(normalized);
-                tryClose(session.getBrowser());
-                session = null;
-                fromSession = false;
-            }
             if (fromSession) {
                 browser = session.getBrowser();
                 log.info("Reuse chrome profile session {}", normalized);
@@ -89,10 +82,6 @@ public class BrowserProfileManager {
             lock.unlock();
             throw e;
         }
-    }
-
-    private boolean isMaximized(BrowserWindowRect rect) {
-        return rect != null && rect.getWidth() <= 0 && rect.getHeight() <= 0;
     }
 
     private void focus(WebBrowser browser) {
@@ -177,6 +166,11 @@ public class BrowserProfileManager {
                 } catch (Exception e) {
                     log.warn("Save chrome profile cookies fail, profile={}, error={}", profileName, e.getMessage());
                 }
+                if (!appConfig.getCustom().getChrome().isCloseBrowserAfterTask()) {
+                    sessions.put(profileName, new ProfileSession(browser, 0));
+                    log.info("Keep chrome profile {} open for task reuse", profileName);
+                    return;
+                }
                 if (keepOpen) {
                     long expireAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(keepOpenSeconds);
                     sessions.put(profileName, new ProfileSession(browser, expireAt));
@@ -189,6 +183,7 @@ public class BrowserProfileManager {
                     sessions.remove(profileName);
                 }
                 tryClose(browser);
+                log.info("Close chrome profile {} after task", profileName);
             } finally {
                 lock.unlock();
             }

@@ -6,4 +6,5 @@ import lombok.Data;
 public class ChromeProfileConfig {
     private String profileBasePath = "./data/chrome";
     private String defaultProfileName = "common";
+    private boolean closeBrowserAfterTask = false;
 }

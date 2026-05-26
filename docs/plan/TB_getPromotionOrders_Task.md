@@ -9,6 +9,7 @@
 - 运行前置：先过 `https://bot.sannysoft.com/` 指纹检测；需要人工登录时交给人工接管。
 - 浏览器：仅使用本机 Chrome + Playwright。
 - Chrome profile：默认使用 `common`，用于复用和记录人工登录态。
+- Chrome 生命周期：`app.custom.chrome.closeBrowserAfterTask` 默认 `false`，任务完成后保留并复用同 profile 的 Chrome；设为 `true` 可恢复普通任务完成即关闭。
 - 窗口要求：任务创建 Chrome 时即最大化窗口，保证 Sannysoft、首页、登录接管页和订单页使用一致的可视区域；若运行中再次最大化，需要同步 Playwright viewport，避免浏览器外壳已全屏但网页画布仍停留在旧尺寸。
 - 操作节奏：每次关键操作前后加入随机等待，尽量模拟真实用户操作节奏。
 - 页面操作：优先使用 `Browser` 封装的原生点击、输入、鼠标拖拽能力；JS 只用于定位元素、读取状态和兜底获取坐标。

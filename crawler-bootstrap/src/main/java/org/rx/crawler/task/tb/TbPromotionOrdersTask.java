@@ -338,7 +338,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
         result.getDiagnostics().put("sliderVerifyAt", stepTag);
 
         // 委托公共处理器执行滑块验证（含拟人拖拽、验证失败重试点击）
-        boolean passed = sliderVerifyHandler.checkAndHandle(browser, stepTag, 3,
+        boolean passed = sliderVerifyHandler.checkAndHandle(browser, stepTag, 5,
                 config.nextStepDelayMillis(), (b, name) -> debug.snapshot(b, name));
 
         if (passed) {
@@ -359,7 +359,7 @@ public class TbPromotionOrdersTask implements CustomCrawlTask<TbPromotionOrdersR
                 // 导航后可能再次弹出滑块
                 if (sliderVerifyHandler.isSliderVerifyPage(browser)) {
                     log.info("TB promotion slider appeared again after re-navigation, step={}", stepTag);
-                    sliderVerifyHandler.checkAndHandle(browser, stepTag + "-re-nav", 3,
+                    sliderVerifyHandler.checkAndHandle(browser, stepTag + "-re-nav", 5,
                             config.nextStepDelayMillis(), (b, name) -> debug.snapshot(b, name));
                     Extends.sleep(config.nextStepDelayMillis());
                 }

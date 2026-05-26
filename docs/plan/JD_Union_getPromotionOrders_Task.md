@@ -5,7 +5,7 @@
 - 任务名：`getPromotionOrders`
 - 目标：进入京东联盟订单明细页，按时间范围抓取推客推广订单列表。
 - 运行前置：先过 `https://bot.sannysoft.com/` 指纹检测；需要人工登录时交给人工接管。
-- 浏览器：仅使用本机 Chrome + Playwright，优先复用已有登录态 profile。
+- 浏览器：仅使用本机 Chrome + Playwright，优先复用已有登录态 profile；`app.custom.chrome.closeBrowserAfterTask` 默认 `false`，任务完成后保留并复用同 profile 的 Chrome，设为 `true` 可恢复普通任务完成即关闭。
 
 ## 入参
 
