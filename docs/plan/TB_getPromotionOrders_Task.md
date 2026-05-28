@@ -1,6 +1,6 @@
 # 淘宝联盟 getTbPromotionOrders 抓取任务
 
-最后更新：2026-05-14
+最后更新：2026-05-27
 
 ## 任务定义
 
@@ -187,6 +187,7 @@
 | `04-search-clicked` | 搜索动作后 |
 | `05-page-NNN-collected` | 当前页已抓取 |
 | `*-before-slide-*` / `*-after-slide-*` | 滑块验证前后 |
+| `*-before-reload-*` / `*-after-reload-*` | 滑块失败后刷新页面换干净 NC 挑战前后 |
 
 默认本地调试目录：
 
@@ -232,6 +233,24 @@ target/tb-promotion-debug/{profileName}/{startTime}-{endTime}-{timestamp}
 - 修复：`SliderVerifyHandler.isSliderVerifyPage` 的 DOM 探测只认可见风控节点；隐藏残留节点不再算滑块。可见 iframe 才进入同源内容检查。
 - 验证：同一入参重新执行订单集成验证后返回 `SUCCESS`，抓取订单 5 条。
 
+2026-05-26 / 2026-05-27 实测（滑块与指纹修复后）：
+
+| 项 | 结果 |
+| --- | --- |
+| 入参 | `startTime=2026-04-26` ~ `2026-05-26`；`2026-04-27` ~ `2026-05-27` |
+| Chrome profile | `common` |
+| Sannysoft | 通过，`webdriver=null` |
+| 抓取状态 | `SUCCESS` |
+| 订单数 | 各 5 条 |
+| 滑块 | `02-order-slider` attempt=1 通过（含 iframe 遮罩形态 `inIframe=true`） |
+| 关键修复 | 见下文「2026-05-26 滑块与反自动化修复」 |
+
+本地集成验证命令：
+
+```powershell
+mvn -pl crawler-bootstrap -am "-Dmaven.test.skip=false" "-DskipTests=false" "-Dtest=TbPromotionOrdersTaskTests#tbPromotionOrdersIntegrationShouldSaveReadableDebugSnapshot" "-Dtb.promotion.orders.integration=true" "-Dtb.promotion.orders.startTime=2026-04-27" "-Dtb.promotion.orders.endTime=2026-05-27" test
+```
+
 ## 调用入口
 
 HTTP 入口：
@@ -256,7 +275,21 @@ org.rx.crawler.task.common.CustomCrawlRemotingContract#getTbPromotionOrders
 
 ## 滑块验证处理
 
-淘宝联盟页面在高频访问或账号风控时，会弹出"亲，请拖动下方滑块完成验证"的验证页（阿里妈妈防爬机制）。
+公共实现：`org.rx.crawler.task.tb.SliderVerifyHandler`（`getTbPromotionOrders` / `getTbPromotionUrl` 共用）。
+
+淘宝联盟页面在高频访问或账号风控时，会弹出"亲，请拖动下方滑块完成验证"的验证页（阿里妈妈防爬机制）。形态包括：
+
+- **页面级**：URL 含 `_____tmd_____/punish`、`x5secdata` 等，整页跳转验证码拦截页。
+- **遮罩级**：业务页未跳转，同源 iframe / 浮层内挂载 NC（`#baxia-punish`、`#nocaptcha`），`simulateSlideDrag` 会计算 iframe 偏移后的主文档绝对坐标（`inIframe=true`）。
+
+### 浏览器反自动化（前置条件）
+
+`WebBrowser` 启动持久化 Chrome 时通过 `setIgnoreDefaultArgs(["--enable-automation"])` 移除 Playwright 默认自动化标志，避免：
+
+- 顶部横幅「Chrome 正受到自动测试软件的控制」；
+- `navigator.webdriver === true` 被阿里 NC / `fireyejs` 直接判失败。
+
+配合 `application.yml` 中任务级 `fingerprintEnabled=true` 注入的 `stealth.min.js` + `chrome-fingerprint.js`，Sannysoft 应显示 `WebDriver: missing (passed)`。
 
 ### 触发节点
 
@@ -296,10 +329,22 @@ org.rx.crawler.task.common.CustomCrawlRemotingContract#getTbPromotionOrders
    - **过冲回调机制**：模拟真人用力过猛的惯性：到达终点时先轻轻超过终点 3~8px 停顿，随后分 2~3 步缓慢拉回到精确的终点位置后松开。
    - **衰减抖动**：X/Y 方向引入动态抖动幅度，抖动随拖动进度逐渐衰减（例如起步时波动较大，快完成时手指微调稳定）。
 
-2. **checkAndHandleSliderVerify — "验证失败，点击框体重试"处理**：
-   - **新增 `clickRetryContainerIfPresent` 方法**：若在模拟滑动后检测到页面包含 "验证失败" 或 "点击框体重试" 的红色警告文案，则主动触发框体重载。
-   - **框体定位与点击**：通过 JS 多层定位 NC 验证容器元素（`.nc-container`、`.nc_wrapper` 或包含 "验证失败" 特征文本的可视化容器），获取其正中心坐标，并使用 `browser.mouseDrag` 在原地点按，安全触发阿里滑块的刷新，等待 1.5s 容器重载完毕后进入下一轮滑动重试。
-   - **每步快照追踪**：在滑动前（`before-slide`）、滑动后（`after-slide`）、检测到验证失败（`verify-failed`）及重试点击后（`verify-retry-clicked`）均保存 HTML 完整快照，提供无死角的 debug 追踪能力。
+2. **`SliderVerifyHandler.checkAndHandle` — 自动重试与失败后刷新**：
+   - **最大重试**：订单任务 `TbPromotionOrdersTask` 调用 `checkAndHandle(..., maxAttempts=5, ...)`；推广链接任务默认 `maxAttempts=3`。
+   - **Handle 定位**：仅认 NC 标准选择器（`#nc_1_n1z`、`.btn_slide`、`[id$=_n1z][role=button]`），handle 宽度须在 25~70px；未就绪则跳过拖拽，避免误拖页面其他小元素。
+   - **拖拽步数**：首次 attempt 较慢（约 30~38 步）；第 2 次起加快（约 16~26 步），模拟失败后「再用力拖一次」。
+   - **失败后刷新（关键）**：NC 拖拽失败后会话级拉黑当前 challenge token，页内再点 `.errloading` 或重复拖拽均无效（人工操作亦如此）。**必须 `nativeGet(currentUrl)` 刷新页面** 才能拿到干净挑战；实现为 `refreshForFreshChallenge`，快照名 `*-before-reload-*` / `*-after-reload-*`。
+   - **`.errloading` 点击（兜底）**：`clickRetryContainerIfPresent` 仍保留，优先点 `.errloading` / `#nc_1_refresh*`，并校验点击坐标在视口合理范围内；主重试路径已改为刷新，不再依赖误点 `.nc-container` 顶部。
+   - **快照**：`before-slide` / `after-slide` / `before-reload` / `after-reload`。
+
+### 2026-05-26 滑块与反自动化修复（摘要）
+
+| 问题 | 原因 | 修复 |
+| --- | --- | --- |
+| 滑块始终 `error:0Pfpus` | `--enable-automation` → `navigator.webdriver=true` | `WebBrowser` 忽略默认 `--enable-automation` |
+| 失败后 2~5 次 `handle not ready` | 点错容器 Y≈24，NC 未重置 | 失败后改 `refreshForFreshChallenge` |
+| 误识别 handle `width=15` | 命中非 NC 元素 | 严格 NC 选择器 + 宽度校验 |
+| 遮罩滑块拖不动 | 坐标在 iframe 内未换算 | `simulateSlideDrag` 累加 iframe `getBoundingClientRect` 偏移 |
 
 ### 诊断字段
 
@@ -307,4 +352,4 @@ org.rx.crawler.task.common.CustomCrawlRemotingContract#getTbPromotionOrders
 | --- | --- |
 | `sliderVerifyAt` | 最近一次触发验证的步骤标签 |
 | `sliderVerifyPassed` | 自动/重试验证成功时写入 `true` |
-| `sliderVerifyFailed` | 3 次重试均失败时写入触发步骤名 |
+| `sliderVerifyFailed` | 达到 `maxAttempts` 仍失败时写入触发步骤名 |

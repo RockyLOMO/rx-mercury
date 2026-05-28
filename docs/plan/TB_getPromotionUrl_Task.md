@@ -1,12 +1,15 @@
 # 淘宝联盟 getTbPromotionUrl 抓取任务
 
+最后更新：2026-05-27
+
 ## 任务范围
 
 - 任务名：`getTbPromotionUrl`
 - 浏览器：本机 Chrome + Playwright，复用持久化 profile；默认任务结束后保留同 profile 的 Chrome 会话供下一次任务直接复用。
 - 窗口要求：浏览器默认最大化启动，保证 Sannysoft、首页、登录接管页和业务页使用一致的可视区域。
 - 前置流程：复用公共 Sannysoft 检测、人工登录接管和等待恢复流程。
-- 风控滑块：任务关键步骤会优先识别滑动验证并保存 debug 快照；识别逻辑覆盖跳转验证页、页面文案和未跳转的可见浮层滑块，检测后优先调用公共 `SliderVerifyHandler` 自动处理，失败后等待人工接管。
+- 风控滑块：任务关键步骤会优先识别滑动验证并保存 debug 快照；识别逻辑覆盖跳转验证页、页面文案和未跳转的可见浮层滑块，检测后优先调用公共 `SliderVerifyHandler` 自动处理（失败后刷新页面换干净 NC 挑战，见 [TB_getPromotionOrders_Task.md](./TB_getPromotionOrders_Task.md) 滑块章节），仍失败则等待人工接管。
+- 浏览器反自动化：`WebBrowser` 启动时 `setIgnoreDefaultArgs(["--enable-automation"])`，配合任务级指纹脚本，避免 NC 因 `navigator.webdriver` 判失败。
 - 页面操作：优先使用 `Browser` 封装的原生点击、输入、鼠标移动能力；JS 只用于定位、读取页面状态或兜底。
 
 ## 目标网站
@@ -36,7 +39,7 @@
 | 字段 | 说明 |
 | --- | --- |
 | `taskType` | 固定为 `getTbPromotionUrl` |
-| `productInfo` | 复用 `ProductInfoDto`，包含商品图、名称、链接、佣金率、到手价、店铺名 |
+| `productInfo` | 复用 `ProductInfoDto`，包含商品图、名称、链接、佣金率、价格、店铺名；`price` 优先匹配「到手价」，回退「单价 / 2件单价 / ￥」 |
 | `promotionUrl` | 推广链接，优先从输入框/文本区读取，点击一键复制后再兜底读取页面内容 |
 | `fingerprintPassed` | Sannysoft 是否通过 |
 | `loginRequired` | 是否需要人工登录 |
@@ -67,7 +70,7 @@
 4. 点击“智能搜索”。
 5. 若搜索点击未进入搜索态，使用带 `fn=search&q=` 的业务 URL 兜底进入搜索结果页。
 6. 下拉页面，若没有商品则返回 `NOT_FOUND`。
-7. 取第一条商品卡片，先用原生鼠标移动 hover，再抓取商品信息：
+7. 取第一条商品卡片（选品中心 UI 改版后卡片文案可能无「到手价」，识别规则见下节），先用原生鼠标移动 hover，再抓取商品信息：
    - `imageUrl`
    - `productName` + `productLink`：优先取商品标题外层的 `a[href][data-spm-click*=d_good_select_list_title_click]`，也就是标题区域的详情页超链接。
    - `price`
@@ -80,6 +83,16 @@
 12. 打开“推广位名称”，选择首个数字等于 `adSiteName` 的选项。
 13. 点击“确认”。
 14. 回到素材弹窗，点击“一键复制”，读取 `promotionUrl`。
+
+## 商品卡片识别（选品中心 UI）
+
+2026-05 起阿里妈妈选品列表常见文案为「佣金率 / 单件佣金 / 2件单价￥xx / 立即推广」，**不再固定显示「到手价」**。
+
+`TbPromotionUrlTask` 中以下逻辑已统一放宽（`scrollToFirstProductCard`、`markFirstProductCard.scoreCard`、`readFirstProductTitle`、`markFirstPromoteButton.goodCard`）：
+
+- **必须同时满足**：含 `佣金率` / `单件佣金` / `月支出佣金` 之一；且含 `立即推广` / `￥` / `单价` 之一；含商品图。
+- **尺寸过滤**：卡片宽约 220~760px、高约 180~560px，避免命中侧栏筛选或引导弹层。
+- **不再要求**：正文必须包含「到手价」。
 
 ## 本地验证
 
@@ -105,3 +118,28 @@ mvn -pl crawler-bootstrap -am "-Dmaven.test.skip=false" "-DskipTests=false" "-Dt
 - 入参：`keyword=西麦纯燕麦片3kg高蛋白质0添加蔗糖即食谷物速食懒人代餐冲饮早餐`，`adSiteName=5`，`profileName=common`
 - 结果：`status=PAGE_CHANGED`，`message=TB promotion slider verify not cleared while entering goods page`
 - 明细：进入选品页后在 `02-goods-ready-slider` 检测到滑块浮层，自动重试 3 次均未找到可拖拽把手，已保存 debug 快照到 `target/tb-promotion-url-debug`
+
+2026-05-27 本地验证记录（滑块 + 商品卡识别修复后）：
+
+| 项 | 结果 |
+| --- | --- |
+| 入参 | `keyword=西麦纯燕麦片3kg高蛋白质0添加蔗糖即食谷物速食懒人代餐冲饮早餐`，`adSiteName=5` |
+| Sannysoft | 通过，`webdriver=null` |
+| 状态 | `SUCCESS` |
+| `promotionUrl` | `https://m.tb.cn/h.R4nODXt` |
+| 商品 | 西麦纯燕麦片3kg…；店铺 seamild西麦旗舰店；佣金率 1.80%；价格 ￥40.40 |
+| 滑块 | 本次未触发；历史 iframe 形态已由公共 `SliderVerifyHandler` 支持 |
+| 商品卡 | 放宽「到手价」硬要求后，`05-product-card-missing` 问题已消除 |
+| Debug | `target/tb-promotion-url-debug/common/西麦纯燕麦片3kg…-20260527_111852_894` |
+
+集成验证命令（与上节相同）：
+
+```powershell
+mvn -pl crawler-bootstrap -am "-Dmaven.test.skip=false" "-DskipTests=false" "-Dtest=TbPromotionUrlTaskTests#tbPromotionUrlIntegrationShouldSaveReadableDebugSnapshot" "-Dtb.promotion.url.integration=true" test
+```
+
+订单任务集成验证（对照）：
+
+```powershell
+mvn -pl crawler-bootstrap -am "-Dmaven.test.skip=false" "-DskipTests=false" "-Dtest=TbPromotionOrdersTaskTests#tbPromotionOrdersIntegrationShouldSaveReadableDebugSnapshot" "-Dtb.promotion.orders.integration=true" "-Dtb.promotion.orders.startTime=2026-04-27" "-Dtb.promotion.orders.endTime=2026-05-27" test
+```

@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -842,7 +843,9 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
                 "var roots=Array.prototype.slice.call(document.querySelectorAll('[data-spm=\"GoodsListItem\"],.GoodsListPlus__CardList-sc-1i2w9r2-0>div,div,li'));" +
                 "for(var i=0;i<roots.length;i++){var card=roots[i];if(!visible(card)||card.querySelectorAll('img').length===0){continue;}" +
-                "var t=norm(card.innerText||card.textContent);if(!((t.indexOf('佣金率')>=0||t.indexOf('佣金')>=0)&&t.indexOf('到手价')>=0)){continue;}" +
+                "var t=norm(card.innerText||card.textContent);" +
+                // 兼容选品中心改版后无「到手价」：只要含佣金/单件佣金/月支出佣金 + 立即推广/￥ 即认作商品卡。
+                "if(!((t.indexOf('佣金率')>=0||t.indexOf('单件佣金')>=0||t.indexOf('月支出佣金')>=0)&&(t.indexOf('立即推广')>=0||t.indexOf('￥')>=0||t.indexOf('单价')>=0))){continue;}" +
                 "var a=card.querySelector('a[data-spm-click*=\"title\"],[class*=\"title-wrap\"], [class*=\"title\"]');" +
                 "return norm(a?(a.innerText||a.textContent):t).substring(0,160);}" +
                 "return '';");
@@ -876,11 +879,12 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
     }
 
     private void scrollToFirstProductCard(Browser browser, TbPromotionConfig config) {
+        // 阿里妈妈选品中心改版后不再固定显示「到手价」，统一改成「佣金率 + 立即推广」识别商品卡。
         browser.executeScript("function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
                 "var marker=null,nodes=Array.prototype.slice.call(document.querySelectorAll('div,li,section,article'));" +
                 "for(var i=0;i<nodes.length;i++){var e=nodes[i],t=norm(e.innerText);if(!visible(e)||e.querySelectorAll('img').length===0){continue;}" +
-                "if((t.indexOf('佣金率')>=0||t.indexOf('佣金')>=0)&&t.indexOf('到手价')>=0){marker=e;break;}}" +
+                "if((t.indexOf('佣金率')>=0||t.indexOf('单件佣金')>=0||t.indexOf('月支出佣金')>=0)&&(t.indexOf('立即推广')>=0||t.indexOf('￥')>=0)){marker=e;break;}}" +
                 "if(marker){marker.scrollIntoView({block:'center',inline:'center'});window.scrollBy(0,120);}else{window.scrollBy(0,Math.floor(window.innerHeight*0.7));}");
         Extends.sleep(Math.max(800, config.nextStepDelayMillis()));
     }
@@ -917,8 +921,12 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;}" +
                 "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
+                // 选品中心改版后卡片不再固定带「到手价」，宽松匹配：必须含「佣金率/单件佣金/月支出佣金」之一，
+                // 且含「立即推广」按钮或￥价格，过滤掉左侧筛选/导航/小二推荐弹窗等噪声节点。
                 "function scoreCard(el){var r=el.getBoundingClientRect(),t=text(el);if(!visible(el)||r.width<220||r.width>760||r.height<180||r.height>560||el.querySelectorAll('img').length===0){return 999999999;}" +
-                "if(!((t.indexOf('佣金率')>=0||t.indexOf('佣金')>=0)&&t.indexOf('到手价')>=0)){return 999999999;}" +
+                "var hasCommission=(t.indexOf('佣金率')>=0||t.indexOf('单件佣金')>=0||t.indexOf('月支出佣金')>=0);" +
+                "var hasPrice=(t.indexOf('立即推广')>=0||t.indexOf('￥')>=0||t.indexOf('单价')>=0);" +
+                "if(!(hasCommission&&hasPrice)){return 999999999;}" +
                 "return Math.max(0,r.top)*10000+Math.max(0,r.left)+r.width*r.height/100000;}" +
                 "var nodes=Array.prototype.slice.call(document.querySelectorAll('div,li,section,article')),card=null,best=999999999;" +
                 "for(var i=0;i<nodes.length;i++){var sc=scoreCard(nodes[i]);if(sc<best){best=sc;card=nodes[i];}}" +
@@ -975,7 +983,8 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
                 "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
                 "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
-                "function goodCard(el){for(var p=el;p&&p!==document.body;p=p.parentElement){var t=text(p);if((t.indexOf('佣金率')>=0||t.indexOf('佣金')>=0)&&t.indexOf('到手价')>=0&&p.querySelectorAll('img').length>0){return true;}}return false;}" +
+                // 兼容选品中心改版后无「到手价」：用「佣金 + 立即推广/价格」识别商品卡作用域。
+                "function goodCard(el){for(var p=el;p&&p!==document.body;p=p.parentElement){var t=text(p);if((t.indexOf('佣金率')>=0||t.indexOf('单件佣金')>=0||t.indexOf('月支出佣金')>=0)&&(t.indexOf('立即推广')>=0||t.indexOf('￥')>=0||t.indexOf('单价')>=0)&&p.querySelectorAll('img').length>0){return true;}}return false;}" +
                 "function mark(el){var target=el.closest('button,a,[role=\"button\"]')||el;target.setAttribute(attr,'1');target.scrollIntoView({block:'center',inline:'center'});return true;}" +
                 "var scoped=document.querySelector('[data-rx-tb-promo-card=\"1\"]'),roots=scoped?[scoped]:[document.body];" +
                 "if(scoped){var primary=scoped.querySelector('.good-card-promotion-btn,[data-spm-click*=\"d_good_detail_promo\"]');if(primary&&mark(primary)){return true;}}" +
@@ -1021,7 +1030,8 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
                 "var store=extract(full,/店铺名称[:：]\\s*([^\\n\\r]+?)(?:类目[:：]|2小时推广销量|月推广销量|券量|更多信息|$)/);" +
                 "if(!store){var ns=Array.prototype.slice.call(card.querySelectorAll('a,span,div'));for(var j=0;j<ns.length;j++){var st=text(ns[j]);if(visible(ns[j])&&/店$|旗舰店|专卖店|店铺/.test(st)&&st.length<=50){store=st;break;}}}" +
                 "return {imageUrl:normalizeUrl(pickImage(card)),productName:name,productLink:normalizeUrl(link)," +
-                "commissionRate:extract(full,/(?:佣金率|佣金比例)[:：]?\\s*([0-9.]+%)/),price:extract(full,/到手价\\s*[￥¥]?\\s*([0-9.]+(?:\\.[0-9]+)?)/),storeName:store};");
+                // 价格优先「到手价」(老版)，回退「单价/￥/¥」(新版直接显示价格)。
+                "commissionRate:extract(full,/(?:佣金率|佣金比例)[:：]?\\s*([0-9.]+%)/),price:(extract(full,/到手价\\s*[￥¥]?\\s*([0-9.]+(?:\\.[0-9]+)?)/)||extract(full,/(?:单价|2件单价|到手)?\\s*[￥¥]\\s*([0-9.]+(?:\\.[0-9]+)?)/)),storeName:store};");
         if (raw == null || raw.isEmpty()) {
             return null;
         }
@@ -1131,19 +1141,49 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
 
     private boolean nativeClickAdSiteOption(Browser browser, String adSiteName) {
         String selector = "[data-rx-tb-adsite-option='1']";
-        Boolean marked = browser.executeScript("var target=String(arguments[0]||''),attr='data-rx-tb-adsite-option';" +
+        // 限定在「最新打开的下拉 popup」内查找选项（next-select-menu / next-virtual-list-wrapper / role=listbox），
+        // 避免命中页面其它列表里同样以数字开头的项；目标数字必须为 token（前后非数字），不能被 `50`/`51` 模糊命中。
+        Object marked = browser.executeScript("var target=String(arguments[0]||'').trim(),attr='data-rx-tb-adsite-option';" +
                 "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
                 "function norm(s){return (s||'').replace(/\\s+/g,' ').trim();}" +
-                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
+                "function visible(el){if(!el){return false;}var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
                 "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('li,div,span,a,[role=\"option\"]')),best=null,bestScore=999999;" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e),m=t.match(/^\\s*(\\d+)/);if(!m||m[1]!==target){continue;}" +
-                "var r=e.getBoundingClientRect(),score=Math.abs(r.top-260)+r.width*r.height/3000;if(score<bestScore){best=e;bestScore=score;}}" +
-                "if(!best){return false;}var targetEl=best.closest('li,a,[role=\"option\"]')||best;targetEl.setAttribute(attr,'1');targetEl.scrollIntoView({block:'center',inline:'center'});return true;", adSiteName);
-        if (!Boolean.TRUE.equals(marked)) {
-            return false;
+                "function zIndex(el){var z=0;for(var p=el;p&&p!==document.body;p=p.parentElement){var v=parseInt(getComputedStyle(p).zIndex||'0',10);if(!isNaN(v)&&v>z){z=v;}}return z;}" +
+                "var popups=Array.prototype.slice.call(document.querySelectorAll('.next-select-menu,.next-virtual-list-wrapper,.next-menu,[role=\"listbox\"],.next-overlay-wrapper'));" +
+                "var scope=null,bestZ=-1;for(var p=0;p<popups.length;p++){var pop=popups[p];if(!visible(pop)){continue;}var z=zIndex(pop);if(z>=bestZ){bestZ=z;scope=pop;}}" +
+                "if(!scope){scope=document;}" +
+                // token 匹配：前后必须非数字，避免 \"5\" 命中 \"50\" / \"51\"
+                "var re=new RegExp('(^|[^0-9])'+target.replace(/[.*+?^${}()|\\[\\]\\\\]/g,'\\\\$&')+'([^0-9]|$)');" +
+                "var items=Array.prototype.slice.call(scope.querySelectorAll('li,[role=\"option\"],.next-menu-item,.next-virtual-list-item,a,div,span'));" +
+                "var best=null,bestScore=-1e9;" +
+                "for(var i=0;i<items.length;i++){var e=items[i];if(!visible(e)){continue;}var t=text(e);if(!t||!re.test(t)){continue;}" +
+                "var item=e.closest('li,[role=\"option\"],.next-menu-item,.next-virtual-list-item')||e;if(!visible(item)){continue;}" +
+                "var r=item.getBoundingClientRect();" +
+                // 倾向选项体（高度 25-60px），且文本越短越像 \"adSiteName\" 本身
+                "var sc=0;if(r.height>=24&&r.height<=64){sc+=300;}sc-=Math.min(200,Math.max(0,t.length-target.length)*3);sc-=Math.abs(r.top);" +
+                "if(item.tagName==='LI'||item.getAttribute('role')==='option'){sc+=200;}" +
+                "if(sc>bestScore){bestScore=sc;best=item;}}" +
+                "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});" +
+                "var br=best.getBoundingClientRect();return {x:br.left+br.width/2,y:br.top+br.height/2,text:text(best).substring(0,30)};", adSiteName);
+        if (marked instanceof Map) {
+            Map<?, ?> info = (Map<?, ?>) marked;
+            Object x = info.get("x"), y = info.get("y");
+            log.info("Clicking ad site option '{}' at ({}, {}) text='{}'", adSiteName, x, y, info.get("text"));
+            if (x instanceof Number && y instanceof Number) {
+                try {
+                    double cx = ((Number) x).doubleValue();
+                    double cy = ((Number) y).doubleValue();
+                    browser.mouseMove(cx, cy);
+                    Extends.sleep(120 + ThreadLocalRandom.current().nextLong(80, 220));
+                    browser.mouseClick(cx, cy);
+                    return true;
+                } catch (Exception mouseError) {
+                    log.debug("Native mouse click ad site option fail, fallback to elementClick: {}", mouseError.getMessage());
+                }
+            }
+            return nativeClickMarkedElement(browser, selector);
         }
-        return nativeClickMarkedElement(browser, selector);
+        return Boolean.TRUE.equals(marked) && nativeClickMarkedElement(browser, selector);
     }
 
     private boolean nativeClickFormSelect(Browser browser, String fieldId, String attr) {
@@ -1220,12 +1260,21 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
         return nativeClickMarkedElement(browser, selector);
     }
 
+    /**
+     * 真实鼠标拟人点击：mouseMove → 短暂 hover → mouseClick；
+     * 拿不到坐标时回退到 Playwright `elementClick` 合成事件。Next UI 部分按钮依赖 hover 状态，
+     * 用真实鼠标可避免 \"看似没点好\" 的隐患。
+     */
     private boolean nativeClickMarkedElement(Browser browser, String selector) {
+        if (nativeMouseClickMarkedElement(browser, selector)) {
+            return true;
+        }
         try {
             browser.elementClick(selector, false);
             return true;
         } catch (Exception clickError) {
-            return nativeMouseClickMarkedElement(browser, selector);
+            log.debug("Marked element click fallback fail, selector={}, error={}", selector, clickError.getMessage());
+            return jsClickMarkedElement(browser, selector);
         }
     }
 
@@ -1237,9 +1286,16 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
             }
             double x = ((Number) point.get("x")).doubleValue();
             double y = ((Number) point.get("y")).doubleValue();
+            if (x < 1 || y < 1) {
+                return false;
+            }
+            log.info("Native mouse click '{}' at ({}, {})", selector, x, y);
+            browser.mouseMove(x, y);
+            Extends.sleep(120 + ThreadLocalRandom.current().nextLong(80, 220));
             browser.mouseClick(x, y);
             return true;
         } catch (Exception moveError) {
+            log.debug("Native mouse click fail, selector={}, error={}", selector, moveError.getMessage());
             return false;
         }
     }
@@ -1261,24 +1317,66 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
 
     private boolean nativeClickDialogButton(Browser browser, String text) {
         String selector = "[data-rx-tb-dialog-button='1']";
-        Boolean marked = browser.executeScript("var target=String(arguments[0]||'').replace(/\\s+/g,'').trim(),attr='data-rx-tb-dialog-button';" +
+        // 在「最顶层（最后插入 / z-index 最高）的对话框」内精确定位 "确认/确定" 主按钮，避免命中页面其它同名按钮。
+        // 优先级：button.next-btn-primary > button > [role=button] > a；并选 dialog 内最靠右下的候选（Next UI 主按钮在弹窗底部右侧）。
+        Object marked = browser.executeScript("var target=String(arguments[0]||'').replace(/\\s+/g,'').trim(),attr='data-rx-tb-dialog-button';" +
                 "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
+                "function visible(el){if(!el){return false;}var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
                 "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,[role=\"button\"],span,div')),best=null,bestScore=999999;" +
-                "for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e);if(t!==target){continue;}" +
-                "var targetEl=e.closest('button,a,[role=\"button\"]')||e;if(!visible(targetEl)){continue;}var tt=text(targetEl);if(tt.indexOf('取消')>=0&&target.indexOf('取消')<0){continue;}" +
-                "var r=targetEl.getBoundingClientRect(),score=Math.abs(r.top-window.innerHeight*0.65)+r.width*r.height/1000;if(score<bestScore){best=targetEl;bestScore=score;}}" +
-                "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});return true;", text);
-        if (!Boolean.TRUE.equals(marked)) {
+                "function zIndex(el){var z=0;for(var p=el;p&&p!==document.body;p=p.parentElement){var v=parseInt(getComputedStyle(p).zIndex||'0',10);if(!isNaN(v)&&v>z){z=v;}}return z;}" +
+                // 1) 先找最顶层 dialog scope：next-overlay-wrapper / next-dialog / [role=dialog] / ant-modal
+                "var dialogs=Array.prototype.slice.call(document.querySelectorAll('.next-overlay-wrapper,.next-dialog,[role=\"dialog\"],.ant-modal,.modal'));" +
+                "var scope=null,bestZ=-1;" +
+                "for(var d=0;d<dialogs.length;d++){var dlg=dialogs[d];if(!visible(dlg)){continue;}var z=zIndex(dlg);if(z>=bestZ){bestZ=z;scope=dlg;}}" +
+                "if(!scope){scope=document;}" +
+                // 2) 在 scope 内查找文本恰为目标的按钮；过滤含\"取消\"的 wrapper
+                "var candidates=Array.prototype.slice.call(scope.querySelectorAll('button,a,[role=\"button\"],span,div'));" +
+                "var best=null,bestScore=-1e9;" +
+                "for(var i=0;i<candidates.length;i++){var e=candidates[i];if(!visible(e)){continue;}var t=text(e);if(t!==target){continue;}" +
+                "var btn=e.closest('button,a,[role=\"button\"]')||e;if(!visible(btn)){continue;}" +
+                "var tt=text(btn);if(tt.indexOf('取消')>=0&&target.indexOf('取消')<0){continue;}" +
+                "if(tt.length>16){continue;}" +
+                "var cls=String(btn.className||'').toLowerCase(),tag=btn.tagName;" +
+                "var r=btn.getBoundingClientRect();" +
+                // 评分：主按钮加权 + 越靠近 dialog 右下越优
+                "var sc=0;" +
+                "if(cls.indexOf('next-btn-primary')>=0||cls.indexOf('btn-primary')>=0||cls.indexOf('ant-btn-primary')>=0){sc+=500;}" +
+                "if(tag==='BUTTON'){sc+=200;}else if(tag==='A'){sc+=50;}" +
+                "sc+=r.top+r.left;" + // 越靠下越靠右越优
+                "if(sc>bestScore){bestScore=sc;best=btn;}}" +
+                "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});" +
+                "var br=best.getBoundingClientRect();" +
+                "return {x:br.left+br.width/2,y:br.top+br.height/2,w:br.width,h:br.height,tag:best.tagName+'#'+(best.id||'')+'.'+String(best.className||'').split(' ')[0]};", text);
+        if (!(marked instanceof Map) && !Boolean.TRUE.equals(marked)) {
             return false;
+        }
+        // 真实鼠标 hover + click，避免合成事件被 Next UI 当 noop
+        if (marked instanceof Map) {
+            Map<?, ?> info = (Map<?, ?>) marked;
+            Object x = info.get("x"), y = info.get("y");
+            if (x instanceof Number && y instanceof Number) {
+                try {
+                    double cx = ((Number) x).doubleValue();
+                    double cy = ((Number) y).doubleValue();
+                    if (cx > 1 && cy > 1) {
+                        log.info("Clicking dialog button '{}' at ({}, {}) tag={}", text, cx, cy, info.get("tag"));
+                        // 先 hover 模拟真人鼠标抵达，再点击
+                        browser.mouseMove(cx, cy);
+                        Extends.sleep(120 + ThreadLocalRandom.current().nextLong(80, 220));
+                        browser.mouseClick(cx, cy);
+                        return true;
+                    }
+                } catch (Exception mouseError) {
+                    log.debug("Native mouse click dialog button fail, fallback to elementClick: {}", mouseError.getMessage());
+                }
+            }
         }
         try {
             browser.elementClick(selector, false);
             return true;
         } catch (Exception e) {
-            return false;
+            return jsClickMarkedElement(browser, selector);
         }
     }
 
@@ -1320,25 +1418,56 @@ public class TbPromotionUrlTask implements CustomCrawlTask<PromotionUrlRequest, 
 
     private boolean nativeClickByText(Browser browser, String text, boolean exact) {
         String selector = "[data-rx-tb-click-target='1']";
-        Boolean marked = browser.executeScript("var target=String(arguments[0]||'').replace(/\\s+/g,'').trim(),exact=arguments[1],attr='data-rx-tb-click-target';" +
+        // 「一键复制」等按钮通常位于最顶层对话框右下；优先在最高 z-index 的 dialog/overlay 内查找，
+        // 文本严格匹配并打日志，避免命中页面其它同文案元素。
+        Object marked = browser.executeScript("var target=String(arguments[0]||'').replace(/\\s+/g,'').trim(),exact=arguments[1],attr='data-rx-tb-click-target';" +
                 "Array.prototype.slice.call(document.querySelectorAll('['+attr+']')).forEach(function(e){e.removeAttribute(attr);});" +
                 "function norm(s){return (s||'').replace(/\\s+/g,'').trim();}" +
-                "function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
+                "function visible(el){if(!el){return false;}var s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&!el.disabled&&el.getAttribute('aria-disabled')!=='true';}" +
                 "function text(el){return norm(el.innerText||el.textContent||el.value||el.getAttribute('title')||el.getAttribute('aria-label'));}" +
-                "var nodes=Array.prototype.slice.call(document.querySelectorAll('button,a,[role=\"button\"],li,span,div'));" +
-                "var best=null,bestScore=999999;for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e);if(!t){continue;}" +
-                "var matched=exact?t===target:t.indexOf(target)>=0;if(!matched){continue;}var targetEl=e.closest('button,a,[role=\"button\"]')||e;" +
-                "var r=targetEl.getBoundingClientRect(),score=(t===target?0:100)+r.width*r.height/1000+Math.abs(r.top-260);if(score<bestScore){best=targetEl;bestScore=score;}}" +
-                "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});return true;", text, exact);
-        if (!Boolean.TRUE.equals(marked)) {
-            return false;
+                "function zIndex(el){var z=0;for(var p=el;p&&p!==document.body;p=p.parentElement){var v=parseInt(getComputedStyle(p).zIndex||'0',10);if(!isNaN(v)&&v>z){z=v;}}return z;}" +
+                "var dialogs=Array.prototype.slice.call(document.querySelectorAll('.next-overlay-wrapper,.next-dialog,[role=\"dialog\"],.ant-modal'));" +
+                "var scope=null,bestZ=-1;for(var d=0;d<dialogs.length;d++){var dlg=dialogs[d];if(!visible(dlg)){continue;}var z=zIndex(dlg);if(z>=bestZ){bestZ=z;scope=dlg;}}" +
+                "var scopes=scope?[scope,document]:[document];" + // 顶层 dialog 找不到时回退到整个 document
+                "var best=null,bestScore=-1e9;" +
+                "for(var sIdx=0;sIdx<scopes.length;sIdx++){var sc=scopes[sIdx];" +
+                "  var nodes=Array.prototype.slice.call(sc.querySelectorAll('button,a,[role=\"button\"],li,span,div'));" +
+                "  for(var i=0;i<nodes.length;i++){var e=nodes[i];if(!visible(e)){continue;}var t=text(e);if(!t){continue;}" +
+                "  var matched=exact?t===target:t.indexOf(target)>=0;if(!matched){continue;}" +
+                "  var btn=e.closest('button,a,[role=\"button\"]')||e;if(!visible(btn)){continue;}" +
+                "  var tt=text(btn);if(tt.length>32){continue;}" +
+                "  var r=btn.getBoundingClientRect(),cls=String(btn.className||'').toLowerCase();" +
+                "  var score=0;if(sIdx===0){score+=1000;}" +
+                "  if(cls.indexOf('btn-primary')>=0){score+=400;}" +
+                "  if(btn.tagName==='BUTTON'){score+=200;}" +
+                "  if(t===target){score+=100;}" +
+                "  score+=r.top+r.left;" +
+                "  if(score>bestScore){bestScore=score;best=btn;}}" +
+                "  if(best){break;}" +
+                "}" +
+                "if(!best){return false;}best.setAttribute(attr,'1');best.scrollIntoView({block:'center',inline:'center'});" +
+                "var br=best.getBoundingClientRect();return {x:br.left+br.width/2,y:br.top+br.height/2,tag:best.tagName+'#'+(best.id||'')+'.'+String(best.className||'').split(' ')[0],text:text(best).substring(0,30)};", text, exact);
+        if (marked instanceof Map) {
+            Map<?, ?> info = (Map<?, ?>) marked;
+            log.info("Clicking '{}' at ({}, {}) tag={} text='{}'", text, info.get("x"), info.get("y"), info.get("tag"), info.get("text"));
+            Object x = info.get("x"), y = info.get("y");
+            if (x instanceof Number && y instanceof Number) {
+                double cx = ((Number) x).doubleValue();
+                double cy = ((Number) y).doubleValue();
+                if (cx > 1 && cy > 1) {
+                    try {
+                        browser.mouseMove(cx, cy);
+                        Extends.sleep(120 + ThreadLocalRandom.current().nextLong(80, 220));
+                        browser.mouseClick(cx, cy);
+                        return true;
+                    } catch (Exception mouseError) {
+                        log.debug("nativeClickByText mouse click fail, fallback: {}", mouseError.getMessage());
+                    }
+                }
+            }
+            return nativeClickMarkedElement(browser, selector);
         }
-        try {
-            browser.elementClick(selector, false);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        return Boolean.TRUE.equals(marked) && nativeClickMarkedElement(browser, selector);
     }
 
     private Map<String, Object> collectDialogDiagnostics(Browser browser) {

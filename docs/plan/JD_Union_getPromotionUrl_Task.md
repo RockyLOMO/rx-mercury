@@ -560,6 +560,7 @@ promotionUrl: https://u.jd.com/f6FcZZw
 
 ## 维护记录
 
+- 2026-05-27：淘宝联盟公共能力同步（详见 [TB_getPromotionOrders_Task.md](./TB_getPromotionOrders_Task.md)、[TB_getPromotionUrl_Task.md](./TB_getPromotionUrl_Task.md)）：`WebBrowser` 移除 `--enable-automation`；`SliderVerifyHandler` 失败后刷新换 NC 挑战、NC handle 严格识别与 iframe 坐标；`getTbPromotionUrl` 商品卡不再要求「到手价」。集成验证：`getTbPromotionOrders` / `getTbPromotionUrl` 均 `SUCCESS`。
 - 2026-05-26：新增 `app.custom.chrome.closeBrowserAfterTask` 配置，默认 `false`；JD/TB 公共 `BrowserProfileManager` 在任务完成后保留并复用同 profile 的 Chrome 会话，减少反复启动和关闭浏览器耗时，设置为 `true` 可恢复任务完成即关闭。
 - 2026-05-15：同步记录公共依赖与滑块检测维护；Lombok 升级到 `1.18.46`，淘宝联盟公共滑块检测改为 URL、页面文案、可见浮层 DOM 三路判断；京东联盟推广链接主流程无代码变更。
 - 2026-05-15：补充淘宝联盟滑块清除等待修正；原因是滑块清除后页面残留隐藏的 `nc_*` / `baxia` / `nocaptcha` 风控 DOM，旧逻辑误判滑块仍存在并在 `waitSliderVerifyCleared` 等到超时；现改为只认可见风控节点，订单集成验证 `2026-04-15` 至 `2026-05-15` 返回 `SUCCESS`。
