@@ -85,6 +85,9 @@ app:
       profileBasePath: ./data/chrome
       defaultProfileName: common
       closeBrowserAfterTask: false
+      maxActive: 3
+      minIdle: 1
+      preWarm: true
     jdUnion:
       profileName: common
       fingerprintEnabled: true

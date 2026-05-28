@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.rx.crawler.service.BrowserType;
 import org.rx.crawler.config.AppConfig;
-import org.rx.crawler.service.BrowserPool;
 import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.rx.net.http.HttpClientCookieJar;
@@ -16,7 +15,6 @@ import static org.rx.core.Extends.tryClose;
 
 @Slf4j
 public class DevTest {
-    BrowserPool pool;
 
     public WebBrowser init(BrowserType type) {
         AppConfig config = new AppConfig();

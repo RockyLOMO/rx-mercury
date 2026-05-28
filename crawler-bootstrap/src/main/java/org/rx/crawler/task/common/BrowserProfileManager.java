@@ -10,11 +10,21 @@ import org.rx.crawler.service.impl.WebBrowser;
 import org.rx.crawler.service.impl.WebBrowserConfig;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.rx.core.Extends.tryClose;
@@ -26,8 +36,38 @@ public class BrowserProfileManager {
     private static final String SAFE_PROFILE_NAME = "[^a-zA-Z0-9_\\-]";
 
     private final AppConfig appConfig;
-    private final Map<String, ReentrantLock> profileLocks = new ConcurrentHashMap<String, ReentrantLock>();
-    private final Map<String, ProfileSession> sessions = new ConcurrentHashMap<String, ProfileSession>();
+    private final Map<String, ProfilePool> profilePools = new ConcurrentHashMap<>();
+    private java.util.function.BiFunction<WebBrowserConfig, BrowserType, WebBrowser> browserFactory = WebBrowser::new;
+
+    public void setBrowserFactory(java.util.function.BiFunction<WebBrowserConfig, BrowserType, WebBrowser> browserFactory) {
+        this.browserFactory = browserFactory;
+    }
+
+    @PostConstruct
+    public void init() {
+        if (appConfig.getCustom().getChrome().isPreWarm()) {
+            int minIdle = appConfig.getCustom().getChrome().getMinIdle();
+            if (minIdle > 0) {
+                String defaultProfile = defaultProfileName();
+                new Thread(() -> {
+                    try {
+                        log.info("Pre-warming chrome profile {} with {} instances...", defaultProfile, minIdle);
+                        List<ProfileLease> leases = new ArrayList<>();
+                        for (int i = 0; i < minIdle; i++) {
+                            WebBrowserConfig config = org.rx.util.BeanMapper.DEFAULT.map(appConfig.getBrowser(), WebBrowserConfig.class);
+                            leases.add(acquire(defaultProfile, config));
+                        }
+                        for (ProfileLease lease : leases) {
+                            lease.close();
+                        }
+                        log.info("Pre-warming chrome profile {} completed.", defaultProfile);
+                    } catch (Exception e) {
+                        log.warn("Pre-warming chrome profile failed: {}", e.getMessage(), e);
+                    }
+                }, "chrome-prewarm").start();
+            }
+        }
+    }
 
     public String defaultProfileName() {
         String profileName = appConfig.getCustom().getChrome().getDefaultProfileName();
@@ -54,34 +94,84 @@ public class BrowserProfileManager {
         return path;
     }
 
+    public String resolveInstanceProfilePath(String profileName, int index) {
+        String basePath = appConfig.getCustom().getChrome().getProfileBasePath();
+        if (Strings.isEmpty(basePath)) {
+            basePath = new ChromeProfileConfig().getProfileBasePath();
+        }
+        String path = Paths.get(basePath, normalizeProfileName(profileName) + "_pool_" + index).toString();
+        try {
+            java.nio.file.Files.createDirectories(Paths.get(path));
+        } catch (Exception e) {
+            throw new IllegalStateException("Create chrome pool profile path fail: " + path, e);
+        }
+        return path;
+    }
+
+    private void cloneProfileDirectory(String sourcePath, String targetPath) {
+        try {
+            java.nio.file.Path source = Paths.get(sourcePath);
+            java.nio.file.Path target = Paths.get(targetPath);
+            if (!java.nio.file.Files.exists(source)) {
+                return;
+            }
+            if (!java.nio.file.Files.exists(target)) {
+                java.nio.file.Files.createDirectories(target);
+            }
+            syncCopy(source, target);
+        } catch (Exception e) {
+            log.warn("Clone profile directory failed from {} to {}, error={}", sourcePath, targetPath, e.getMessage(), e);
+        }
+    }
+
+    private void syncCopy(java.nio.file.Path source, java.nio.file.Path target) throws java.io.IOException {
+        java.nio.file.Files.walk(source).forEach(sourcePath -> {
+            try {
+                java.nio.file.Path targetPath = target.resolve(source.relativize(sourcePath));
+                String relPath = source.relativize(sourcePath).toString().replace("\\", "/");
+                if (isExcludePath(relPath)) {
+                    return;
+                }
+                
+                if (java.nio.file.Files.isDirectory(sourcePath)) {
+                    if (!java.nio.file.Files.exists(targetPath)) {
+                        java.nio.file.Files.createDirectories(targetPath);
+                    }
+                } else {
+                    if (!java.nio.file.Files.exists(targetPath) || 
+                        java.nio.file.Files.getLastModifiedTime(sourcePath).toMillis() > java.nio.file.Files.getLastModifiedTime(targetPath).toMillis() ||
+                        java.nio.file.Files.size(sourcePath) != java.nio.file.Files.size(targetPath)) {
+                        try {
+                            java.nio.file.Files.copy(sourcePath, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        } catch (java.io.IOException e) {
+                            log.debug("Ignore copy file error: {} -> {}, error={}", sourcePath, targetPath, e.getMessage());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Ignore copy error for path {}: {}", sourcePath, e.getMessage());
+            }
+        });
+    }
+    
+    private boolean isExcludePath(String relPath) {
+        String lower = relPath.toLowerCase();
+        return lower.contains("/cache/") 
+            || lower.contains("/code cache/") 
+            || lower.contains("/gpucache/") 
+            || lower.contains("/service worker/")
+            || lower.contains("/crashpad/")
+            || lower.contains("/lock")
+            || lower.endsWith("/lock")
+            || lower.contains("/singletoncookie")
+            || lower.contains("/singletonsocket")
+            || lower.contains("/singletonlock");
+    }
+
     public ProfileLease acquire(String profileName, WebBrowserConfig config) {
         String normalized = normalizeProfileName(profileName);
-        ReentrantLock lock = profileLocks.computeIfAbsent(normalized, k -> new ReentrantLock());
-        lock.lock();
-        try {
-            ProfileSession session = sessions.get(normalized);
-            if (session != null && (session.isExpired() || session.getBrowser().isClosed())) {
-                sessions.remove(normalized);
-                tryClose(session.getBrowser());
-                session = null;
-            }
-
-            WebBrowser browser;
-            boolean fromSession = session != null;
-            if (fromSession) {
-                browser = session.getBrowser();
-                log.info("Reuse chrome profile session {}", normalized);
-            } else {
-                config.setProfileDataPath(resolveProfileDataPath(normalized));
-                browser = new WebBrowser(config, BrowserType.CHROME);
-                log.info("Open chrome profile {} at {}", normalized, config.getProfileDataPath());
-            }
-            focus(browser);
-            return new ProfileLease(normalized, lock, browser, fromSession);
-        } catch (RuntimeException e) {
-            lock.unlock();
-            throw e;
-        }
+        ProfilePool pool = profilePools.computeIfAbsent(normalized, k -> new ProfilePool(normalized));
+        return pool.acquire(config);
     }
 
     private void focus(WebBrowser browser) {
@@ -94,30 +184,28 @@ public class BrowserProfileManager {
 
     public boolean closeSession(String profileName) {
         String normalized = normalizeProfileName(profileName);
-        ReentrantLock lock = profileLocks.computeIfAbsent(normalized, k -> new ReentrantLock());
-        lock.lock();
-        try {
-            ProfileSession session = sessions.remove(normalized);
-            if (session == null) {
-                return false;
-            }
-            tryClose(session.getBrowser());
-            return true;
-        } finally {
-            lock.unlock();
+        ProfilePool pool = profilePools.get(normalized);
+        if (pool == null) {
+            return false;
         }
+        pool.closeAll();
+        return true;
     }
 
     public int activeSessionCount() {
-        return sessions.size();
+        int count = 0;
+        for (ProfilePool pool : profilePools.values()) {
+            count += pool.activeCount();
+        }
+        return count;
     }
 
     @PreDestroy
     public void destroy() {
-        for (ProfileSession session : sessions.values()) {
-            tryClose(session.getBrowser());
+        for (ProfilePool pool : profilePools.values()) {
+            pool.closeAll();
         }
-        sessions.clear();
+        profilePools.clear();
     }
 
     @Getter
@@ -135,10 +223,170 @@ public class BrowserProfileManager {
         }
     }
 
+    private class ProfilePool {
+        private final String profileName;
+        private final int maxActive;
+        private final int minIdle;
+        private final List<ProfileSession> idleBrowsers = new ArrayList<>();
+        private final Set<WebBrowser> activeBrowsers = new HashSet<>();
+        private final Map<WebBrowser, Integer> browserPoolIndices = new ConcurrentHashMap<>();
+        private final Set<Integer> allocatedIndices = ConcurrentHashMap.newKeySet();
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Condition hasIdleOrCanCreate = lock.newCondition();
+
+        public ProfilePool(String profileName) {
+            this.profileName = profileName;
+            this.maxActive = appConfig.getCustom().getChrome().getMaxActive();
+            this.minIdle = appConfig.getCustom().getChrome().getMinIdle();
+        }
+
+        public ProfileLease acquire(WebBrowserConfig config) {
+            lock.lock();
+            try {
+                // Clean up expired or closed idle sessions
+                idleBrowsers.removeIf(session -> {
+                    if (session.isExpired() || session.getBrowser().isClosed()) {
+                        closeBrowser(session.getBrowser());
+                        return true;
+                    }
+                    return false;
+                });
+
+                // Wait until there is an idle browser, or we can create a new one
+                while (idleBrowsers.isEmpty() && activeBrowsers.size() >= maxActive) {
+                    log.info("Chrome profile pool {} is full (active={}), waiting for release...", profileName, activeBrowsers.size());
+                    hasIdleOrCanCreate.await();
+                    
+                    idleBrowsers.removeIf(session -> {
+                        if (session.isExpired() || session.getBrowser().isClosed()) {
+                            closeBrowser(session.getBrowser());
+                            return true;
+                        }
+                        return false;
+                    });
+                }
+
+                WebBrowser browser;
+                boolean fromSession;
+                int poolIndex;
+
+                if (!idleBrowsers.isEmpty()) {
+                    ProfileSession session = idleBrowsers.remove(idleBrowsers.size() - 1);
+                    browser = session.getBrowser();
+                    activeBrowsers.add(browser);
+                    fromSession = true;
+                    poolIndex = browserPoolIndices.getOrDefault(browser, 0);
+                    log.info("Reuse chrome profile session {} index {}", profileName, poolIndex);
+                } else {
+                    poolIndex = -1;
+                    for (int i = 0; i < maxActive; i++) {
+                        if (!allocatedIndices.contains(i)) {
+                            poolIndex = i;
+                            break;
+                        }
+                    }
+                    if (poolIndex == -1) {
+                        poolIndex = activeBrowsers.size();
+                    }
+                    allocatedIndices.add(poolIndex);
+
+                    String instanceProfilePath = resolveInstanceProfilePath(profileName, poolIndex);
+                    cloneProfileDirectory(resolveProfileDataPath(profileName), instanceProfilePath);
+
+                    WebBrowserConfig instanceConfig = org.rx.util.BeanMapper.DEFAULT.map(config, WebBrowserConfig.class);
+                    instanceConfig.setProfileDataPath(instanceProfilePath);
+                    browser = browserFactory.apply(instanceConfig, BrowserType.CHROME);
+
+                    activeBrowsers.add(browser);
+                    browserPoolIndices.put(browser, poolIndex);
+                    fromSession = false;
+                    log.info("Open chrome profile {} instance {} at {}", profileName, poolIndex, instanceProfilePath);
+                }
+
+                focus(browser);
+                return new ProfileLease(profileName, this, browser, fromSession);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while acquiring chrome profile: " + profileName, e);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        public void release(WebBrowser browser, boolean keepOpen, long keepOpenSeconds) {
+            lock.lock();
+            try {
+                activeBrowsers.remove(browser);
+
+                try {
+                    browser.saveCookies(false);
+                } catch (Exception e) {
+                    log.warn("Save chrome profile cookies fail, profile={}, error={}", profileName, e.getMessage());
+                }
+
+                boolean closeBrowser = appConfig.getCustom().getChrome().isCloseBrowserAfterTask();
+                if (closeBrowser) {
+                    closeBrowser(browser);
+                    log.info("Close chrome profile {} after task", profileName);
+                } else if (keepOpen) {
+                    long expireAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(keepOpenSeconds);
+                    idleBrowsers.add(new ProfileSession(browser, expireAt));
+                    log.info("Keep chrome profile {} instance open {} seconds", profileName, keepOpenSeconds);
+                } else {
+                    if (idleBrowsers.size() < minIdle && !browser.isClosed()) {
+                        idleBrowsers.add(new ProfileSession(browser, 0));
+                        log.info("Recycle chrome profile {} instance to pool, current idle size={}", profileName, idleBrowsers.size());
+                    } else {
+                        closeBrowser(browser);
+                        log.info("Close excess chrome profile {} instance, current idle size={}", profileName, idleBrowsers.size());
+                    }
+                }
+                hasIdleOrCanCreate.signal();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        public int activeCount() {
+            lock.lock();
+            try {
+                return activeBrowsers.size() + idleBrowsers.size();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        public void closeAll() {
+            lock.lock();
+            try {
+                for (ProfileSession session : idleBrowsers) {
+                    tryClose(session.getBrowser());
+                }
+                idleBrowsers.clear();
+                for (WebBrowser browser : activeBrowsers) {
+                    tryClose(browser);
+                }
+                activeBrowsers.clear();
+                allocatedIndices.clear();
+                browserPoolIndices.clear();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private void closeBrowser(WebBrowser browser) {
+            Integer poolIndex = browserPoolIndices.remove(browser);
+            if (poolIndex != null) {
+                allocatedIndices.remove(poolIndex);
+            }
+            tryClose(browser);
+        }
+    }
+
     public class ProfileLease implements AutoCloseable {
         @Getter
         private final String profileName;
-        private final ReentrantLock lock;
+        private final ProfilePool pool;
         @Getter
         private final WebBrowser browser;
         @Getter
@@ -146,9 +394,9 @@ public class BrowserProfileManager {
         private boolean keepOpen;
         private long keepOpenSeconds;
 
-        ProfileLease(String profileName, ReentrantLock lock, WebBrowser browser, boolean fromSession) {
+        ProfileLease(String profileName, ProfilePool pool, WebBrowser browser, boolean fromSession) {
             this.profileName = profileName;
-            this.lock = lock;
+            this.pool = pool;
             this.browser = browser;
             this.fromSession = fromSession;
         }
@@ -160,33 +408,7 @@ public class BrowserProfileManager {
 
         @Override
         public void close() {
-            try {
-                try {
-                    browser.saveCookies(false);
-                } catch (Exception e) {
-                    log.warn("Save chrome profile cookies fail, profile={}, error={}", profileName, e.getMessage());
-                }
-                if (!appConfig.getCustom().getChrome().isCloseBrowserAfterTask()) {
-                    sessions.put(profileName, new ProfileSession(browser, 0));
-                    log.info("Keep chrome profile {} open for task reuse", profileName);
-                    return;
-                }
-                if (keepOpen) {
-                    long expireAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(keepOpenSeconds);
-                    sessions.put(profileName, new ProfileSession(browser, expireAt));
-                    log.info("Keep chrome profile {} open {} seconds", profileName, keepOpenSeconds);
-                    return;
-                }
-
-                ProfileSession session = sessions.get(profileName);
-                if (session != null && session.getBrowser() == browser) {
-                    sessions.remove(profileName);
-                }
-                tryClose(browser);
-                log.info("Close chrome profile {} after task", profileName);
-            } finally {
-                lock.unlock();
-            }
+            pool.release(browser, keepOpen, keepOpenSeconds);
         }
     }
 }
