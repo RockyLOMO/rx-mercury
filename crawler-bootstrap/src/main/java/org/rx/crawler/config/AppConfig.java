@@ -36,13 +36,6 @@ public class AppConfig {
 
     @Data
     public static class BrowserPoolConfig {
-        private long maintenancePeriod;
-        private int maxActiveMinutes;
-        private long dumpPeriod;
-        private int takeTimeoutSeconds = 6;
-
-        private int poolSize = 2;
-        private boolean windowAutoBlank = true;
         private long waitMillis = 500;
         private int pageLoadTimeoutSeconds = 30;
         private int findElementTimeoutSeconds = 6;
@@ -114,6 +107,8 @@ public class AppConfig {
         private int harvestPerRunCount = 5;
         private int maxUrlsPerPlatform = 50;
         private String urlStorePath = "./data/keepalive/urls.json";
+        private String startTime;
+        private String endTime;
     }
 
     private BrowserPoolConfig browser = new BrowserPoolConfig();

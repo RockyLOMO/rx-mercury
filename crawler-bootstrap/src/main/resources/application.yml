@@ -81,6 +81,8 @@ app:
       harvestPerRunCount: 5
       maxUrlsPerPlatform: 50
       urlStorePath: ./data/keepalive/urls.json
+      startTime:
+      endTime:
     chrome:
       profileBasePath: ./data/chrome
       defaultProfileName: common

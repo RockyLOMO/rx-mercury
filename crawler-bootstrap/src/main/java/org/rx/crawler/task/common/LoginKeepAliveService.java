@@ -48,7 +48,15 @@ public class LoginKeepAliveService {
             fixedDelayString = "${app.custom.loginKeepAlive.fixedDelayMillis:1800000}")
     public void scheduledKeepAlive() {
         AppConfig.LoginKeepAliveConfig config = appConfig.getCustom().getLoginKeepAlive();
-        if (config == null || !config.isEnabled() || !running.compareAndSet(false, true)) {
+        if (config == null || !config.isEnabled()) {
+            return;
+        }
+        if (!isInKeepAliveTimeRange(config)) {
+            log.debug("Current time is not in keep-alive range [{} - {}], skip scheduled run",
+                    config.getStartTime(), config.getEndTime());
+            return;
+        }
+        if (!running.compareAndSet(false, true)) {
             return;
         }
         try {
@@ -61,6 +69,36 @@ public class LoginKeepAliveService {
         } finally {
             running.set(false);
         }
+    }
+
+    boolean isInKeepAliveTimeRange(AppConfig.LoginKeepAliveConfig config) {
+        String startTime = config.getStartTime();
+        String endTime = config.getEndTime();
+        if (Strings.isEmpty(startTime) || Strings.isEmpty(endTime)) {
+            return true;
+        }
+        try {
+            java.time.LocalTime start = parseLocalTime(startTime);
+            java.time.LocalTime end = parseLocalTime(endTime);
+            java.time.LocalTime now = java.time.LocalTime.now();
+            if (start.isBefore(end)) {
+                return !now.isBefore(start) && !now.isAfter(end);
+            } else {
+                return !now.isBefore(start) || !now.isAfter(end);
+            }
+        } catch (Exception e) {
+            log.warn("Parse loginKeepAlive startTime {} or endTime {} failed, fallback to 24h open: {}",
+                    startTime, endTime, e.getMessage());
+            return true;
+        }
+    }
+
+    private java.time.LocalTime parseLocalTime(String timeStr) {
+        String trimmed = timeStr.trim();
+        if (trimmed.length() == 5) {
+            return java.time.LocalTime.parse(trimmed, java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        }
+        return java.time.LocalTime.parse(trimmed);
     }
 
     public LoginKeepAliveResult checkJd() {
