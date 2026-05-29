@@ -3,6 +3,8 @@ server:
   tomcat:
     threads:
       min-spare: 5
+  ssl:
+    enabled: false
   max-http-header-size: 16KB
 spring:
   application:
