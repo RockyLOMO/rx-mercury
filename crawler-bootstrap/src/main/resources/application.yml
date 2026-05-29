@@ -2,7 +2,7 @@ server:
   port: 81
   tomcat:
     threads:
-      min-spare: 5
+      min-spare: 1
   ssl:
     enabled: false
   max-http-header-size: 16KB
