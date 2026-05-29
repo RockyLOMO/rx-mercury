@@ -23,3 +23,5 @@ rxdaemon-1.0.jar
 crawler-bootstrap/data
 crawler-bootstrap/geoip.mmdb
 crawler-bootstrap/browser-task-db.mv.db
+browser-task-db.mv.db
+data/

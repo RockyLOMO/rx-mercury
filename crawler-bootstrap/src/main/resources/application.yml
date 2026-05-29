@@ -1,15 +1,8 @@
 server:
-  httpPort: 80
-  port: 443
+  port: 80
   tomcat:
     threads:
       min-spare: 5
-  ssl:
-    key-store-type: PKCS12
-    key-store: classpath:cert/f-li.cn.pfx
-    enabled: true
-    client-auth: none
-    ciphers: TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA256
   max-http-header-size: 16KB
 spring:
   application:

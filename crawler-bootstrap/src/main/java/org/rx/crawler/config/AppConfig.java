@@ -39,7 +39,7 @@ public class AppConfig {
         private long waitMillis = 500;
         private int pageLoadTimeoutSeconds = 30;
         private int findElementTimeoutSeconds = 6;
-        private boolean headless = true;
+        private boolean headless = false;
         private String profileDataPath;
         private String downloadPath = "./temp/";
         private BrowserWindowRect windowRectangle = new BrowserWindowRect(0, 0, -1, -1);
@@ -117,10 +117,7 @@ public class AppConfig {
     private int fiddlerListenPort;
     private String cleanTaskTime = "03:00:00";
     private String baseDir = "";
-    @Value("${server.httpPort}")
-    private int httpPort;
-    @Value("${server.port}")
-    private int httpsPort;
+
 
     @Component
     @ConfigurationPropertiesBinding
